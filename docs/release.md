@@ -20,4 +20,4 @@ $ git push origin vX.Y.Z
 ```
 
 update brew formula
-https://github.com/showwin/homebrew-speedtest/blob/master/speedtest.rb#L3
+<https://github.com/showwin/homebrew-speedtest/blob/master/speedtest.rb#L3>

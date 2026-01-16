@@ -1,11 +1,14 @@
 # speedtest-go
+
 **Full-featured Command Line Interface and pure [Go API](#go-api) to Test Internet Speed using [speedtest.net](http://www.speedtest.net/)**.
 
 You can speedtest 2x faster than [speedtest.net](http://www.speedtest.net/) with almost the same result. [See the experimental results](https://github.com/showwin/speedtest-go#summary-of-experimental-results).
 Inspired by [sivel/speedtest-cli](https://github.com/sivel/speedtest-cli)
 
 ## CLI
+
 ### Installation
+
 #### macOS (homebrew)
 
 ```bash
@@ -18,6 +21,7 @@ $ brew upgrade speedtest
 ```
 
 #### [Nix](https://nixos.org) (package manager)
+
 ```bash
 # Enter the latest speedtest-go environment
 $ nix-shell -p speedtest-go
@@ -47,12 +51,15 @@ docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 -t yourusern
 #### Running the Container
 
 ##### Docker
+
 Run the container with default settings (interactive shell):
+
 ```bash
 docker run -it yourusername/speedtest-go:latest
 ```
 
 Run a speedtest with specific arguments:
+
 ```bash
 # Run a basic speedtest
 docker run yourusername/speedtest-go:latest speedtest-go
@@ -68,6 +75,7 @@ docker run yourusername/speedtest-go:latest speedtest-go --location=60,-110
 ```
 
 ##### Kubernetes
+
 Here's an example Kubernetes pod specification that runs a speedtest:
 
 ```yaml
@@ -110,48 +118,52 @@ spec:
 ### Usage
 
 ```bash
-$ speedtest --help
-usage: speedtest-go [<flags>]
+$ speedtest-go --help
+A command-line tool to test internet download and upload speeds using speedtest.net servers.
+
+Usage:
+  speedtest-go [flags]
+  speedtest-go [command]
+
+Available Commands:
+  cities      List predefined city labels
+  completion  Generate the autocompletion script for the specified shell
+  help        Help about any command
+  list        List available speedtest servers
 
 Flags:
-      --help                   Show context-sensitive help (also try --help-long and --help-man).
-  -l, --list                   Show available speedtest.net servers.
-  -s, --server=SERVER ...      Select server id to speedtest.
-      --custom-url=CUSTOM-URL  Specify the url of the server instead of fetching from speedtest.net.
-      --saving-mode            Test with few resources, though low accuracy (especially > 30Mbps).
-      --json                   Output results in json format.
-      --jsonl                  Output results in jsonl format (one json object per line).
-      --unix                   Output results in unix like format.
-      --location=LOCATION      Change the location with a precise coordinate (format: lat,lon).
-      --city=CITY              Change the location with a predefined city label.
-      --city-list              List all predefined city labels.
-      --proxy=PROXY            Set a proxy(http[s] or socks) for the speedtest.
-                               eg: --proxy=socks://10.20.0.101:7890
-                               eg: --proxy=http://10.20.0.101:7890
-      --source=SOURCE          Bind a source interface for the speedtest.
-      --dns-bind-source        DNS request binding source (experimental).
-                               eg: --source=10.20.0.101
-  -m  --multi                  Enable multi-server mode.
-  -t  --thread=THREAD          Set the number of concurrent connections.
-      --search=SEARCH          Fuzzy search servers by a keyword.
-      --ua                     Set the user-agent header for the speedtest.
-      --no-download            Disable download test.
-      --no-upload              Disable upload test.
-      --ping-mode              Select a method for Ping (support icmp/tcp/http).
-  -u  --unit                   Set human-readable and auto-scaled rate units for output 
-                               (options: decimal-bits/decimal-bytes/binary-bits/binary-bytes).
-  -d  --debug                  Enable debug mode.
-      --version                Show application version.
+      --config string       config file (default is $HOME/.speedtest-go.yaml)
+      --custom-url string   Specify the url of the server instead of fetching from speedtest.net.
+      --debug               Enable debug mode.
+      --dns-bind-source     DNS request binding source (experimental).
+  -h, --help                help for speedtest-go
+      --json                Output results in json format.
+      --jsonl               Output results in jsonl format (one json object per line).
+  -m, --multi               Enable multi-server mode.
+      --no-download         Disable download test.
+      --no-upload           Disable upload test.
+      --ping-mode string    Select a method for Ping (support icmp/tcp/http). (default "http")
+      --proxy string        Set a proxy(http[s] or socks) for the speedtest.
+      --saving-mode         Test with few resources, though low accuracy (especially > 30Mbps).
+  -s, --server ints         Select server id to run speedtest.
+      --source string       Bind a source interface for the speedtest.
+  -t, --thread int          Set the number of concurrent connections.
+      --ua string           Set the user-agent header for the speedtest.
+  -u, --unit string         Set human-readable and auto-scaled rate units for output (options: decimal-bits/decimal-bytes/binary-bits/binary-bytes).
+      --unix                Output results in unix like format.
+  -v, --version             version for speedtest-go
+
+Use "speedtest-go [command] --help" for more information about a command.
 ```
 
 #### Test Internet Speed
 
-Simply use `speedtest` command. The closest server is selected by default. Use the `-m` flag to enable multi-measurement mode (recommended)
+Simply use `speedtest-go` command. The closest server is selected by default. Use the `-m` flag to enable multi-measurement mode (recommended)
 
 ```bash
 ## unix like format output
-# speedtest --unix
-$ speedtest
+# speedtest-go --unix
+$ speedtest-go
 
     speedtest-go v1.7.10 @showwin
 
@@ -171,7 +183,7 @@ $ speedtest
 If you want to select other servers to test, you can see the available server list.
 
 ```bash
-$ speedtest --list
+$ speedtest-go list
 Testing From IP: 124.27.199.165 (Fujitsu) [34.9769, 138.3831]
 [6691]     9.03km   32.3365ms  Shizuoka (Japan) by sudosan
 [6087]   120.55km   51.7453ms  Fussa-shi (Japan) by Allied Telesis Capital Corporation
@@ -183,7 +195,7 @@ Testing From IP: 124.27.199.165 (Fujitsu) [34.9769, 138.3831]
 and select them by id.
 
 ```bash
-$ speedtest --server 6691 --server 6087
+$ speedtest-go --server 6691 --server 6087
 
     speedtest-go v1.7.10 @showwin
 
@@ -207,20 +219,23 @@ $ speedtest --server 6691 --server 6087
 
 #### Test with a virtual location
 
-With `--city` or `--location` option, the closest servers of the location will be picked.
-You can measure the speed between your location and the target location.
+You can test speed from a virtual location by first listing servers in a specific city or coordinates, then selecting server IDs to test against.
 
 ```bash
-$ speedtest --city-list
+$ speedtest-go cities
 Available city labels (case insensitive):
- CC             CityLabel       Location
+  CC             CityLabel       Location
 (za)                capetown    [-33.9391993, 18.4316716]
 (pl)                  warsaw    [52.2396659, 21.0129345]
 (sg)                  yishun    [1.4230218, 103.8404728]
 ...
 
-$ speedtest --city=capetown
-$ speedtest --location=60,-110
+$ speedtest-go list --city=capetown
+$ speedtest-go --server <server_id_from_list>
+
+# Or with coordinates
+$ speedtest-go list --location=60,-110
+$ speedtest-go --server <server_id_from_list>
 ```
 
 #### Memory Saving Mode
@@ -244,99 +259,102 @@ go get github.com/showwin/speedtest-go
 ### API Usage
 
 The [code](https://github.com/showwin/speedtest-go/blob/master/example/naive/main.go) below finds the closest available speedtest server and tests the latency, download, and upload speeds.
+
 ```go
 package main
 
 import (
-	"fmt"
-	"github.com/showwin/speedtest-go/speedtest"
+ "fmt"
+ "github.com/showwin/speedtest-go/speedtest"
 )
 
 func main() {
-	var speedtestClient = speedtest.New()
-	
-	// Use a proxy for the speedtest. eg: socks://127.0.0.1:7890
-	// speedtest.WithUserConfig(&speedtest.UserConfig{Proxy: "socks://127.0.0.1:7890"})(speedtestClient)
-	
-	// Select a network card as the data interface.
-	// speedtest.WithUserConfig(&speedtest.UserConfig{Source: "192.168.1.101"})(speedtestClient)
-	
-	// Get user's network information
-	// user, _ := speedtestClient.FetchUserInfo()
-	
-	// Get a list of servers near a specified location
-	// user.SetLocationByCity("Tokyo")
-	// user.SetLocation("Osaka", 34.6952, 135.5006)
-    
-	// Search server using serverID.
-	// eg: fetch server with ID 28910.
-	// speedtest.ErrServerNotFound will be returned if the server cannot be found.
-	// server, err := speedtest.FetchServerByID("28910")
-	
-	serverList, _ := speedtestClient.FetchServers()
-	targets, _ := serverList.FindServer([]int{})
+ var speedtestClient = speedtest.New()
 
-	for _, s := range targets {
-		// Please make sure your host can access this test server,
-		// otherwise you will get an error.
-		// It is recommended to replace a server at this time
-		s.PingTest(nil)
-		s.DownloadTest()
-		s.UploadTest()
-		// Note: The unit of s.DLSpeed, s.ULSpeed is bytes per second, this is a float64.
-		fmt.Printf("Latency: %s, Download: %s, Upload: %s\n", s.Latency, s.DLSpeed, s.ULSpeed)
-		s.Context.Reset() // reset counter
-	}
+ // Use a proxy for the speedtest. eg: socks://127.0.0.1:7890
+ // speedtest.WithUserConfig(&speedtest.UserConfig{Proxy: "socks://127.0.0.1:7890"})(speedtestClient)
+
+ // Select a network card as the data interface.
+ // speedtest.WithUserConfig(&speedtest.UserConfig{Source: "192.168.1.101"})(speedtestClient)
+
+ // Get user's network information
+ // user, _ := speedtestClient.FetchUserInfo()
+
+ // Get a list of servers near a specified location
+ // user.SetLocationByCity("Tokyo")
+ // user.SetLocation("Osaka", 34.6952, 135.5006)
+
+ // Search server using serverID.
+ // eg: fetch server with ID 28910.
+ // speedtest.ErrServerNotFound will be returned if the server cannot be found.
+ // server, err := speedtest.FetchServerByID("28910")
+
+ serverList, _ := speedtestClient.FetchServers()
+ targets, _ := serverList.FindServer([]int{})
+
+ for _, s := range targets {
+  // Please make sure your host can access this test server,
+  // otherwise you will get an error.
+  // It is recommended to replace a server at this time
+  s.PingTest(nil)
+  s.DownloadTest()
+  s.UploadTest()
+  // Note: The unit of s.DLSpeed, s.ULSpeed is bytes per second, this is a float64.
+  fmt.Printf("Latency: %s, Download: %s, Upload: %s\n", s.Latency, s.DLSpeed, s.ULSpeed)
+  s.Context.Reset() // reset counter
+ }
 }
 ```
 
 The [code](https://github.com/showwin/speedtest-go/blob/master/example/packet_loss/main.go) will find the closest available speedtest server and analyze packet loss.
+
 ```go
 package main
 
 import (
-	"fmt"
-	"github.com/showwin/speedtest-go/speedtest"
-	"github.com/showwin/speedtest-go/speedtest/transport"
-	"log"
+ "fmt"
+ "github.com/showwin/speedtest-go/speedtest"
+ "github.com/showwin/speedtest-go/speedtest/transport"
+ "log"
 )
 
 func checkError(err error) {
-	if err != nil {
-		log.Fatal(err)
-	}
+ if err != nil {
+  log.Fatal(err)
+ }
 }
 
 // Note: The current packet loss analyzer does not support udp over http.
 // This means we cannot get packet loss through a proxy.
 func main() {
-	// Retrieve available servers
-	var speedtestClient = speedtest.New()
-	serverList, _ := speedtestClient.FetchServers()
-	targets, _ := serverList.FindServer([]int{})
+ // Retrieve available servers
+ var speedtestClient = speedtest.New()
+ serverList, _ := speedtestClient.FetchServers()
+ targets, _ := serverList.FindServer([]int{})
 
-	// Create a packet loss analyzer, use default options
-	analyzer := speedtest.NewPacketLossAnalyzer(nil)
+ // Create a packet loss analyzer, use default options
+ analyzer := speedtest.NewPacketLossAnalyzer(nil)
 
-	// Perform packet loss analysis on all available servers
-	for _, server := range targets {
-		err := analyzer.Run(server.Host, func(packetLoss *transport.PLoss) {
-			fmt.Println(packetLoss, server.Host, server.Name)
-			// fmt.Println(packetLoss.Loss())
-		})
-		checkError(err)
-	}
-	
-	// or test all at the same time.
-	packetLoss, err := analyzer.RunMulti(targets.Hosts())
-	checkError(err)
-	fmt.Println(packetLoss)
+ // Perform packet loss analysis on all available servers
+ for _, server := range targets {
+  err := analyzer.Run(server.Host, func(packetLoss *transport.PLoss) {
+   fmt.Println(packetLoss, server.Host, server.Name)
+   // fmt.Println(packetLoss.Loss())
+  })
+  checkError(err)
+ }
+
+ // or test all at the same time.
+ packetLoss, err := analyzer.RunMulti(targets.Hosts())
+ checkError(err)
+ fmt.Println(packetLoss)
 }
 ```
 
 ## Summary of Experimental Results
 
 Speedtest-go is a great tool because of the following five reasons:
+
 * Cross-platform available.
 * Low memory environment.
 * We are the first **FULL-FEATURED** open source speed testing project based on speedtest.net, including down/up rates, jitter and packet loss, etc.
@@ -348,6 +366,7 @@ The following data is summarized. If you got interested, please see [more detail
 ### Download (Mbps)
 
 distance = distance to testing server
+
 * 0 - 1000(km) ≒ domestic
 * 1000 - 8000(km) ≒ same region
 * 8000 - 20000(km) ≒ really far!

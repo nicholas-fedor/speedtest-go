@@ -3,10 +3,27 @@ package speedtest
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 )
 
+const (
+	coordinateCountForLatLon = 2
+	maxLatitude              = 90
+	maxLongitude             = 180
+)
+
+var (
+	// ErrNotFoundLocation is returned when a location lookup fails.
+	ErrNotFoundLocation = errors.New("not found location")
+	// ErrInvalidLocationInput is returned when the location input is invalid.
+	ErrInvalidLocationInput = errors.New("invalid location input")
+	// ErrInvalidInput is returned when the input is invalid.
+	ErrInvalidInput = errors.New("invalid input")
+)
+
+// Location represents a geographical location with name, country code, latitude, and longitude.
 type Location struct {
 	Name string
 	CC   string
@@ -14,7 +31,8 @@ type Location struct {
 	Lon  float64
 }
 
-// Locations TODO more location need to added
+// Locations contains predefined location data for cities.
+// TODO more locations need to added.
 var Locations = map[string]*Location{
 	"brasilia":     {"brasilia", "br", -15.793876, -47.8835327},
 	"hongkong":     {"hongkong", "hk", 22.3106806, 114.1700546},
@@ -44,66 +62,78 @@ var Locations = map[string]*Location{
 	"bangkok":      {"bangkok", "th", 13.7248936, 100.493026},
 }
 
+// PrintCityList prints the list of available cities.
 func PrintCityList() {
-	fmt.Println("Available city labels (case insensitive): ")
-	fmt.Println(" CC\t\tCityLabel\tLocation")
+	_, _ = fmt.Fprintln(os.Stdout, "Available city labels (case insensitive): ")
+	_, _ = fmt.Fprintln(os.Stdout, " CC\t\tCityLabel\tLocation")
+
 	for k, v := range Locations {
-		fmt.Printf("(%v)\t%20s\t[%v, %v]\n", v.CC, k, v.Lat, v.Lon)
+		_, _ = fmt.Fprintf(os.Stdout, "(%v)\t%20s\t[%v, %v]\n", v.CC, k, v.Lat, v.Lon)
 	}
 }
 
+// GetLocation retrieves a location by name.
 func GetLocation(locationName string) (*Location, error) {
-	loc, ok := Locations[strings.ToLower(locationName)]
-	if ok {
+	if loc, ok := Locations[strings.ToLower(locationName)]; ok {
 		return loc, nil
 	}
-	return nil, errors.New("not found location")
+
+	return nil, ErrNotFoundLocation
 }
 
-// NewLocation new a Location
-func NewLocation(locationName string, latitude float64, longitude float64) *Location {
+// NewLocation new a Location.
+func NewLocation(locationName string, latitude, longitude float64) *Location {
 	var loc Location
+
 	loc.Lat = latitude
 	loc.Lon = longitude
 	loc.Name = locationName
 	Locations[locationName] = &loc
+
 	return &loc
 }
 
-// ParseLocation parse latitude and longitude string
-func ParseLocation(locationName string, coordinateStr string) (*Location, error) {
-	ll := strings.Split(coordinateStr, ",")
-	if len(ll) == 2 {
+// ParseLocation parse latitude and longitude string.
+func ParseLocation(locationName, coordinateStr string) (*Location, error) {
+	coordinates := strings.Split(coordinateStr, ",")
+	if len(coordinates) == coordinateCountForLatLon {
 		// parameters check
-		lat, err := betweenRange(ll[0], 90)
+		lat, err := betweenRange(coordinates[0], maxLatitude)
 		if err != nil {
 			return nil, err
 		}
-		lon, err := betweenRange(ll[1], 180)
+
+		lon, err := betweenRange(coordinates[1], maxLongitude)
 		if err != nil {
 			return nil, err
 		}
-		name := "Custom-%s"
+
 		if len(locationName) == 0 {
-			name = "Custom-Default"
+			return NewLocation("Custom-Default", lat, lon), nil
 		}
-		return NewLocation(fmt.Sprintf(name, locationName), lat, lon), nil
+
+		return NewLocation("Custom-"+locationName, lat, lon), nil
 	}
-	return nil, fmt.Errorf("invalid location input: %s", coordinateStr)
+
+	return nil, fmt.Errorf("%w: %s", ErrInvalidLocationInput, coordinateStr)
 }
 
+// String returns the string representation of the location.
 func (l *Location) String() string {
 	return fmt.Sprintf("(%s) [%v, %v]", l.Name, l.Lat, l.Lon)
 }
 
-// betweenRange latitude and longitude range check
+// betweenRange latitude and longitude range check.
 func betweenRange(inputStrValue string, interval float64) (float64, error) {
 	value, err := strconv.ParseFloat(inputStrValue, 64)
 	if err != nil {
-		return 0, fmt.Errorf("invalid input: %v", inputStrValue)
+		return 0, fmt.Errorf("%w: %v", ErrInvalidInput, inputStrValue)
 	}
+
 	if value < -interval || interval < value {
-		return 0, fmt.Errorf("invalid input. got: %v, expected between -%v and %v", inputStrValue, interval, interval)
+		return 0, fmt.Errorf("invalid input. got: %v, expected between -%v and %v: %w",
+			inputStrValue, interval, interval, ErrInvalidInput)
 	}
+
 	return value, nil
 }

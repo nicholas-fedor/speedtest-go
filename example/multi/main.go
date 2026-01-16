@@ -1,10 +1,13 @@
+// Package main demonstrates multi-server speedtest.
 package main
 
 import (
 	"context"
 	"fmt"
-	"github.com/showwin/speedtest-go/speedtest"
 	"log"
+	"os"
+
+	"github.com/showwin/speedtest-go/speedtest"
 )
 
 func main() {
@@ -17,7 +20,7 @@ func main() {
 		s := targets[0]
 		checkError(s.MultiDownloadTestContext(context.TODO(), targets))
 		checkError(s.MultiUploadTestContext(context.TODO(), targets))
-		fmt.Printf("Download: %s, Upload: %s\n", s.DLSpeed, s.ULSpeed)
+		_, _ = fmt.Fprintf(os.Stdout, "Download: %s, Upload: %s\n", s.DLSpeed, s.ULSpeed)
 	}
 }
 

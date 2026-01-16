@@ -2,6 +2,7 @@ package speedtest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -13,22 +14,35 @@ import (
 )
 
 var (
-	version          = "1.7.10"
-	DefaultUserAgent = fmt.Sprintf("showwin/speedtest-go %s", version)
+	version = "1.7.10"
+	// DefaultUserAgent is the default user agent string for speedtest requests.
+	DefaultUserAgent = "showwin/speedtest-go " + version
 )
 
+var (
+	// ErrClientNil is returned when the speedtest client is nil.
+	ErrClientNil = errors.New("speedtest client is nil")
+	// ErrRequestNil is returned when the request is nil.
+	ErrRequestNil = errors.New("request is nil")
+)
+
+// Proto represents the protocol type for ping operations.
 type Proto int
 
 const (
+	// HTTP is the HTTP protocol.
 	HTTP Proto = iota
+	// TCP is the TCP protocol.
 	TCP
+	// ICMP is the ICMP protocol.
 	ICMP
 )
 
 // Speedtest is a speedtest client.
 type Speedtest struct {
-	User *User
 	Manager
+
+	User *User
 
 	doer      *http.Client
 	config    *UserConfig
@@ -36,12 +50,13 @@ type Speedtest struct {
 	ipDialer  *net.Dialer
 }
 
+// UserConfig holds configuration options for speedtest.
 type UserConfig struct {
 	T             *http.Transport
 	UserAgent     string
 	Proxy         string
 	Source        string
-	DnsBindSource bool
+	DNSBindSource bool
 	DialerControl func(network, address string, c syscall.RawConn) error
 	Debug         bool
 	PingMode      Proto
@@ -57,85 +72,108 @@ type UserConfig struct {
 }
 
 func parseAddr(addr string) (string, string) {
-	prefixIndex := strings.Index(addr, "://")
-	if prefixIndex != -1 {
-		return addr[:prefixIndex], addr[prefixIndex+3:]
+	before, after, ok := strings.Cut(addr, "://")
+	if ok {
+		return before, after
 	}
+
 	return "", addr // ignore address network prefix
 }
 
-func (s *Speedtest) NewUserConfig(uc *UserConfig) {
-	if uc.Debug {
+// NewUserConfig sets the user configuration for the speedtest instance.
+func (s *Speedtest) NewUserConfig(userConfig *UserConfig) {
+	if userConfig.Debug {
 		dbg.Enable()
 	}
 
-	if uc.SavingMode {
-		uc.MaxConnections = 1 // Set the number of concurrent connections to 1
+	if userConfig.SavingMode {
+		userConfig.MaxConnections = 1 // Set the number of concurrent connections to 1
 	}
-	s.SetNThread(uc.MaxConnections)
 
-	if len(uc.CityFlag) > 0 {
+	s.SetNThread(userConfig.MaxConnections)
+
+	if len(userConfig.CityFlag) > 0 {
 		var err error
-		uc.Location, err = GetLocation(uc.CityFlag)
+
+		userConfig.Location, err = GetLocation(userConfig.CityFlag)
 		if err != nil {
 			dbg.Printf("Warning: skipping command line arguments: --city. err: %v\n", err.Error())
 		}
 	}
-	if len(uc.LocationFlag) > 0 {
+
+	if len(userConfig.LocationFlag) > 0 {
 		var err error
-		uc.Location, err = ParseLocation(uc.CityFlag, uc.LocationFlag)
+
+		userConfig.Location, err = ParseLocation(userConfig.CityFlag, userConfig.LocationFlag)
 		if err != nil {
-			dbg.Printf("Warning: skipping command line arguments: --location. err: %v\n", err.Error())
+			dbg.Printf(
+				"Warning: skipping command line arguments: --location. err: %v\n",
+				err.Error(),
+			)
 		}
 	}
 
 	var tcpSource net.Addr // If nil, a local address is automatically chosen.
-	var icmpSource net.Addr
-	var proxy = http.ProxyFromEnvironment
-	s.config = uc
+
+	var (
+		icmpSource net.Addr
+		proxy      = http.ProxyFromEnvironment
+	)
+
+	s.config = userConfig
 	if len(s.config.UserAgent) == 0 {
 		s.config.UserAgent = DefaultUserAgent
 	}
-	if len(uc.Source) > 0 {
-		_, address := parseAddr(uc.Source)
-		addr0, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("[%s]:0", address)) // dynamic tcp port
-		if err == nil {
-			tcpSource = addr0
-		} else {
-			dbg.Printf("Warning: skipping parse the source address. err: %s\n", err.Error())
-		}
-		addr1, err := net.ResolveIPAddr("ip", address) // dynamic tcp port
-		if err == nil {
-			icmpSource = addr1
-		} else {
-			dbg.Printf("Warning: skipping parse the source address. err: %s\n", err.Error())
-		}
-		if uc.DnsBindSource {
-			net.DefaultResolver.Dial = func(ctx context.Context, network, dnsServer string) (net.Conn, error) {
-				dialer := &net.Dialer{
-					Timeout: 5 * time.Second,
-					LocalAddr: func(network string) net.Addr {
-						switch network {
-						case "udp", "udp4", "udp6":
-							return &net.UDPAddr{IP: net.ParseIP(address)}
-						case "tcp", "tcp4", "tcp6":
-							return &net.TCPAddr{IP: net.ParseIP(address)}
-						default:
-							return nil
-						}
-					}(network),
-				}
-				return dialer.DialContext(ctx, network, dnsServer)
-			}
-		}
+
+	if len(userConfig.Source) == 0 {
+		return
 	}
 
-	if len(uc.Proxy) > 0 {
-		if parse, err := url.Parse(uc.Proxy); err != nil {
+	_, address := parseAddr(userConfig.Source)
+
+	addr0, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("[%s]:0", address))
+	if err == nil {
+		tcpSource = addr0
+	} else {
+		dbg.Printf("Warning: skipping parse the source address. err: %s\n", err.Error())
+	}
+
+	addr1, err := net.ResolveIPAddr("ip", address)
+	if err == nil {
+		icmpSource = addr1
+	} else {
+		dbg.Printf("Warning: skipping parse the source address. err: %s\n", err.Error())
+	}
+
+	if !userConfig.DNSBindSource {
+		return
+	}
+
+	net.DefaultResolver.Dial = func(ctx context.Context, network, dnsServer string) (net.Conn, error) {
+		dialer := &net.Dialer{
+			Timeout: 5 * time.Second,
+			LocalAddr: func(network string) net.Addr {
+				switch network {
+				case "udp", "udp4", "udp6":
+					return &net.UDPAddr{IP: net.ParseIP(address)}
+				case "tcp", "tcp4", "tcp6":
+					return &net.TCPAddr{IP: net.ParseIP(address)}
+				default:
+					return nil
+				}
+			}(network),
+		}
+
+		return dialer.DialContext(ctx, network, dnsServer)
+	}
+
+	if len(userConfig.Proxy) > 0 {
+		parse, err := url.Parse(userConfig.Proxy)
+		if err != nil {
 			dbg.Printf("Warning: skipping parse the proxy host. err: %s\n", err.Error())
 		} else {
 			proxy = func(_ *http.Request) (*url.URL, error) {
-				return parse, err
+				return parse, nil
 			}
 		}
 	}
@@ -144,14 +182,14 @@ func (s *Speedtest) NewUserConfig(uc *UserConfig) {
 		LocalAddr: tcpSource,
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,
-		Control:   uc.DialerControl,
+		Control:   userConfig.DialerControl,
 	}
 
 	s.ipDialer = &net.Dialer{
 		LocalAddr: icmpSource,
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,
-		Control:   uc.DialerControl,
+		Control:   userConfig.DialerControl,
 	}
 
 	s.config.T = &http.Transport{
@@ -167,9 +205,24 @@ func (s *Speedtest) NewUserConfig(uc *UserConfig) {
 	s.doer.Transport = s
 }
 
+// RoundTrip executes a single HTTP request using the speedtest client's round tripper.
 func (s *Speedtest) RoundTrip(req *http.Request) (*http.Response, error) {
+	if s == nil {
+		return nil, ErrClientNil
+	}
+
+	if req == nil {
+		return nil, ErrRequestNil
+	}
+
 	req.Header.Add("User-Agent", s.config.UserAgent)
-	return s.config.T.RoundTrip(req)
+
+	resp, err := s.config.T.RoundTrip(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to round trip request: %w", err)
+	}
+
+	return resp, nil
 }
 
 // Option is a function that can be passed to New to modify the Client.
@@ -185,7 +238,7 @@ func WithDoer(doer *http.Client) Option {
 // WithUserConfig adds a custom user config for speedtest.
 // This configuration may be overwritten again by WithDoer,
 // because client and transport are parent-child relationship:
-// `New(WithDoer(myDoer), WithUserAgent(myUserAgent), WithDoer(myDoer))`
+// `New(WithDoer(myDoer), WithUserAgent(myUserAgent), WithDoer(myDoer))`.
 func WithUserConfig(userConfig *UserConfig) Option {
 	return func(s *Speedtest) {
 		s.NewUserConfig(userConfig)
@@ -210,9 +263,11 @@ func New(opts ...Option) *Speedtest {
 	for _, opt := range opts {
 		opt(s)
 	}
+
 	return s
 }
 
+// Version returns the version of the speedtest library.
 func Version() string {
 	return version
 }

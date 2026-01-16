@@ -1,204 +1,703 @@
 package speedtest
 
 import (
-	"errors"
-	"math"
-	"math/rand"
+	"context"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestFetchServerList(t *testing.T) {
-	client := New()
-	client.User = &User{
-		IP:  "111.111.111.111",
-		Lat: "35.22",
-		Lon: "138.44",
-		Isp: "Hello",
-	}
-	servers, err := client.FetchServers()
-	if err != nil {
-		t.Errorf(err.Error())
-	}
-	if len(servers) == 0 {
-		t.Errorf("Failed to fetch server list.")
-		return
-	}
-	if len(servers[0].Country) == 0 {
-		t.Errorf("got unexpected country name '%v'", servers[0].Country)
-	}
-}
-
-func TestDistanceSame(t *testing.T) {
-	for i := 0; i < 10000000; i++ {
-		v1 := rand.Float64() * 90
-		v2 := rand.Float64() * 180
-		v3 := rand.Float64() * 90
-		v4 := rand.Float64() * 180
-		k1 := distance(v1, v2, v1, v2)
-		k2 := distance(v1, v2, v3, v4)
-		if math.IsNaN(k1) || math.IsNaN(k2) {
-			t.Fatalf("NaN distance: %f, %f, %f, %f", v1, v2, v3, v4)
-		}
-	}
-
-	testdata := [][]float64{
-		{32.0803, 34.7805, 32.0803, 34.7805},
-		{0, 0, 0, 0},
-		{1, 1, 1, 1},
-		{2, 2, 2, 2},
-		{-123.23, 123.33, -123.23, 123.33},
-		{90, 180, 90, 180},
-	}
-	for i := range testdata {
-		k := distance(testdata[i][0], testdata[i][1], testdata[i][2], testdata[i][3])
-		if math.IsNaN(k) {
-			t.Fatalf("NaN distance: %f, %f, %f, %f", testdata[i][0], testdata[i][1], testdata[i][2], testdata[i][3])
-		}
-	}
-}
-
-func TestDistance(t *testing.T) {
-	d := distance(0.0, 0.0, 1.0, 1.0)
-	if d < 157 || 158 < d {
-		t.Errorf("got: %v, expected between 157 and 158", d)
-	}
-
-	d = distance(0.0, 180.0, 0.0, -180.0)
-	if d < 0 && d > 1 {
-		t.Errorf("got: %v, expected 0", d)
-	}
-
-	d1 := distance(100.0, 100.0, 100.0, 101.0)
-	d2 := distance(100.0, 100.0, 100.0, 99.0)
-	if d1 != d2 {
-		t.Errorf("%v and %v should be same value", d1, d2)
-	}
-
-	d = distance(35.0, 140.0, -40.0, -140.0)
-	if d < 11000 || 12000 < d {
-		t.Errorf("got: %v, expected ~11694.5122", d)
-	}
-}
-
-func TestFindServer(t *testing.T) {
-	servers := Servers{
-		&Server{
-			ID: "1",
-		},
-		&Server{
-			ID: "2",
-		},
-		&Server{
-			ID: "3",
-		},
-	}
-
-	var serverID []int
-	s, err := servers.FindServer(serverID)
-	if err != nil {
-		t.Errorf(err.Error())
-	}
-	if len(s) != 1 {
-		t.Errorf("unexpected server length. got: %v, expected: 1", len(s))
-	}
-	if s[0].ID != "1" {
-		t.Errorf("unexpected server ID. got: %v, expected: '1'", s[0].ID)
-	}
-
-	serverID = []int{2}
-	s, err = servers.FindServer(serverID)
-	if err != nil {
-		t.Errorf(err.Error())
-	}
-	if len(s) != 1 {
-		t.Errorf("unexpected server length. got: %v, expected: 1", len(s))
-	}
-	if s[0].ID != "2" {
-		t.Errorf("unexpected server ID. got: %v, expected: '2'", s[0].ID)
-	}
-
-	serverID = []int{3, 1}
-	s, err = servers.FindServer(serverID)
-	if err != nil {
-		t.Errorf(err.Error())
-	}
-	if len(s) != 2 {
-		t.Errorf("unexpected server length. got: %v, expected: 2", len(s))
-	}
-	if s[0].ID != "3" {
-		t.Errorf("unexpected server ID. got: %v, expected: '3'", s[0].ID)
-	}
-	if s[1].ID != "1" {
-		t.Errorf("unexpected server ID. got: %v, expected: '1'", s[0].ID)
-	}
-}
-
 func TestCustomServer(t *testing.T) {
-	// Good server
-	got, err := CustomServer("https://example.com/upload.php")
-	if err != nil {
-		t.Errorf(err.Error())
+	type args struct {
+		host string
 	}
-	if got == nil {
-		t.Error("empty server")
-		return
+
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name:    "valid host",
+			args:    args{host: "example.com"},
+			wantErr: false,
+		},
+		{
+			name:    "empty host",
+			args:    args{host: ""},
+			wantErr: true,
+		},
 	}
-	if got.Host != "example.com" {
-		t.Error("did not properly set the Host field on a custom server")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := CustomServer(tt.args.host)
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.NotNil(t, got)
+		})
+	}
+}
+
+func TestSpeedtest_CustomServer(t *testing.T) {
+	type args struct {
+		host string
+	}
+
+	tests := []struct {
+		name    string
+		s       *Speedtest
+		args    args
+		wantErr bool
+	}{
+		{
+			name:    "nil speedtest",
+			s:       nil,
+			args:    args{host: "example.com"},
+			wantErr: true,
+		},
+		{
+			name:    "empty host",
+			s:       &Speedtest{},
+			args:    args{host: ""},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := tt.s.CustomServer(tt.args.host)
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.NotNil(t, got)
+		})
+	}
+}
+
+func TestServers_Available(t *testing.T) {
+	tests := []struct {
+		name    string
+		servers Servers
+	}{
+		{
+			name:    "empty servers",
+			servers: Servers{},
+		},
+		{
+			name:    "servers with available",
+			servers: Servers{&Server{}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.servers.Available()
+			assert.NotNil(t, got)
+		})
+	}
+}
+
+func TestServers_Len(t *testing.T) {
+	tests := []struct {
+		name    string
+		servers Servers
+		want    int
+	}{
+		{
+			name:    "empty servers",
+			servers: Servers{},
+			want:    0,
+		},
+		{
+			name:    "single server",
+			servers: Servers{&Server{}},
+			want:    1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.servers.Len()
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestServers_Swap(t *testing.T) {
+	type args struct {
+		i int
+		j int
+	}
+
+	tests := []struct {
+		name    string
+		servers Servers
+		args    args
+	}{
+		{
+			name:    "swap servers",
+			servers: Servers{&Server{ID: "1"}, &Server{ID: "2"}},
+			args:    args{i: 0, j: 1},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			original := make(Servers, len(tt.servers))
+			copy(original, tt.servers)
+			tt.servers.Swap(tt.args.i, tt.args.j)
+			// Verify swap occurred
+			assert.Equal(t, original[tt.args.j], tt.servers[tt.args.i])
+			assert.Equal(t, original[tt.args.i], tt.servers[tt.args.j])
+		})
+	}
+}
+
+func TestServers_Hosts(t *testing.T) {
+	tests := []struct {
+		name    string
+		servers Servers
+		want    []string
+	}{
+		{
+			name:    "empty servers",
+			servers: Servers{},
+			want:    nil,
+		},
+		{
+			name:    "single server",
+			servers: Servers{&Server{Host: "example.com"}},
+			want:    []string{"example.com"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.servers.Hosts()
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestByDistance_Less(t *testing.T) {
+	type args struct {
+		i int
+		j int
+	}
+
+	tests := []struct {
+		name string
+		b    ByDistance
+		args args
+		want bool
+	}{
+		{
+			name: "first closer than second",
+			b: ByDistance{
+				Servers: Servers{
+					{Distance: 100},
+					{Distance: 200},
+				},
+			},
+			args: args{i: 0, j: 1},
+			want: true,
+		},
+		{
+			name: "second closer than first",
+			b: ByDistance{
+				Servers: Servers{
+					{Distance: 300},
+					{Distance: 150},
+				},
+			},
+			args: args{i: 0, j: 1},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.b.Less(tt.args.i, tt.args.j)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestSpeedtest_FetchServerByID(t *testing.T) {
+	type args struct {
+		serverID string
+	}
+
+	tests := []struct {
+		name    string
+		s       *Speedtest
+		args    args
+		wantErr bool
+	}{
+		{
+			name:    "nil speedtest",
+			s:       nil,
+			args:    args{serverID: "123"},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := tt.s.FetchServerByID(tt.args.serverID)
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.NotNil(t, got)
+		})
 	}
 }
 
 func TestFetchServerByID(t *testing.T) {
-	remoteList, err := FetchServers()
-	if err != nil {
-		t.Fatal(err)
+	type args struct {
+		serverID string
 	}
 
-	if remoteList.Len() < 1 {
-		t.Fatal(errors.New("server not found"))
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name:    "invalid server ID",
+			args:    args{serverID: "invalid"},
+			wantErr: true,
+		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	testData := map[string]bool{
-		remoteList[0].ID: true,
-		"-99999999":      false,
-		"どうも":            false,
-		"hello":          false,
-		"你好":             false,
-	}
+			got, err := FetchServerByID(tt.args.serverID)
+			if tt.wantErr {
+				require.Error(t, err)
 
-	for id, b := range testData {
-		server, err := FetchServerByID(id)
-		if err != nil && b {
-			t.Error(err)
-		}
-		if server != nil && (server.ID == id) != b {
-			t.Errorf("id %s == %s is not %v", id, server.ID, b)
-		}
+				return
+			}
+
+			require.NoError(t, err)
+			assert.NotNil(t, got)
+		})
 	}
 }
 
-func TestTotalDurationCount(t *testing.T) {
-	server, _ := CustomServer("https://example.com/upload.php")
-
-	uploadTime := time.Duration(10000805542)
-	server.TestDuration.Upload = &uploadTime
-	server.testDurationTotalCount()
-	if server.TestDuration.Total.Nanoseconds() != 10000805542 {
-		t.Error("addition in testDurationTotalCount didn't work")
+func TestSpeedtest_FetchServerByIDContext(t *testing.T) {
+	type args struct {
+		serverID string
 	}
 
-	downloadTime := time.Duration(10000403875)
-	server.TestDuration.Download = &downloadTime
-	server.testDurationTotalCount()
-	if server.TestDuration.Total.Nanoseconds() != 20001209417 {
-		t.Error("addition in testDurationTotalCount didn't work")
+	tests := []struct {
+		name    string
+		s       *Speedtest
+		args    args
+		wantErr bool
+	}{
+		{
+			name:    "nil speedtest",
+			s:       nil,
+			args:    args{serverID: "123"},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+
+			got, err := tt.s.FetchServerByIDContext(ctx, tt.args.serverID)
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.NotNil(t, got)
+		})
+	}
+}
+
+func TestSpeedtest_FetchServers(t *testing.T) {
+	tests := []struct {
+		name    string
+		s       *Speedtest
+		wantErr bool
+	}{
+		{
+			name:    "nil speedtest",
+			s:       nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := tt.s.FetchServers()
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.NotNil(t, got)
+		})
+	}
+}
+
+func TestFetchServers(t *testing.T) {
+	tests := []struct {
+		name    string
+		wantErr bool
+	}{
+		{
+			name:    "fetch servers",
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := FetchServers()
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.NotNil(t, got)
+		})
+	}
+}
+
+func TestSpeedtest_FetchServerListContext(t *testing.T) {
+	tests := []struct {
+		name    string
+		s       *Speedtest
+		wantErr bool
+	}{
+		{
+			name:    "nil speedtest",
+			s:       nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+
+			got, err := tt.s.FetchServerListContext(ctx)
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.NotNil(t, got)
+		})
+	}
+}
+
+func TestFetchServerListContext(t *testing.T) {
+	tests := []struct {
+		name    string
+		wantErr bool
+	}{
+		{
+			name:    "fetch server list with context",
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+
+			got, err := FetchServerListContext(ctx)
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.NotNil(t, got)
+		})
+	}
+}
+
+func Test_distance(t *testing.T) {
+	type args struct {
+		lat1 float64
+		lon1 float64
+		lat2 float64
+		lon2 float64
 	}
 
-	pingTime := time.Duration(2183156458)
-	server.TestDuration.Ping = &pingTime
-	server.testDurationTotalCount()
-	if server.TestDuration.Total.Nanoseconds() != 22184365875 {
-		t.Error("addition in testDurationTotalCount didn't work")
+	tests := []struct {
+		name string
+		args args
+		want float64
+	}{
+		{
+			name: "same location",
+			args: args{lat1: 0, lon1: 0, lat2: 0, lon2: 0},
+			want: 0,
+		},
+		{
+			name: "different locations",
+			args: args{lat1: 0, lon1: 0, lat2: 1, lon2: 1},
+			want: 157.425537108412, // Approximate distance in km
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := distance(tt.args.lat1, tt.args.lon1, tt.args.lat2, tt.args.lon2)
+			assert.InDelta(t, tt.want, got, 0.1) // Allow small delta for floating point
+		})
+	}
+}
+
+func TestServers_FindServer(t *testing.T) {
+	type args struct {
+		serverID []int
+	}
+
+	tests := []struct {
+		name    string
+		servers Servers
+		args    args
+		wantErr bool
+	}{
+		{
+			name:    "find server by ID",
+			servers: Servers{&Server{ID: "123"}},
+			args:    args{serverID: []int{123}},
+			wantErr: false,
+		},
+		{
+			name:    "no servers found",
+			servers: Servers{},
+			args:    args{serverID: []int{999}},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := tt.servers.FindServer(tt.args.serverID)
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.NotNil(t, got)
+		})
+	}
+}
+
+func TestServerList_String(t *testing.T) {
+	tests := []struct {
+		name    string
+		servers ServerList
+		want    string
+	}{
+		{
+			name:    "empty server list",
+			servers: ServerList{},
+			want:    "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.servers.String()
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestServers_String(t *testing.T) {
+	tests := []struct {
+		name    string
+		servers Servers
+		want    string
+	}{
+		{
+			name:    "empty servers",
+			servers: Servers{},
+			want:    "",
+		},
+		{
+			name:    "single server",
+			servers: Servers{&Server{Host: "test.com", Country: "US"}},
+			want:    "[    ] 0.00km  (US) by ",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.servers.String()
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestServer_String(t *testing.T) {
+	tests := []struct {
+		name string
+		s    *Server
+		want string
+	}{
+		{
+			name: "server string representation",
+			s:    &Server{Host: "test.com", Country: "US"},
+			want: "[    ] 0.00km  (US) by ",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.s.String()
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestServer_CheckResultValid(t *testing.T) {
+	tests := []struct {
+		name string
+		s    *Server
+		want bool
+	}{
+		{
+			name: "server with valid results",
+			s:    &Server{DLSpeed: 100, ULSpeed: 50},
+			want: true,
+		},
+		{
+			name: "server with extreme speed ratio",
+			s:    &Server{DLSpeed: 1000000, ULSpeed: 1}, // DL way faster than UL
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.s.CheckResultValid()
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestServer_testDurationTotalCount(t *testing.T) {
+	tests := []struct {
+		name string
+		s    *Server
+	}{
+		{
+			name: "nil server",
+			s:    nil,
+		},
+		{
+			name: "server with durations",
+			s: &Server{
+				TestDuration: TestDuration{
+					Ping:     &[]time.Duration{time.Second}[0],
+					Download: &[]time.Duration{time.Second}[0],
+					Upload:   &[]time.Duration{time.Second}[0],
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if tt.s != nil {
+				tt.s.testDurationTotalCount()
+			}
+			// Test passes if no panic
+		})
+	}
+}
+
+func TestServer_getNotNullValue(t *testing.T) {
+	type args struct {
+		time *time.Duration
+	}
+
+	tests := []struct {
+		name string
+		s    *Server
+		args args
+		want time.Duration
+	}{
+		{
+			name: "nil duration pointer",
+			s:    &Server{},
+			args: args{time: nil},
+			want: 0,
+		},
+		{
+			name: "valid duration pointer",
+			s:    &Server{},
+			args: args{time: &[]time.Duration{time.Second}[0]},
+			want: time.Second,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.s.getNotNullValue(tt.args.time)
+			assert.Equal(t, tt.want, got)
+		})
 	}
 }

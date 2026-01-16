@@ -1,9 +1,12 @@
+// Package main demonstrates naive speedtest.
 package main
 
 import (
 	"fmt"
-	"github.com/showwin/speedtest-go/speedtest"
 	"log"
+	"os"
+
+	"github.com/showwin/speedtest-go/speedtest"
 )
 
 func main() {
@@ -19,21 +22,26 @@ func main() {
 	// eg: fetch server with ID 28910.
 	// speedtest.ErrEmptyServers will be returned if the server cannot be found.
 	// server, err := speedtest.FetchServerByID("28910")
-
 	serverList, _ := speedtest.FetchServers()
 	targets, _ := serverList.FindServer([]int{})
 
-	for _, s := range targets {
+	for _, server := range targets {
 		// Please make sure your host can access this test server,
 		// otherwise you will get an error.
 		// It is recommended to replace a server at this time
-		checkError(s.PingTest(nil))
-		checkError(s.DownloadTest())
-		checkError(s.UploadTest())
+		checkError(server.PingTest(nil))
+		checkError(server.DownloadTest())
+		checkError(server.UploadTest())
 
-		// Note: The unit of s.DLSpeed, s.ULSpeed is bytes per second, this is a float64.
-		fmt.Printf("Latency: %s, Download: %s, Upload: %s\n", s.Latency, s.DLSpeed, s.ULSpeed)
-		s.Context.Reset()
+		// Note: The unit of server.DLSpeed, server.ULSpeed is bytes per second, this is a float64.
+		_, _ = fmt.Fprintf(
+			os.Stdout,
+			"Latency: %s, Download: %s, Upload: %s\n",
+			server.Latency,
+			server.DLSpeed,
+			server.ULSpeed,
+		)
+		server.Context.Reset()
 	}
 }
 

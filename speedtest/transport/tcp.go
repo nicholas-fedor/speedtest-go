@@ -14,7 +14,7 @@ import (
 var (
 	pingPrefix = []byte{0x50, 0x49, 0x4e, 0x47, 0x20}
 	// downloadPrefix = []byte{0x44, 0x4F, 0x57, 0x4E, 0x4C, 0x4F, 0x41, 0x44, 0x20}
-	// uploadPrefix   = []byte{0x55, 0x50, 0x4C, 0x4F, 0x41, 0x44, 0x20}
+	// uploadPrefix   = []byte{0x55, 0x50, 0x4C, 0x4F, 0x41, 0x44, 0x20}.
 	initPacket = []byte{0x49, 0x4e, 0x49, 0x54, 0x50, 0x4c, 0x4f, 0x53, 0x53}
 	packetLoss = []byte{0x50, 0x4c, 0x4f, 0x53, 0x53}
 	hiFormat   = []byte{0x48, 0x49}
@@ -22,16 +22,25 @@ var (
 )
 
 var (
-	ErrEchoData                    = errors.New("incorrect echo data")
-	ErrEmptyConn                   = errors.New("empty conn")
-	ErrUnsupported                 = errors.New("unsupported protocol") // Some servers have disabled ip:8080, we return this error.
+	// ErrEchoData is returned when the echo data is incorrect.
+	ErrEchoData = errors.New("incorrect echo data")
+	// ErrEmptyConn is returned when the connection is empty.
+	ErrEmptyConn = errors.New("empty conn")
+	// ErrUnsupported is returned when the protocol is unsupported.
+	ErrUnsupported = errors.New(
+		"unsupported protocol",
+	) // Some servers have disabled ip:8080, we return this error.
+	// ErrUninitializedPacketLossInst is returned when the packet loss instance is not initialized.
 	ErrUninitializedPacketLossInst = errors.New("uninitialized packet loss inst")
+	// ErrInvalidPacketLossResponse is returned when the packet loss response is invalid.
+	ErrInvalidPacketLossResponse = errors.New("invalid packet loss response")
 )
 
 func pingFormat(locTime int64) []byte {
 	return strconv.AppendInt(pingPrefix, locTime, 10)
 }
 
+// Client represents a TCP client for speedtest operations.
 type Client struct {
 	id      string
 	conn    net.Conn
@@ -43,54 +52,76 @@ type Client struct {
 	reader *bufio.Reader
 }
 
+// NewClient creates a new TCP client with the given dialer.
 func NewClient(dialer *net.Dialer) (*Client, error) {
 	uuid, err := generateUUID()
 	if err != nil {
 		return nil, err
 	}
+
 	return &Client{
 		id:     uuid,
 		dialer: dialer,
 	}, nil
 }
 
+// ID returns the client ID.
 func (client *Client) ID() string {
 	return client.id
 }
 
-func (client *Client) Connect(ctx context.Context, host string) (err error) {
+// Connect establishes a connection to the specified host.
+func (client *Client) Connect(ctx context.Context, host string) error {
 	client.host = host
-	client.conn, err = client.dialer.DialContext(ctx, "tcp", client.host)
+
+	conn, err := client.dialer.DialContext(ctx, "tcp", client.host)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to dial TCP: %w", err)
 	}
+
+	client.conn = conn
 	client.reader = bufio.NewReader(client.conn)
+
 	return nil
 }
 
-func (client *Client) Disconnect() (err error) {
+// Disconnect closes the client connection.
+func (client *Client) Disconnect() error {
 	_, _ = client.conn.Write(quitFormat)
 	client.conn = nil
 	client.reader = nil
 	client.version = ""
-	return
+
+	return nil
 }
 
-func (client *Client) Write(data []byte) (err error) {
+func (client *Client) Write(data []byte) error {
 	if client.conn == nil {
 		return ErrEmptyConn
 	}
-	_, err = fmt.Fprintf(client.conn, "%s\n", data)
-	return
+
+	_, err := fmt.Fprintf(client.conn, "%s\n", data)
+	if err != nil {
+		return fmt.Errorf("failed to write to connection: %w", err)
+	}
+
+	return nil
 }
 
 func (client *Client) Read() ([]byte, error) {
 	if client.conn == nil {
 		return nil, ErrEmptyConn
 	}
-	return client.reader.ReadBytes('\n')
+
+	data, err := client.reader.ReadBytes('\n')
+	if err != nil {
+		return nil, fmt.Errorf("failed to read from connection: %w", err)
+	}
+
+	return data, nil
 }
 
+// Version returns the client's version string.
 func (client *Client) Version() string {
 	if len(client.version) == 0 {
 		err := client.Write(hiFormat)
@@ -99,9 +130,11 @@ func (client *Client) Version() string {
 			if err != nil || len(message) < 8 {
 				return "unknown"
 			}
+
 			client.version = string(message[6 : len(message)-1])
 		}
 	}
+
 	return client.version
 }
 
@@ -111,36 +144,49 @@ func (client *Client) Version() string {
 // And give lower weight to the delay measured by the server.
 // local factor = 0.4 * 2 and remote factor = 0.2
 // latency = 0.4 * (t2 - t0) + 0.4 * (t4 - t2) + 0.2 * (t3 - t1)
-// @return cumulative delay in nanoseconds
+// @return cumulative delay in nanoseconds.
 func (client *Client) PingContext(ctx context.Context) (int64, error) {
 	resultChan := make(chan error, 1)
 
-	var accumulatedLatency int64 = 0
+	var accumulatedLatency int64
+
 	var firstReceivedByServer int64 // t1
 
 	go func() {
-		for i := 0; i < 2; i++ {
+		for i := range 2 {
 			t0 := time.Now().UnixNano()
-			if err := client.Write(pingFormat(t0)); err != nil {
-				resultChan <- err
-				return
-			}
-			data, err := client.Read()
-			t2 := time.Now().UnixNano()
+
+			err := client.Write(pingFormat(t0))
 			if err != nil {
 				resultChan <- err
+
 				return
 			}
+
+			data, err := client.Read()
+			t2 := time.Now().UnixNano()
+
+			if err != nil {
+				resultChan <- err
+
+				return
+			}
+
 			if len(data) != 19 {
 				resultChan <- ErrEchoData
+
 				return
 			}
+
 			tx, err := strconv.ParseInt(string(data[5:18]), 10, 64)
 			if err != nil {
 				resultChan <- err
+
 				return
 			}
+
 			accumulatedLatency += (t2 - t0) * 4 / 10 // 0.4
+
 			if i == 0 {
 				firstReceivedByServer = tx
 			} else {
@@ -148,7 +194,9 @@ func (client *Client) PingContext(ctx context.Context) (int64, error) {
 				accumulatedLatency += (tx - firstReceivedByServer) * 1000 * 1000 * 2 / 10 // 0.2
 			}
 		}
+
 		resultChan <- nil
+
 		close(resultChan)
 	}()
 
@@ -156,25 +204,29 @@ func (client *Client) PingContext(ctx context.Context) (int64, error) {
 	case err := <-resultChan:
 		return accumulatedLatency, err
 	case <-ctx.Done():
-		return 0, ctx.Err()
+		return 0, fmt.Errorf("ping context canceled: %w", ctx.Err())
 	}
 }
 
+// InitPacketLoss initializes packet loss testing for the client.
 func (client *Client) InitPacketLoss() error {
 	id := client.id
-	payload := append(hiFormat, 0x20)
+
+	payload := append(append([]byte{}, hiFormat...), 0x20)
 	payload = append(payload, []byte(id)...)
+
 	err := client.Write(payload)
 	if err != nil {
 		return err
 	}
+
 	return client.Write(initPacket)
 }
 
 // PLoss Packet loss statistics
 // The packet loss here generally refers to uplink packet loss.
 // We use the following formula to calculate the packet loss:
-// packetLoss = [1 - (Sent - Dup) / (Max + 1)] * 100%
+// packetLoss = [1 - (Sent - Dup) / (Max + 1)] * 100%.
 type PLoss struct {
 	Sent int `json:"sent"` // Number of sent packets acknowledged by the remote.
 	Dup  int `json:"dup"`  // Number of duplicate packets acknowledged by the remote.
@@ -187,48 +239,66 @@ func (p PLoss) String() string {
 		// we believe this feature is not applicable on this server now.
 		return "Packet Loss: N/A"
 	}
-	return fmt.Sprintf("Packet Loss: %.2f%% (Sent: %d/Dup: %d/Max: %d)", p.Loss()*100, p.Sent, p.Dup, p.Max)
+
+	return fmt.Sprintf(
+		"Packet Loss: %.2f%% (Sent: %d/Dup: %d/Max: %d)",
+		p.Loss()*100,
+		p.Sent,
+		p.Dup,
+		p.Max,
+	)
 }
 
+// Loss returns the packet loss ratio.
 func (p PLoss) Loss() float64 {
 	if p.Sent == 0 {
 		return -1
 	}
+
 	return 1 - (float64(p.Sent-p.Dup))/float64(p.Max+1)
 }
 
+// LossPercent returns the packet loss percentage.
 func (p PLoss) LossPercent() float64 {
 	if p.Sent == 0 {
 		return -1
 	}
+
 	return p.Loss() * 100
 }
 
+// PacketLoss retrieves the packet loss statistics from the server.
 func (client *Client) PacketLoss() (*PLoss, error) {
 	err := client.Write(packetLoss)
 	if err != nil {
 		return nil, err
 	}
+
 	result, err := client.Read()
 	if err != nil {
 		return nil, err
 	}
+
 	splitResult := bytes.Split(result, []byte{0x20})
 	if len(splitResult) < 3 || !bytes.Equal(splitResult[0], packetLoss) {
-		return nil, nil
+		return nil, ErrInvalidPacketLossResponse
 	}
+
 	x0, err := strconv.Atoi(string(splitResult[1]))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse sent packets: %w", err)
 	}
+
 	x1, err := strconv.Atoi(string(splitResult[2]))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse duplicate packets: %w", err)
 	}
+
 	x2, err := strconv.Atoi(string(bytes.TrimRight(splitResult[3], "\n")))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse max packet index: %w", err)
 	}
+
 	return &PLoss{
 		Sent: x0,
 		Dup:  x1,
@@ -236,10 +306,12 @@ func (client *Client) PacketLoss() (*PLoss, error) {
 	}, nil
 }
 
+// Download performs a download test. Currently unimplemented.
 func (client *Client) Download() {
 	panic("Unimplemented method: Client.Download()")
 }
 
+// Upload performs an upload test. Currently unimplemented.
 func (client *Client) Upload() {
 	panic("Unimplemented method: Client.Upload()")
 }

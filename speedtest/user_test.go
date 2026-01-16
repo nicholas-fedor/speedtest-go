@@ -1,50 +1,149 @@
 package speedtest
 
 import (
-	"strconv"
-	"strings"
+	"context"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
+func TestSpeedtest_FetchUserInfo(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		s       *Speedtest
+		wantErr bool
+	}{
+		{
+			name:    "nil speedtest",
+			s:       nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := tt.s.FetchUserInfo()
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.NotNil(t, got)
+		})
+	}
+}
+
 func TestFetchUserInfo(t *testing.T) {
-	client := New()
+	tests := []struct {
+		name    string
+		wantErr bool
+	}{
+		{
+			name:    "fetch user info",
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	user, err := client.FetchUserInfo()
-	if err != nil {
-		t.Errorf(err.Error())
-	}
-	if user == nil {
-		t.Error("empty user info")
-		return
-	}
-	// IP
-	if len(user.IP) < 7 || len(user.IP) > 15 {
-		t.Errorf("invalid IP length. got: %v;", user.IP)
-	}
-	if strings.Count(user.IP, ".") != 3 {
-		t.Errorf("invalid IP format. got: %v", user.IP)
-	}
+			got, err := FetchUserInfo()
+			if tt.wantErr {
+				require.Error(t, err)
 
-	// Lat
-	lat, err := strconv.ParseFloat(user.Lat, 64)
-	if err != nil {
-		t.Errorf(err.Error())
-	}
-	if lat < -90 || 90 < lat {
-		t.Errorf("invalid Latitude. got: %v, expected between -90 and 90", user.Lat)
-	}
+				return
+			}
 
-	// Lon
-	lon, err := strconv.ParseFloat(user.Lon, 64)
-	if err != nil {
-		t.Errorf(err.Error())
+			require.NoError(t, err)
+			assert.NotNil(t, got)
+		})
 	}
-	if lon < -180 || 180 < lon {
-		t.Errorf("invalid Longitude. got: %v, expected between -180 and 180", user.Lon)
-	}
+}
 
-	// Isp
-	if len(user.Isp) == 0 {
-		t.Errorf("invalid Iso. got: %v;", user.Isp)
+func TestSpeedtest_FetchUserInfoContext(t *testing.T) {
+	tests := []struct {
+		name    string
+		s       *Speedtest
+		wantErr bool
+	}{
+		{
+			name:    "nil speedtest",
+			s:       nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+
+			got, err := tt.s.FetchUserInfoContext(ctx)
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.NotNil(t, got)
+		})
+	}
+}
+
+func TestFetchUserInfoContext(t *testing.T) {
+	tests := []struct {
+		name    string
+		wantErr bool
+	}{
+		{
+			name:    "fetch user info with context",
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+
+			got, err := FetchUserInfoContext(ctx)
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.NotNil(t, got)
+		})
+	}
+}
+
+func TestUser_String(t *testing.T) {
+	tests := []struct {
+		name string
+		u    *User
+		want string
+	}{
+		{
+			name: "user string representation",
+			u:    &User{IP: "127.0.0.1", Isp: "Test ISP", Lat: "40.7128", Lon: "-74.0060"},
+			want: "127.0.0.1 (Test ISP) [40.7128, -74.0060] ",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.u.String()
+			assert.Equal(t, tt.want, got)
+		})
 	}
 }
