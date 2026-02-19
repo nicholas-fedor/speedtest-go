@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/showwin/speedtest-go/speedtest"
+	"github.com/nicholas-fedor/speedtest-go/speedtest"
 )
 
 var commit = "dev"

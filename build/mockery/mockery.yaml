@@ -2,7 +2,7 @@
 #                                                                                                    #
 #                                   speedtest-go Mockery Configuration                               #
 #                                                                                                    #
-# speedtest-go: https://github.com/showwin/speedtest-go                                              #
+# speedtest-go: https://github.com/nicholas-fedor/speedtest-go                                              #
 # Mockery: https://vektra.github.io/mockery/latest/                                                  #
 # Configuration: https://vektra.github.io/mockery/latest/configuration                               #
 # Mockery Version: 3.6.1                                                                             #
@@ -81,7 +81,7 @@ log-level: debug
 # Default: null
 packages:
   # Top-level speedtest directory, recursively includes all subpackages
-  github.com/showwin/speedtest-go/speedtest: {}
+  github.com/nicholas-fedor/speedtest-go/speedtest: {}
 
 # Generate mocks for all exported interfaces within specified packages or directories.
 # When true with packages section, processes all interfaces in listed packages.

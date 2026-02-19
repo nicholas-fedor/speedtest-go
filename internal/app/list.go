@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/showwin/speedtest-go/internal/output"
-	"github.com/showwin/speedtest-go/internal/parser"
-	"github.com/showwin/speedtest-go/speedtest"
+	"github.com/nicholas-fedor/speedtest-go/internal/output"
+	"github.com/nicholas-fedor/speedtest-go/internal/parser"
+	"github.com/nicholas-fedor/speedtest-go/speedtest"
 )
 
 // RunList lists available speedtest servers.

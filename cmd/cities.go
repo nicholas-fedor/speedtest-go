@@ -3,7 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/showwin/speedtest-go/internal/app"
+	"github.com/nicholas-fedor/speedtest-go/internal/app"
 )
 
 // citiesCmd represents the cities command.

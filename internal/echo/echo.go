@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/showwin/speedtest-go/speedtest"
+	"github.com/nicholas-fedor/speedtest-go/speedtest"
 )
 
 // AccompanyEcho runs periodic ping tests during download/upload to measure latency.

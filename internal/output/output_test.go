@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/showwin/speedtest-go/speedtest"
+	"github.com/nicholas-fedor/speedtest-go/speedtest"
 )
 
 func TestShowServerList(t *testing.T) {

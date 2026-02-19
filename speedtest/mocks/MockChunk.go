@@ -8,7 +8,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/showwin/speedtest-go/speedtest"
+	"github.com/nicholas-fedor/speedtest-go/speedtest"
 	mock "github.com/stretchr/testify/mock"
 )
 

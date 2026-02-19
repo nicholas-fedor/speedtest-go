@@ -1,4 +1,4 @@
-module github.com/showwin/speedtest-go
+module github.com/nicholas-fedor/speedtest-go
 
 go 1.26.0
 

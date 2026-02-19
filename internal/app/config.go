@@ -4,8 +4,8 @@ import (
 	"io"
 	"log"
 
-	"github.com/showwin/speedtest-go/internal/parser"
-	"github.com/showwin/speedtest-go/speedtest"
+	"github.com/nicholas-fedor/speedtest-go/internal/parser"
+	"github.com/nicholas-fedor/speedtest-go/speedtest"
 )
 
 // Config holds the application configuration.

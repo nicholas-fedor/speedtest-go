@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/showwin/speedtest-go/internal/echo"
-	"github.com/showwin/speedtest-go/internal/output"
-	"github.com/showwin/speedtest-go/internal/parser"
-	"github.com/showwin/speedtest-go/internal/task"
-	"github.com/showwin/speedtest-go/speedtest"
-	"github.com/showwin/speedtest-go/speedtest/transport"
+	"github.com/nicholas-fedor/speedtest-go/internal/echo"
+	"github.com/nicholas-fedor/speedtest-go/internal/output"
+	"github.com/nicholas-fedor/speedtest-go/internal/parser"
+	"github.com/nicholas-fedor/speedtest-go/internal/task"
+	"github.com/nicholas-fedor/speedtest-go/speedtest"
+	"github.com/nicholas-fedor/speedtest-go/speedtest/transport"
 )
 
 const (
