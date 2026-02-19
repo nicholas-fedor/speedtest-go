@@ -13,9 +13,9 @@ builds:
     ldflags:
       - -s
       - -w
-      - -X main.version={{.Version}}
-      - -X main.commit={{.Commit}}
-      - -X main.date={{.Date}}
+      - -X github.com/nicholas-fedor/speedtest-go/speedtest.version={{.Version}}
+      - -X github.com/nicholas-fedor/speedtest-go/internal/output.commit={{.Commit}}
+      - -X github.com/nicholas-fedor/speedtest-go/internal/output.date={{.Date}}
 
 # https://github.com/upx/upx
 upx:

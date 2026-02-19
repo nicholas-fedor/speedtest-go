@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/nicholas-fedor/speedtest-go/internal/app"
-	"github.com/nicholas-fedor/speedtest-go/speedtest"
+	"github.com/nicholas-fedor/speedtest-go/internal/output"
 )
 
 var cfgFile string
@@ -126,7 +126,7 @@ func Init() {
 	_ = viper.BindPFlag("search", listCmd.Flags().Lookup("search"))
 
 	// Set version
-	rootCmd.Version = fmt.Sprintf("speedtest-go v%s git-dev built at unknown", speedtest.Version())
+	rootCmd.Version = output.Version()
 }
 
 // initConfig reads in config file and ENV variables if set.
