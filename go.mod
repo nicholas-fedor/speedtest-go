@@ -1,6 +1,6 @@
 module github.com/nicholas-fedor/speedtest-go
 
-go 1.26.0
+go 1.26.1
 
 require (
 	github.com/chelnak/ysmrr v0.6.0
