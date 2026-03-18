@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1@sha256:4a43a54dd1fedceb30ba47e76cfcf2b47304f4161c0caeac2db1c61804ea3c91
 
 # Build stage
 FROM --platform=$BUILDPLATFORM golang:1.26.1-alpine@sha256:2389ebfa5b7f43eeafbd6be0c3700cc46690ef842ad962f6c5bd6be49ed82039 AS builder
@@ -23,7 +23,7 @@ RUN GOOS=$(echo $TARGETPLATFORM | cut -d/ -f1) \
     go build -o speedtest-go
 
 # Final stage
-FROM alpine:latest
+FROM alpine:latest@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
 
 # Install bash
 RUN apk add --no-cache bash
