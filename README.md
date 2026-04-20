@@ -28,6 +28,33 @@ docker buildx create --name mybuilder --use
 docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 -t nickfedorspeedtest-go:latest --push .
 ```
 
+#### Building Distribution Packages
+
+RPM (CentOS 7) and DEB (Ubuntu 22.04) packages can be built inside containers — no host packaging toolchain required. Docker with BuildKit support is the only prerequisite.
+
+```bash
+# Build both packages
+make packages
+
+# Or build individually
+make build-rpm   # produces dist/*.rpm  (CentOS 7, x86_64)
+make build-deb   # produces dist/*.deb  (Ubuntu 22.04, amd64)
+```
+
+Override the version by passing `VERSION`:
+
+```bash
+VERSION=1.2.0 make packages
+```
+
+Packages are written to `dist/`. You can also call the script directly with `--rpm`, `--deb`, or `all` (default):
+
+```bash
+bash scripts/build-packages.sh
+bash scripts/build-packages.sh --rpm
+bash scripts/build-packages.sh --deb
+```
+
 #### Running the Container
 
 ##### Docker

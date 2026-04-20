@@ -1,0 +1,7 @@
+Package: speedtest-go
+Version: VERSION_PLACEHOLDER
+Architecture: amd64
+Maintainer: Build System <build@localhost>
+Description: Command-line internet speed test tool
+ speedtest-go is a command-line internet speed test tool written in Go,
+ using the Speedtest.net infrastructure.

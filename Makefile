@@ -3,7 +3,7 @@ VERSION ?= dev
 COMMIT = $(shell git rev-parse --short HEAD)
 DATE = $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-.PHONY: all build test clean lint fmt vet install release docker-build examples deps generate build-all test-ci ci mocks setup-ci
+.PHONY: all build test clean lint fmt vet install release docker-build examples deps generate build-all test-ci ci mocks setup-ci packages build-rpm build-deb
 
 all: build
 
@@ -55,3 +55,11 @@ setup-ci: deps generate fmt vet
 
 mocks: ## Generate mock files for testing
 	mockery --config build/mockery/mockery.yaml
+
+packages: build-rpm build-deb ## Build RPM (CentOS 7) and DEB (Ubuntu 22.04) packages in containers
+
+build-rpm: ## Build RPM package (CentOS 7) in a container
+	bash scripts/build-packages.sh --rpm
+
+build-deb: ## Build DEB package (Ubuntu 22.04) in a container
+	bash scripts/build-packages.sh --deb
