@@ -11,7 +11,7 @@ DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 # Strip leading 'v' and replace hyphens with dots for package version fields.
 # Both RPM and DEB require the version to start with a digit; when there is no
 # git tag the describe output is a bare commit hash, so prefix it with 0.0.0.
-PKG_VERSION=$(echo "${VERSION}" | sed 's/^v//' | tr '-' '.')
+PKG_VERSION=$(echo "${VERSION}" | sed 's/^v//' | tr '-' '.' | sed 's/[^A-Za-z0-9.+~_-]/_/g')
 if [[ ! "${PKG_VERSION}" =~ ^[0-9] ]]; then
     PKG_VERSION="0.0.0.${PKG_VERSION}"
 fi
@@ -28,6 +28,7 @@ BUILD_ARGS=(
 build_rpm() {
     echo "==> Building RPM package (CentOS 7) — version ${PKG_VERSION}"
     DOCKER_BUILDKIT=1 docker build \
+        --platform "linux/amd64" \
         "${BUILD_ARGS[@]}" \
         --output "type=local,dest=${OUTPUT_DIR}" \
         -f "${SCRIPT_DIR}/rpm/Dockerfile" \
@@ -38,6 +39,7 @@ build_rpm() {
 build_deb() {
     echo "==> Building DEB package (Ubuntu 22.04) — version ${PKG_VERSION}"
     DOCKER_BUILDKIT=1 docker build \
+        --platform "linux/amd64" \
         "${BUILD_ARGS[@]}" \
         --output "type=local,dest=${OUTPUT_DIR}" \
         -f "${SCRIPT_DIR}/deb/Dockerfile" \
