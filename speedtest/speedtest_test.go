@@ -137,17 +137,14 @@ func TestWithDoer(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want Option
 	}{
 		{
 			name: "nil http client",
 			args: args{doer: nil},
-			want: Option(nil), // Option is a function type, nil is expected
 		},
 		{
 			name: "valid http client",
 			args: args{doer: &http.Client{}},
-			want: Option(nil), // Option is a function type, nil is expected
 		},
 	}
 	for _, tt := range tests {
@@ -170,17 +167,14 @@ func TestWithUserConfig(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want Option
 	}{
 		{
 			name: "nil user config",
 			args: args{userConfig: nil},
-			want: Option(nil), // Option is a function type, nil is expected
 		},
 		{
 			name: "valid user config",
 			args: args{userConfig: &UserConfig{}},
-			want: Option(nil), // Option is a function type, nil is expected
 		},
 	}
 	for _, tt := range tests {

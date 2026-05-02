@@ -9,6 +9,10 @@ import (
 func TestByteRate_String(t *testing.T) {
 	t.Parallel()
 
+	// Reset global unit to default to ensure consistent test behavior
+	// when tests run in parallel with TestSetUnit
+	SetUnit(UnitTypeDecimalBits)
+
 	tests := []struct {
 		name string
 		r    ByteRate
