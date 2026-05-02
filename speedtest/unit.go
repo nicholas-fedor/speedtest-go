@@ -2,6 +2,7 @@ package speedtest
 
 import (
 	"strconv"
+	"sync"
 )
 
 // UnitType represents the type of unit for byte rate formatting.
@@ -57,7 +58,10 @@ const (
 // ByteRate represents a byte rate value with formatting capabilities.
 type ByteRate float64
 
-var globalByteRateUnit UnitType
+var (
+	globalByteRateUnit UnitType
+	globalByteRateMu   sync.RWMutex
+)
 
 func (r ByteRate) String() string {
 	if r == 0 {
@@ -68,8 +72,14 @@ func (r ByteRate) String() string {
 		return "N/A"
 	}
 
-	if globalByteRateUnit != UnitTypeDefaultMbps {
-		return r.Byte(globalByteRateUnit)
+	globalByteRateMu.RLock()
+
+	unit := globalByteRateUnit
+
+	globalByteRateMu.RUnlock()
+
+	if unit != UnitTypeDefaultMbps {
+		return r.Byte(unit)
 	}
 
 	return strconv.FormatFloat(float64(r/125000.0), 'f', 2, 64) + " Mbps"
@@ -77,6 +87,9 @@ func (r ByteRate) String() string {
 
 // SetUnit Set global output units.
 func SetUnit(unit UnitType) {
+	globalByteRateMu.Lock()
+	defer globalByteRateMu.Unlock()
+
 	globalByteRateUnit = unit
 }
 

@@ -10,6 +10,8 @@ import (
 )
 
 func TestServer_MultiDownloadTestContext(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		servers Servers
 	}
@@ -44,6 +46,8 @@ func TestServer_MultiDownloadTestContext(t *testing.T) {
 }
 
 func TestServer_MultiUploadTestContext(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		servers Servers
 	}
@@ -78,6 +82,8 @@ func TestServer_MultiUploadTestContext(t *testing.T) {
 }
 
 func TestServer_DownloadTest(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		s       *Server
@@ -104,6 +110,8 @@ func TestServer_DownloadTest(t *testing.T) {
 }
 
 func TestServer_DownloadTestContext(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		s       *Server
@@ -132,6 +140,8 @@ func TestServer_DownloadTestContext(t *testing.T) {
 }
 
 func TestServer_downloadTestContext(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		downloadRequest downloadFunc
 	}
@@ -166,6 +176,8 @@ func TestServer_downloadTestContext(t *testing.T) {
 }
 
 func TestServer_UploadTest(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		s       *Server
@@ -192,6 +204,8 @@ func TestServer_UploadTest(t *testing.T) {
 }
 
 func TestServer_UploadTestContext(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		s       *Server
@@ -220,6 +234,8 @@ func TestServer_UploadTestContext(t *testing.T) {
 }
 
 func TestServer_uploadTestContext(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		uploadRequest uploadFunc
 	}
@@ -254,6 +270,8 @@ func TestServer_uploadTestContext(t *testing.T) {
 }
 
 func Test_downloadRequest(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		s *Server
 		w int
@@ -287,6 +305,8 @@ func Test_downloadRequest(t *testing.T) {
 }
 
 func Test_uploadRequest(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		s *Server
 		w int
@@ -320,6 +340,8 @@ func Test_uploadRequest(t *testing.T) {
 }
 
 func TestServer_PingTest(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		callback func(latency time.Duration)
 	}
@@ -352,6 +374,8 @@ func TestServer_PingTest(t *testing.T) {
 }
 
 func TestServer_PingTestContext(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		callback func(latency time.Duration)
 	}
@@ -386,6 +410,8 @@ func TestServer_PingTestContext(t *testing.T) {
 }
 
 func TestAll(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		s       *Server
@@ -412,6 +438,8 @@ func TestAll(t *testing.T) {
 }
 
 func TestServer_TCPPing(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		echoTimes int
 		echoFreq  time.Duration
@@ -457,6 +485,8 @@ func TestServer_TCPPing(t *testing.T) {
 }
 
 func TestServer_HTTPPing(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		echoTimes int
 		echoFreq  time.Duration
@@ -502,6 +532,8 @@ func TestServer_HTTPPing(t *testing.T) {
 }
 
 func TestServer_ICMPPing(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		readTimeout time.Duration
 		echoTimes   int
@@ -554,6 +586,8 @@ func TestServer_ICMPPing(t *testing.T) {
 }
 
 func Test_checkSum(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		data []byte
 	}
@@ -585,6 +619,8 @@ func Test_checkSum(t *testing.T) {
 }
 
 func TestStandardDeviation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		vector []int64
 	}

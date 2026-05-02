@@ -7,6 +7,8 @@ import (
 )
 
 func Test_checkError(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error
@@ -22,9 +24,4 @@ func Test_checkError(t *testing.T) {
 			assert.NotPanics(t, func() { checkError(tt.err) })
 		})
 	}
-}
-
-func Test_main(t *testing.T) {
-	// Since main calls network operations and uses goroutines, skip in unit tests
-	t.Skip("Main function performs network operations and concurrency, not suitable for unit tests")
 }

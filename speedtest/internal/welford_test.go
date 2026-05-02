@@ -8,6 +8,8 @@ import (
 )
 
 func TestNewWelford(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		cycle     time.Duration
 		frequency time.Duration
@@ -62,6 +64,8 @@ func TestNewWelford(t *testing.T) {
 }
 
 func TestWelford_Update(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		n                                    int
 		cap                                  int
@@ -183,6 +187,8 @@ func TestWelford_Update(t *testing.T) {
 }
 
 func TestWelford_Mean(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		n                                    int
 		cap                                  int
@@ -241,6 +247,8 @@ func TestWelford_Mean(t *testing.T) {
 }
 
 func TestWelford_CV(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		n                                    int
 		cap                                  int
@@ -298,6 +306,8 @@ func TestWelford_CV(t *testing.T) {
 }
 
 func TestWelford_Variance(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		n                                    int
 		cap                                  int
@@ -356,6 +366,8 @@ func TestWelford_Variance(t *testing.T) {
 }
 
 func TestWelford_StandardDeviation(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		n                                    int
 		cap                                  int
@@ -413,6 +425,8 @@ func TestWelford_StandardDeviation(t *testing.T) {
 }
 
 func TestWelford_EWMA(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		n                                    int
 		cap                                  int
@@ -469,6 +483,8 @@ func TestWelford_EWMA(t *testing.T) {
 }
 
 func TestWelford_String(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		n                                    int
 		cap                                  int

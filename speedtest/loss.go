@@ -2,7 +2,6 @@ package speedtest
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -176,13 +175,13 @@ func (pla *PacketLossAnalyzer) loopSampler(ctx context.Context, client *transpor
 	for {
 		select {
 		case <-ticker.C:
-			pl, err1 := client.PacketLoss()
-			if err1 == nil {
-				if pl != nil {
-					callback(pl)
-				}
-			} else {
-				return fmt.Errorf("failed to get packet loss: %w", err1)
+			packetLoss, err1 := client.PacketLoss()
+			if err1 != nil {
+				continue
+			}
+
+			if packetLoss != nil {
+				callback(packetLoss)
 			}
 		case <-ctx.Done():
 			return nil

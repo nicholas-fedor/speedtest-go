@@ -13,7 +13,7 @@ import (
 type AccompanyEcho struct {
 	stopEcho       chan bool
 	server         *speedtest.Server
-	currentLatency int64
+	currentLatency atomic.Int64
 	interval       time.Duration
 	latencies      []int64
 }
@@ -45,7 +45,7 @@ func (ae *AccompanyEcho) Run() {
 			case <-ticker.C:
 				latency, _ := ae.server.HTTPPing(ctx, 1, ae.interval, nil)
 				if len(latency) > 0 {
-					atomic.StoreInt64(&ae.currentLatency, latency[0])
+					ae.currentLatency.Store(latency[0])
 					ae.latencies = append(ae.latencies, latency[0])
 				}
 			}
@@ -63,7 +63,7 @@ func (ae *AccompanyEcho) Stop() {
 
 // CurrentLatency returns the most recent latency measurement.
 func (ae *AccompanyEcho) CurrentLatency() int64 {
-	return atomic.LoadInt64(&ae.currentLatency)
+	return ae.currentLatency.Load()
 }
 
 // Latencies returns all collected latency measurements.

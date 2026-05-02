@@ -9,6 +9,8 @@ import (
 )
 
 func Test_parseAddr(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		addr string
 	}
@@ -50,6 +52,8 @@ func Test_parseAddr(t *testing.T) {
 }
 
 func TestSpeedtest_NewUserConfig(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		uc *UserConfig
 	}
@@ -76,6 +80,8 @@ func TestSpeedtest_NewUserConfig(t *testing.T) {
 }
 
 func TestSpeedtest_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		req *http.Request
 	}
@@ -122,6 +128,8 @@ func TestSpeedtest_RoundTrip(t *testing.T) {
 }
 
 func TestWithDoer(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		doer *http.Client
 	}
@@ -153,6 +161,8 @@ func TestWithDoer(t *testing.T) {
 }
 
 func TestWithUserConfig(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		userConfig *UserConfig
 	}
@@ -184,6 +194,8 @@ func TestWithUserConfig(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		opts []Option
 	}
@@ -215,6 +227,8 @@ func TestNew(t *testing.T) {
 }
 
 func TestVersion(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		want string

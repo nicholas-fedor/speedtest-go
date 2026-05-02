@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -109,6 +110,8 @@ func TestNewDataManager(t *testing.T) {
 }
 
 func TestDataManager_SetCallbackDownload(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 	}{
@@ -129,6 +132,8 @@ func TestDataManager_SetCallbackDownload(t *testing.T) {
 }
 
 func TestDataManager_SetCallbackUpload(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 	}{
@@ -149,6 +154,8 @@ func TestDataManager_SetCallbackUpload(t *testing.T) {
 }
 
 func TestDataManager_Wait(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 	}{
@@ -167,6 +174,8 @@ func TestDataManager_Wait(t *testing.T) {
 }
 
 func TestDataManager_RegisterUploadHandler(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		fn   func()
@@ -189,6 +198,8 @@ func TestDataManager_RegisterUploadHandler(t *testing.T) {
 }
 
 func TestDataManager_RegisterDownloadHandler(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		fn   func()
@@ -211,6 +222,8 @@ func TestDataManager_RegisterDownloadHandler(t *testing.T) {
 }
 
 func TestTestDirection_GetTotalDataVolume(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		want int64
@@ -233,6 +246,8 @@ func TestTestDirection_GetTotalDataVolume(t *testing.T) {
 }
 
 func TestTestDirection_AddTotalDataVolume(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		delta int64
@@ -262,6 +277,8 @@ func TestTestDirection_AddTotalDataVolume(t *testing.T) {
 }
 
 func TestTestDirection_Start(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 	}{
@@ -290,6 +307,8 @@ func TestTestDirection_Start(t *testing.T) {
 }
 
 func TestTestDirection_rateCapture(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 	}{
@@ -303,13 +322,16 @@ func TestTestDirection_rateCapture(t *testing.T) {
 
 			dm := NewDataManager()
 			td := dm.NewDataDirection(typeDownload)
-			got := td.rateCapture()
-			assert.NotNil(t, got)
+			stopCapture := make(chan bool)
+			td.rateCapture(stopCapture)
+			assert.NotNil(t, stopCapture)
 		})
 	}
 }
 
 func TestDataManager_NewChunk(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 	}{
@@ -330,6 +352,8 @@ func TestDataManager_NewChunk(t *testing.T) {
 }
 
 func TestDataManager_AddTotalDownload(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		value int64
@@ -354,6 +378,8 @@ func TestDataManager_AddTotalDownload(t *testing.T) {
 }
 
 func TestDataManager_AddTotalUpload(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		value int64
@@ -378,6 +404,8 @@ func TestDataManager_AddTotalUpload(t *testing.T) {
 }
 
 func TestDataManager_GetTotalDownload(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		want int64
@@ -399,6 +427,8 @@ func TestDataManager_GetTotalDownload(t *testing.T) {
 }
 
 func TestDataManager_GetTotalUpload(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		want int64
@@ -420,6 +450,8 @@ func TestDataManager_GetTotalUpload(t *testing.T) {
 }
 
 func TestDataManager_SetRateCaptureFrequency(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		duration time.Duration
@@ -442,6 +474,8 @@ func TestDataManager_SetRateCaptureFrequency(t *testing.T) {
 }
 
 func TestDataManager_SetCaptureTime(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		duration time.Duration
@@ -464,6 +498,8 @@ func TestDataManager_SetCaptureTime(t *testing.T) {
 }
 
 func TestDataManager_SetNThread(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		n    int
@@ -493,6 +529,8 @@ func TestDataManager_SetNThread(t *testing.T) {
 }
 
 func TestDataManager_Snapshots(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 	}{
@@ -513,6 +551,8 @@ func TestDataManager_Snapshots(t *testing.T) {
 }
 
 func TestDataManager_Reset(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 	}{
@@ -535,6 +575,8 @@ func TestDataManager_Reset(t *testing.T) {
 }
 
 func TestDataManager_GetAvgDownloadRate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		want float64
@@ -556,6 +598,8 @@ func TestDataManager_GetAvgDownloadRate(t *testing.T) {
 }
 
 func TestDataManager_GetEWMADownloadRate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		want float64
@@ -577,6 +621,8 @@ func TestDataManager_GetEWMADownloadRate(t *testing.T) {
 }
 
 func TestDataManager_GetAvgUploadRate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		want float64
@@ -598,6 +644,8 @@ func TestDataManager_GetAvgUploadRate(t *testing.T) {
 }
 
 func TestDataManager_GetEWMAUploadRate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		want float64
@@ -619,6 +667,8 @@ func TestDataManager_GetEWMAUploadRate(t *testing.T) {
 }
 
 func TestDataChunk_GetDuration(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		want time.Duration
@@ -643,6 +693,8 @@ func TestDataChunk_GetDuration(t *testing.T) {
 }
 
 func TestDataChunk_GetRate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		want float64
@@ -669,6 +721,8 @@ func TestDataChunk_GetRate(t *testing.T) {
 }
 
 func TestDataChunk_DownloadHandler(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		data    string
@@ -699,6 +753,8 @@ func TestDataChunk_DownloadHandler(t *testing.T) {
 }
 
 func TestDataChunk_UploadHandler(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		size int64
@@ -721,6 +777,8 @@ func TestDataChunk_UploadHandler(t *testing.T) {
 }
 
 func TestDataChunk_GetParent(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 	}{
@@ -741,6 +799,8 @@ func TestDataChunk_GetParent(t *testing.T) {
 }
 
 func TestDataChunk_Read(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		size    int64
@@ -777,6 +837,8 @@ func TestDataChunk_Read(t *testing.T) {
 }
 
 func TestCalcMAFilter(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		list []int64
@@ -799,6 +861,8 @@ func TestCalcMAFilter(t *testing.T) {
 }
 
 func Test_pautaFilter(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		vector []int64
@@ -821,6 +885,8 @@ func Test_pautaFilter(t *testing.T) {
 }
 
 func Test_sampleVariance(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		vector     []int64
@@ -846,6 +912,8 @@ func Test_sampleVariance(t *testing.T) {
 }
 
 func Test_newHistorySnapshots(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		size int
@@ -869,6 +937,8 @@ func Test_newHistorySnapshots(t *testing.T) {
 }
 
 func TestSnapshots_push(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		size  int
@@ -894,6 +964,8 @@ func TestSnapshots_push(t *testing.T) {
 }
 
 func TestSnapshots_Latest(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		size  int
@@ -920,6 +992,8 @@ func TestSnapshots_Latest(t *testing.T) {
 }
 
 func TestSnapshots_All(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		size  int
@@ -946,6 +1020,8 @@ func TestSnapshots_All(t *testing.T) {
 }
 
 func TestSnapshots_Clean(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		size int
@@ -965,4 +1041,69 @@ func TestSnapshots_Clean(t *testing.T) {
 			assert.Empty(t, rs.sp)
 		})
 	}
+}
+
+func TestFuncGroup_ConcurrentAdd(t *testing.T) {
+	t.Parallel()
+
+	f := &funcGroup{fns: make([]func(), 0)}
+
+	var wg sync.WaitGroup
+
+	numGoroutines := 100
+
+	for i := range numGoroutines {
+		wg.Add(1)
+
+		go func(val int) {
+			defer wg.Done()
+
+			f.Add(func() { _ = val })
+		}(i)
+	}
+
+	wg.Wait()
+	assert.Len(t, f.snapshotFns(), numGoroutines)
+}
+
+func TestDataManager_ConcurrentReset(t *testing.T) {
+	t.Parallel()
+
+	dm := NewDataManager()
+
+	var wg sync.WaitGroup
+
+	for i := range 100 {
+		wg.Go(func() {
+			dm.Reset()
+		})
+
+		if i%10 == 0 {
+			wg.Go(func() {
+				_ = dm.GetTotalDownload()
+				_ = dm.GetTotalUpload()
+			})
+		}
+	}
+
+	wg.Wait()
+}
+
+func TestDataManager_ConcurrentHandlers(t *testing.T) {
+	t.Parallel()
+
+	dm := NewDataManager()
+
+	var wg sync.WaitGroup
+
+	numHandlers := 50
+
+	for range numHandlers {
+		wg.Go(func() {
+			dm.RegisterDownloadHandler(func() {})
+			dm.RegisterUploadHandler(func() {})
+		})
+	}
+
+	wg.Wait()
 }

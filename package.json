@@ -1,0 +1,13 @@
+{
+  "name": "speedtest-go",
+  "version": "1.7.10",
+  "private": true,
+  "scripts": {
+    "commitlint": "commitlint --from origin/master --to=HEAD"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@commitlint/cli": "20.5.3",
+    "@commitlint/config-conventional": "20.5.3"
+  }
+}

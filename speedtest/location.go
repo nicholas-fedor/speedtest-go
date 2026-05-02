@@ -32,7 +32,6 @@ type Location struct {
 }
 
 // Locations contains predefined location data for cities.
-// TODO more locations need to added.
 var Locations = map[string]*Location{
 	"brasilia":     {"brasilia", "br", -15.793876, -47.8835327},
 	"hongkong":     {"hongkong", "hk", 22.3106806, 114.1700546},

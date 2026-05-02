@@ -9,6 +9,8 @@ import (
 )
 
 func TestParseUnit(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		str string
 	}
@@ -55,6 +57,8 @@ func TestParseUnit(t *testing.T) {
 }
 
 func TestParseProto(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		str string
 	}

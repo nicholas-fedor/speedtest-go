@@ -88,6 +88,8 @@ func TestManager_Stop(t *testing.T) {
 }
 
 func TestManager_Println(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		message string
 	}
@@ -112,6 +114,8 @@ func TestManager_Println(t *testing.T) {
 }
 
 func TestManager_RunWithTrigger(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		enable   bool
 		title    string
@@ -154,6 +158,8 @@ func TestManager_RunWithTrigger(t *testing.T) {
 }
 
 func TestManager_Run(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		title    string
 		callback func(task *Task)
@@ -182,6 +188,8 @@ func TestManager_Run(t *testing.T) {
 }
 
 func TestManager_AsyncRun(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		title    string
 		callback func(task *Task)
@@ -210,6 +218,8 @@ func TestManager_AsyncRun(t *testing.T) {
 }
 
 func TestTask_Complete(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		tr   *Task
@@ -228,6 +238,8 @@ func TestTask_Complete(t *testing.T) {
 }
 
 func TestTask_Updatef(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		format string
 		a      []any
@@ -256,6 +268,8 @@ func TestTask_Updatef(t *testing.T) {
 }
 
 func TestTask_Update(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		format string
 	}
@@ -280,6 +294,8 @@ func TestTask_Update(t *testing.T) {
 }
 
 func TestTask_Println(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		message string
 	}
@@ -304,6 +320,8 @@ func TestTask_Println(t *testing.T) {
 }
 
 func TestTask_Printf(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		format string
 		a      []any
@@ -332,6 +350,8 @@ func TestTask_Printf(t *testing.T) {
 }
 
 func TestTask_CheckError(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		err error
 	}

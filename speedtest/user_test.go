@@ -40,6 +40,8 @@ func TestSpeedtest_FetchUserInfo(t *testing.T) {
 }
 
 func TestFetchUserInfo(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		wantErr bool
@@ -67,6 +69,8 @@ func TestFetchUserInfo(t *testing.T) {
 }
 
 func TestSpeedtest_FetchUserInfoContext(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		s       *Speedtest
@@ -98,6 +102,8 @@ func TestSpeedtest_FetchUserInfoContext(t *testing.T) {
 }
 
 func TestFetchUserInfoContext(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		wantErr bool
@@ -127,6 +133,8 @@ func TestFetchUserInfoContext(t *testing.T) {
 }
 
 func TestUser_String(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		u    *User

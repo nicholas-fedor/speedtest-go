@@ -7,6 +7,8 @@ import (
 )
 
 func TestByteRate_String(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		r    ByteRate
@@ -39,6 +41,8 @@ func TestByteRate_String(t *testing.T) {
 }
 
 func TestSetUnit(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		unit UnitType
 	}
@@ -71,6 +75,8 @@ func TestSetUnit(t *testing.T) {
 }
 
 func TestByteRate_Mbps(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		r    ByteRate
@@ -103,6 +109,8 @@ func TestByteRate_Mbps(t *testing.T) {
 }
 
 func TestByteRate_Gbps(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		r    ByteRate
@@ -135,6 +143,8 @@ func TestByteRate_Gbps(t *testing.T) {
 }
 
 func TestByteRate_Byte(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		formatType UnitType
 	}
@@ -181,6 +191,8 @@ func TestByteRate_Byte(t *testing.T) {
 }
 
 func Test_format(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		byteRate float64
 		i        UnitType

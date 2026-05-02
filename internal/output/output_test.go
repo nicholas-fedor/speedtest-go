@@ -10,6 +10,8 @@ import (
 )
 
 func TestShowServerList(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		servers speedtest.Servers
 	}
@@ -36,6 +38,8 @@ func TestShowServerList(t *testing.T) {
 }
 
 func TestAppInfo(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 	}{
@@ -50,6 +54,8 @@ func TestAppInfo(t *testing.T) {
 }
 
 func TestVersion(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 	}{
@@ -58,6 +64,7 @@ func TestVersion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			got := Version()
 
 			// Test that Version() returns a non-empty string

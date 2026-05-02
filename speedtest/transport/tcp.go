@@ -280,7 +280,7 @@ func (client *Client) PacketLoss() (*PLoss, error) {
 	}
 
 	splitResult := bytes.Split(result, []byte{0x20})
-	if len(splitResult) < 3 || !bytes.Equal(splitResult[0], packetLoss) {
+	if len(splitResult) < 4 || !bytes.Equal(splitResult[0], packetLoss) {
 		return nil, ErrInvalidPacketLossResponse
 	}
 

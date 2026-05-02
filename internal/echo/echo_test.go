@@ -10,6 +10,8 @@ import (
 )
 
 func TestNew(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		server   *speedtest.Server
 		interval time.Duration
@@ -45,6 +47,8 @@ func TestNew(t *testing.T) {
 }
 
 func TestAccompanyEcho_Run(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		ae   *AccompanyEcho
@@ -65,6 +69,8 @@ func TestAccompanyEcho_Run(t *testing.T) {
 }
 
 func TestAccompanyEcho_Stop(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		ae   *AccompanyEcho
@@ -85,6 +91,8 @@ func TestAccompanyEcho_Stop(t *testing.T) {
 }
 
 func TestAccompanyEcho_CurrentLatency(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		ae   *AccompanyEcho
@@ -107,6 +115,8 @@ func TestAccompanyEcho_CurrentLatency(t *testing.T) {
 }
 
 func TestAccompanyEcho_Latencies(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		ae   *AccompanyEcho
