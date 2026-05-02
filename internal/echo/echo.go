@@ -3,6 +3,7 @@ package echo
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -16,6 +17,7 @@ type AccompanyEcho struct {
 	currentLatency atomic.Int64
 	interval       time.Duration
 	latencies      []int64
+	mu             sync.Mutex
 }
 
 // New creates a new AccompanyEcho instance.
@@ -46,7 +48,9 @@ func (ae *AccompanyEcho) Run() {
 				latency, _ := ae.server.HTTPPing(ctx, 1, ae.interval, nil)
 				if len(latency) > 0 {
 					ae.currentLatency.Store(latency[0])
+					ae.mu.Lock()
 					ae.latencies = append(ae.latencies, latency[0])
+					ae.mu.Unlock()
 				}
 			}
 		}
@@ -68,5 +72,15 @@ func (ae *AccompanyEcho) CurrentLatency() int64 {
 
 // Latencies returns all collected latency measurements.
 func (ae *AccompanyEcho) Latencies() []int64 {
-	return ae.latencies
+	ae.mu.Lock()
+	defer ae.mu.Unlock()
+
+	if len(ae.latencies) == 0 {
+		return nil
+	}
+
+	result := make([]int64, len(ae.latencies))
+	copy(result, ae.latencies)
+
+	return result
 }
