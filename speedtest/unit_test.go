@@ -38,7 +38,7 @@ func TestByteRate_String(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := tt.r.String()
+			got := tt.r.Byte(UnitTypeDecimalBits)
 			assert.Equal(t, tt.want, got)
 		})
 	}

@@ -322,7 +322,7 @@ func TestTestDirection_rateCapture(t *testing.T) {
 
 			dm := NewDataManager()
 			td := dm.NewDataDirection(typeDownload)
-			stopCapture := make(chan bool)
+			stopCapture := make(chan bool, 1)
 			td.rateCapture(stopCapture)
 			assert.NotNil(t, stopCapture)
 		})

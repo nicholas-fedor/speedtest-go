@@ -260,7 +260,7 @@ func (td *TestDirection) Start(cancel context.CancelFunc, mainRequestHandlerInde
 	// Initialize closeFunc before starting rateCapture goroutine to prevent nil panic
 	var once sync.Once
 
-	stopCapture := make(chan bool)
+	stopCapture := make(chan bool, 1)
 	td.closeFunc = func() {
 		once.Do(func() {
 			stopCapture <- true
