@@ -60,7 +60,7 @@ formatters:
           replacement: "append(make([]T, 0), x)"
           # or better: just "[]T{x}" if building a new slice
     gofumpt:
-      module-path: "github.com/nicholas-fedor/go-speedtest"
+      module-path: "github.com/nicholas-fedor/speedtest-go"
       extra-rules: true
 
 linters:
