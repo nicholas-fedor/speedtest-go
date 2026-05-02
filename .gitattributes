@@ -18,9 +18,9 @@
 *.ini text eol=lf
 *.sh text eol=lf
 Dockerfile text eol=lf
-*.dockerignore text eol=lf
-*.gitignore text eol=lf
-*.gitattributes text eol=lf
+.dockerignore text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
 
 # Treat binary files as binary (no line-ending conversion or diff)
 *.png binary
