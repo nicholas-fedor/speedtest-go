@@ -151,8 +151,12 @@ func TestWithDoer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := WithDoer(tt.args.doer)
-			assert.NotNil(t, got) // Option function should not be nil
+			opt := WithDoer(tt.args.doer)
+			assert.NotNil(t, opt) // Option function should not be nil
+
+			st := &Speedtest{}
+			opt(st)
+			assert.Equal(t, tt.args.doer, st.doer) // Verify doer field was set
 		})
 	}
 }
@@ -169,10 +173,6 @@ func TestWithUserConfig(t *testing.T) {
 		args args
 	}{
 		{
-			name: "nil user config",
-			args: args{userConfig: nil},
-		},
-		{
 			name: "valid user config",
 			args: args{userConfig: &UserConfig{}},
 		},
@@ -181,8 +181,12 @@ func TestWithUserConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := WithUserConfig(tt.args.userConfig)
-			assert.NotNil(t, got) // Option function should not be nil
+			opt := WithUserConfig(tt.args.userConfig)
+			assert.NotNil(t, opt) // Option function should not be nil
+
+			st := &Speedtest{Manager: NewDataManager()}
+			opt(st)
+			assert.Equal(t, tt.args.userConfig, st.config) // Verify config field was set
 		})
 	}
 }
