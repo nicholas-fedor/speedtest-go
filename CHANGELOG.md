@@ -287,6 +287,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github/codeql-action action to v4.35.3 by @renovate[bot] in [#29](https://github.com/nicholas-fedor/speedtest-go/pull/29)
 - Update module github.com/pelletier/go-toml/v2 to v2.3.1 by @renovate[bot] in [#26](https://github.com/nicholas-fedor/speedtest-go/pull/26)
 - Update module github.com/fsnotify/fsnotify to v1.10.0 by @renovate[bot] in [#25](https://github.com/nicholas-fedor/speedtest-go/pull/25)
 - Update module github.com/mattn/go-isatty to v0.0.22 by @renovate[bot] in [#24](https://github.com/nicholas-fedor/speedtest-go/pull/24)
@@ -452,8 +453,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### New Contributors
 
+- @renovate[bot] made their first contribution in [#29](https://github.com/nicholas-fedor/speedtest-go/pull/29)
+- @github-actions[bot] made their first contribution in [#28](https://github.com/nicholas-fedor/speedtest-go/pull/28)
 - @nicholas-fedor made their first contribution in [#27](https://github.com/nicholas-fedor/speedtest-go/pull/27)
-- @renovate[bot] made their first contribution in [#26](https://github.com/nicholas-fedor/speedtest-go/pull/26)
 - @r3inbowari made their first contribution
 - @slim-bean made their first contribution
 - @eric made their first contribution
