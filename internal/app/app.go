@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -289,7 +290,7 @@ func runTests(
 			return fmt.Errorf("failed to marshal JSON: %w", errMarshal)
 		}
 
-		log.Print(string(json))
+		fmt.Fprintf(os.Stdout, "%s", json)
 	} else if cfg.JSONLOutput {
 		for _, server := range targets {
 			json, errMarshal := speedtestClient.JSONL(server)
@@ -297,7 +298,7 @@ func runTests(
 				return fmt.Errorf("failed to marshal JSONL: %w", errMarshal)
 			}
 
-			log.Println(string(json))
+			fmt.Fprintf(os.Stdout, "%s\n", json)
 		}
 	}
 
