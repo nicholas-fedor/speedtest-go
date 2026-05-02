@@ -406,14 +406,12 @@ func (dm *DataManager) AddTotalUpload(value int64) {
 func (dm *DataManager) RegisterUploadHandler(handler func()) *TestDirection {
 	dm.Lock()
 	upload := dm.upload
-	nThread := dm.nThread
-	dm.Unlock()
 
+	nThread := dm.nThread
 	if upload.len() < nThread {
 		upload.Add(handler)
 	}
 
-	dm.Lock()
 	result := dm.upload
 	dm.Unlock()
 
@@ -424,14 +422,12 @@ func (dm *DataManager) RegisterUploadHandler(handler func()) *TestDirection {
 func (dm *DataManager) RegisterDownloadHandler(handler func()) *TestDirection {
 	dm.Lock()
 	download := dm.download
-	nThread := dm.nThread
-	dm.Unlock()
 
+	nThread := dm.nThread
 	if download.len() < nThread {
 		download.Add(handler)
 	}
 
-	dm.Lock()
 	result := dm.download
 	dm.Unlock()
 
