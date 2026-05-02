@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Correct main.go filepath by @nicholas-fedor in [#31](https://github.com/nicholas-fedor/speedtest-go/pull/31)
 
+### Chores
+
+- Update step-security/harden-runner action to v2.19.1 by @renovate[bot] in [#33](https://github.com/nicholas-fedor/speedtest-go/pull/33)
+
 ## [1.8.0] - 2026-05-02
 
 ### Added
