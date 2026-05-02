@@ -94,15 +94,19 @@ func (pla *PacketLossAnalyzer) RunMultiWithContext(
 		go func(h string) {
 			defer wg.Done()
 
+			var lastValid *transport.PLoss
+
 			_ = pla.RunWithContext(ctx, h, func(packetLoss *transport.PLoss) {
 				if packetLoss.Sent != 0 {
-					mutex.Lock()
-
-					results[h] = packetLoss
-
-					mutex.Unlock()
+					lastValid = packetLoss
 				}
 			})
+
+			if lastValid != nil {
+				mutex.Lock()
+				results[h] = lastValid
+				mutex.Unlock()
+			}
 		}(host)
 	}
 

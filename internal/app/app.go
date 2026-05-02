@@ -233,13 +233,17 @@ func runServerTests(
 		packetLossAnalyzerTimeout,
 	)
 
+	var lastValidLoss transport.PLoss
+
 	taskManager.Run("Packet Loss Analyzer", func(task *task.Task) {
 		blocker.Go(func() {
 			err := analyzer.RunWithContext(
 				packetLossAnalyzerCtx,
 				server.Host,
 				func(packetLoss *transport.PLoss) {
-					server.PacketLoss = *packetLoss
+					if packetLoss.Sent != 0 {
+						lastValidLoss = *packetLoss
+					}
 				},
 			)
 			if errors.Is(err, transport.ErrUnsupported) {
@@ -263,6 +267,8 @@ func runServerTests(
 
 	packetLossAnalyzerCancel()
 	blocker.Wait()
+
+	server.PacketLoss = lastValidLoss
 
 	if !cfg.JSONOutput && !cfg.JSONLOutput {
 		taskManager.Println(server.PacketLoss.String())
