@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -42,7 +43,8 @@ const (
 type Speedtest struct {
 	Manager
 
-	User *User
+	userMu sync.RWMutex
+	User   *User
 
 	doer      *http.Client
 	config    *UserConfig
@@ -273,3 +275,19 @@ func Version() string {
 }
 
 var defaultClient = New()
+
+// GetUser returns the user information in a thread-safe manner.
+func (s *Speedtest) GetUser() *User {
+	s.userMu.RLock()
+	defer s.userMu.RUnlock()
+
+	return s.User
+}
+
+// SetUser sets the user information in a thread-safe manner.
+func (s *Speedtest) SetUser(u *User) {
+	s.userMu.Lock()
+	defer s.userMu.Unlock()
+
+	s.User = u
+}

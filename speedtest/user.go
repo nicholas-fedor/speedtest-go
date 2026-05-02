@@ -74,9 +74,9 @@ func (s *Speedtest) FetchUserInfoContext(ctx context.Context) (*User, error) {
 		return nil, ErrFetchUserInfo
 	}
 
-	s.User = &users.Users[0]
+	s.SetUser(&users.Users[0])
 
-	return s.User, nil
+	return s.GetUser(), nil
 }
 
 // FetchUserInfoContext returns information about caller determined by speedtest.net, observing the given context.
