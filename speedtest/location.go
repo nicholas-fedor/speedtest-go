@@ -32,8 +32,8 @@ type Location struct {
 	Lon  float64
 }
 
-// Locations contains predefined location data for cities.
-var Locations = map[string]*Location{
+// locations contains predefined location data for cities.
+var locations = map[string]*Location{
 	"brasilia":     {"brasilia", "br", -15.793876, -47.8835327},
 	"hongkong":     {"hongkong", "hk", 22.3106806, 114.1700546},
 	"tokyo":        {"tokyo", "jp", 35.680938, 139.7674114},
@@ -71,7 +71,7 @@ func PrintCityList() {
 
 	locationsMu.RLock()
 
-	for k, v := range Locations {
+	for k, v := range locations {
 		_, _ = fmt.Fprintf(os.Stdout, "(%v)\t%20s\t[%v, %v]\n", v.CC, k, v.Lat, v.Lon)
 	}
 
@@ -82,7 +82,7 @@ func PrintCityList() {
 func GetLocation(locationName string) (*Location, error) {
 	locationsMu.RLock()
 
-	loc, ok := Locations[strings.ToLower(locationName)]
+	loc, ok := locations[strings.ToLower(locationName)]
 
 	locationsMu.RUnlock()
 
@@ -102,7 +102,7 @@ func NewLocation(locationName string, latitude, longitude float64) *Location {
 	loc.Name = locationName
 
 	locationsMu.Lock()
-	Locations[locationName] = &loc
+	locations[locationName] = &loc
 	locationsMu.Unlock()
 
 	return &loc
