@@ -11,7 +11,7 @@ build:
 	go build -ldflags "-s -w -X github.com/nicholas-fedor/speedtest-go/speedtest.version=$(VERSION) -X github.com/nicholas-fedor/speedtest-go/internal/output.commit=$(COMMIT) -X github.com/nicholas-fedor/speedtest-go/internal/output.date=$(DATE)" -o bin/$(BINARY_NAME) .
 
 test:
-	go test ./...
+	go test -v -covermode atomic ./...
 
 clean:
 	rm -f $(BINARY_NAME)
