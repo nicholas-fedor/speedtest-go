@@ -148,6 +148,7 @@ type TestDirection struct {
 	totalDataVolume atomic.Int64                // total send/receive data volume
 	RateSequence    []int64                     // rate history sequence
 	welford         *internal.Welford           // std/EWMA/mean
+	welfordMu       sync.Mutex                  // protects welford and RateSequence
 	captureCallback func(realTimeRate ByteRate) // user callback
 	closeFunc       func()                      // close func
 }
@@ -349,21 +350,24 @@ func (td *TestDirection) rateCapture(stopCapture chan bool) {
 				deltaDataVolume := newTotalDataVolume - prevTotalDataVolume
 				prevTotalDataVolume = newTotalDataVolume
 
+				td.welfordMu.Lock()
 				if deltaDataVolume != 0 {
 					td.RateSequence = append(td.RateSequence, deltaDataVolume)
 				}
-				// anyway we update the measuring instrument
+
 				globalAvg := (float64(td.GetTotalDataVolume())) / float64(
 					time.Since(sTime).Milliseconds(),
 				) * conversionFactor
-				if td.welford.Update(globalAvg, float64(deltaDataVolume)) {
-					if td.closeFunc != nil {
-						go td.closeFunc()
-					}
+				shouldStop := td.welford.Update(globalAvg, float64(deltaDataVolume))
+				ewma := td.welford.EWMA()
+				td.welfordMu.Unlock()
+
+				if shouldStop && td.closeFunc != nil {
+					go td.closeFunc()
 				}
-				// reports the current rate at the given rate
+
 				if td.captureCallback != nil {
-					td.captureCallback(ByteRate(td.welford.EWMA()))
+					td.captureCallback(ByteRate(ewma))
 				}
 			case stop := <-stopCapture:
 				if stop {
@@ -511,7 +515,11 @@ func (dm *DataManager) GetEWMADownloadRate() float64 {
 	dm.Unlock()
 
 	if download.welford != nil {
-		return download.welford.EWMA()
+		download.welfordMu.Lock()
+		ewma := download.welford.EWMA()
+		download.welfordMu.Unlock()
+
+		return ewma
 	}
 
 	return 0
@@ -536,7 +544,11 @@ func (dm *DataManager) GetEWMAUploadRate() float64 {
 	dm.Unlock()
 
 	if upload.welford != nil {
-		return upload.welford.EWMA()
+		upload.welfordMu.Lock()
+		ewma := upload.welford.EWMA()
+		upload.welfordMu.Unlock()
+
+		return ewma
 	}
 
 	return 0
