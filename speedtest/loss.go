@@ -163,28 +163,29 @@ func (pla *PacketLossAnalyzer) RunWithContext(
 
 	go pla.loopSender(ctx, senderClient)
 
-	return pla.loopSampler(ctx, samplerClient, callback)
+	pla.loopSampler(ctx, samplerClient, callback)
+
+	return nil
 }
 
 func (pla *PacketLossAnalyzer) loopSampler(ctx context.Context, client *transport.Client,
 	callback func(packetLoss *transport.PLoss),
-) error {
+) {
 	ticker := time.NewTicker(pla.options.RemoteSamplingInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			packetLoss, err1 := client.PacketLoss()
-			if err1 != nil {
-				continue
-			}
+			// PacketLoss errors are intentionally suppressed to allow sampling to continue
+			// despite transient network errors; the loop continues on failure.
+			packetLoss, _ := client.PacketLoss()
 
 			if packetLoss != nil {
 				callback(packetLoss)
 			}
 		case <-ctx.Done():
-			return nil
+			return
 		}
 	}
 }

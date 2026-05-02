@@ -228,9 +228,8 @@ func TestPacketLossAnalyzer_loopSampler(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel() // Cancel immediately
 
-			err := pla.loopSampler(ctx, nil, func(_ *transport.PLoss) {})
-			// Should return nil since context is cancelled
-			assert.NoError(t, err)
+			pla.loopSampler(ctx, nil, func(_ *transport.PLoss) {})
+			// loopSampler does not return an error
 		})
 	}
 }
