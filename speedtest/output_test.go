@@ -9,6 +9,8 @@ import (
 )
 
 func Test_outputTime_MarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		tr      outputTime
@@ -40,6 +42,8 @@ func Test_outputTime_MarshalJSON(t *testing.T) {
 }
 
 func TestSpeedtest_JSON(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		servers Servers
 	}
@@ -83,6 +87,8 @@ func TestSpeedtest_JSON(t *testing.T) {
 }
 
 func TestSpeedtest_JSONL(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		server *Server
 	}

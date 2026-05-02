@@ -93,10 +93,30 @@ var (
 
 type funcGroup struct {
 	fns []func()
+	mu  sync.Mutex
 }
 
 func (f *funcGroup) Add(fn func()) {
+	f.mu.Lock()
 	f.fns = append(f.fns, fn)
+	f.mu.Unlock()
+}
+
+func (f *funcGroup) snapshotFns() []func() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	result := make([]func(), len(f.fns))
+	copy(result, f.fns)
+
+	return result
+}
+
+func (f *funcGroup) len() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return len(f.fns)
 }
 
 // DataManager manages data chunks and test directions for speed tests.
@@ -125,9 +145,10 @@ type TestDirection struct {
 
 	TestType        int                         // test type
 	manager         *DataManager                // manager
-	totalDataVolume int64                       // total send/receive data volume
+	totalDataVolume atomic.Int64                // total send/receive data volume
 	RateSequence    []int64                     // rate history sequence
 	welford         *internal.Welford           // std/EWMA/mean
+	welfordMu       sync.Mutex                  // protects welford and RateSequence
 	captureCallback func(realTimeRate ByteRate) // user callback
 	closeFunc       func()                      // close func
 }
@@ -195,67 +216,52 @@ func (dm *DataManager) Wait() {
 	}
 }
 
-// RegisterUploadHandler registers a handler function for upload operations.
-func (dm *DataManager) RegisterUploadHandler(fn func()) *TestDirection {
-	if len(dm.upload.fns) < dm.nThread {
-		dm.upload.Add(fn)
-	}
-
-	return dm.upload
-}
-
-// RegisterDownloadHandler registers a handler function for download operations.
-func (dm *DataManager) RegisterDownloadHandler(fn func()) *TestDirection {
-	if len(dm.download.fns) < dm.nThread {
-		dm.download.Add(fn)
-	}
-
-	return dm.download
-}
-
 // GetTotalDataVolume returns the total data volume transferred.
 func (td *TestDirection) GetTotalDataVolume() int64 {
-	return atomic.LoadInt64(&td.totalDataVolume)
+	return td.totalDataVolume.Load()
 }
 
 // AddTotalDataVolume adds to the total data volume.
 func (td *TestDirection) AddTotalDataVolume(delta int64) int64 {
-	return atomic.AddInt64(&td.totalDataVolume, delta)
+	return td.totalDataVolume.Add(delta)
 }
 
 // Start begins the test direction execution with the given cancel function and main request handler index.
 func (td *TestDirection) Start(cancel context.CancelFunc, mainRequestHandlerIndex int) {
-	if len(td.fns) == 0 {
+	fns := td.snapshotFns()
+	if len(fns) == 0 {
 		panic("empty task stack")
 	}
 
-	if mainRequestHandlerIndex > len(td.fns)-1 {
+	if mainRequestHandlerIndex > len(fns)-1 {
 		mainRequestHandlerIndex = 0
 	}
 
 	mainLoadFactor := 0.1
 	// When the number of processor cores is equivalent to the processing program,
 	// the processing efficiency reaches the highest level (VT is not considered).
-	mainN := int(mainLoadFactor * float64(len(td.fns)))
+	mainN := int(mainLoadFactor * float64(len(fns)))
 	if mainN == 0 {
 		mainN = 1
 	}
 
-	if len(td.fns) == 1 {
+	if len(fns) == 1 {
 		mainN = td.manager.nThread
 	}
 
 	auxN := td.manager.nThread - mainN
-	dbg.Printf("Available fns: %d\n", len(td.fns))
+
+	dbg.Printf("Available fns: %d\n", len(fns))
 	dbg.Printf("mainN: %d\n", mainN)
 	dbg.Printf("auxN: %d\n", auxN)
 
 	waitGroup := sync.WaitGroup{}
 	td.manager.running = true
-	stopCapture := td.rateCapture()
 
-	// refresh once function
-	once := sync.Once{}
+	// Initialize closeFunc before starting rateCapture goroutine to prevent nil panic
+	var once sync.Once
+
+	stopCapture := make(chan bool, 1)
 	td.closeFunc = func() {
 		once.Do(func() {
 			stopCapture <- true
@@ -268,6 +274,8 @@ func (td *TestDirection) Start(cancel context.CancelFunc, mainRequestHandlerInde
 			dbg.Println("FuncGroup: Stop")
 		})
 	}
+
+	td.rateCapture(stopCapture)
 
 	time.AfterFunc(td.manager.captureTime, td.closeFunc)
 
@@ -282,13 +290,13 @@ func (td *TestDirection) Start(cancel context.CancelFunc, mainRequestHandlerInde
 					return
 				}
 
-				td.fns[mainRequestHandlerIndex]()
+				fns[mainRequestHandlerIndex]()
 			}
 		})
 	}
 
 	for auxIndex := 0; auxIndex < auxN; {
-		for functionIndex := range td.fns {
+		for functionIndex := range fns {
 			if auxIndex == auxN {
 				break
 			}
@@ -313,7 +321,7 @@ func (td *TestDirection) Start(cancel context.CancelFunc, mainRequestHandlerInde
 						return
 					}
 
-					td.fns[taskIndex]()
+					fns[taskIndex]()
 				}
 			}()
 
@@ -324,12 +332,11 @@ func (td *TestDirection) Start(cancel context.CancelFunc, mainRequestHandlerInde
 	waitGroup.Wait()
 }
 
-func (td *TestDirection) rateCapture() chan bool {
+func (td *TestDirection) rateCapture(stopCapture chan bool) {
 	ticker := time.NewTicker(td.manager.rateCaptureFrequency)
 
 	var prevTotalDataVolume int64
 
-	stopCapture := make(chan bool)
 	td.welford = internal.NewWelford(welfordWindowSize, td.manager.rateCaptureFrequency)
 	sTime := time.Now()
 
@@ -343,19 +350,24 @@ func (td *TestDirection) rateCapture() chan bool {
 				deltaDataVolume := newTotalDataVolume - prevTotalDataVolume
 				prevTotalDataVolume = newTotalDataVolume
 
+				td.welfordMu.Lock()
 				if deltaDataVolume != 0 {
 					td.RateSequence = append(td.RateSequence, deltaDataVolume)
 				}
-				// anyway we update the measuring instrument
+
 				globalAvg := (float64(td.GetTotalDataVolume())) / float64(
 					time.Since(sTime).Milliseconds(),
 				) * conversionFactor
-				if td.welford.Update(globalAvg, float64(deltaDataVolume)) {
+				shouldStop := td.welford.Update(globalAvg, float64(deltaDataVolume))
+				ewma := td.welford.EWMA()
+				td.welfordMu.Unlock()
+
+				if shouldStop && td.closeFunc != nil {
 					go td.closeFunc()
 				}
-				// reports the current rate at the given rate
+
 				if td.captureCallback != nil {
-					td.captureCallback(ByteRate(td.welford.EWMA()))
+					td.captureCallback(ByteRate(ewma))
 				}
 			case stop := <-stopCapture:
 				if stop {
@@ -364,8 +376,6 @@ func (td *TestDirection) rateCapture() chan bool {
 			}
 		}
 	}(ticker)
-
-	return stopCapture
 }
 
 // NewChunk creates a new data chunk for the manager.
@@ -382,22 +392,68 @@ func (dm *DataManager) NewChunk() Chunk {
 
 // AddTotalDownload adds to the total download data volume.
 func (dm *DataManager) AddTotalDownload(value int64) {
-	dm.download.AddTotalDataVolume(value)
+	dm.Lock()
+	download := dm.download
+	dm.Unlock()
+	download.AddTotalDataVolume(value)
 }
 
 // AddTotalUpload adds to the total upload data volume.
 func (dm *DataManager) AddTotalUpload(value int64) {
-	dm.upload.AddTotalDataVolume(value)
+	dm.Lock()
+	upload := dm.upload
+	dm.Unlock()
+	upload.AddTotalDataVolume(value)
+}
+
+// RegisterUploadHandler registers a handler function for upload operations.
+func (dm *DataManager) RegisterUploadHandler(handler func()) *TestDirection {
+	dm.Lock()
+	upload := dm.upload
+
+	nThread := dm.nThread
+	if upload.len() < nThread {
+		upload.Add(handler)
+	}
+
+	result := dm.upload
+	dm.Unlock()
+
+	return result
+}
+
+// RegisterDownloadHandler registers a handler function for download operations.
+func (dm *DataManager) RegisterDownloadHandler(handler func()) *TestDirection {
+	dm.Lock()
+	download := dm.download
+
+	nThread := dm.nThread
+	if download.len() < nThread {
+		download.Add(handler)
+	}
+
+	result := dm.download
+	dm.Unlock()
+
+	return result
 }
 
 // GetTotalDownload returns the total download data volume.
 func (dm *DataManager) GetTotalDownload() int64 {
-	return dm.download.GetTotalDataVolume()
+	dm.Lock()
+	download := dm.download
+	dm.Unlock()
+
+	return download.GetTotalDataVolume()
 }
 
 // GetTotalUpload returns the total upload data volume.
 func (dm *DataManager) GetTotalUpload() int64 {
-	return dm.upload.GetTotalDataVolume()
+	dm.Lock()
+	upload := dm.upload
+	dm.Unlock()
+
+	return upload.GetTotalDataVolume()
 }
 
 // SetRateCaptureFrequency sets the frequency for capturing rate data.
@@ -432,24 +488,38 @@ func (dm *DataManager) Snapshots() *Snapshots {
 
 // Reset resets the data manager to its initial state.
 func (dm *DataManager) Reset() {
+	dm.Lock()
 	dm.SnapshotStore.push(dm.Snapshot)
 	dm.Snapshot = &Snapshot{}
 	dm.download = dm.NewDataDirection(typeDownload)
 	dm.upload = dm.NewDataDirection(typeUpload)
+	dm.Unlock()
 }
 
 // GetAvgDownloadRate returns the average download rate.
-// GetAvgDownloadRate returns the average download rate.
 func (dm *DataManager) GetAvgDownloadRate() float64 {
-	unit := float64(dm.captureTime / time.Millisecond)
+	dm.Lock()
+	download := dm.download
+	captureTime := dm.captureTime
+	dm.Unlock()
 
-	return float64(dm.download.GetTotalDataVolume()*8/bitsToKbps) / unit
+	unit := float64(captureTime / time.Millisecond)
+
+	return float64(download.GetTotalDataVolume()*8/bitsToKbps) / unit
 }
 
 // GetEWMADownloadRate returns the exponentially weighted moving average download rate.
 func (dm *DataManager) GetEWMADownloadRate() float64 {
-	if dm.download.welford != nil {
-		return dm.download.welford.EWMA()
+	dm.Lock()
+	download := dm.download
+	dm.Unlock()
+
+	if download.welford != nil {
+		download.welfordMu.Lock()
+		ewma := download.welford.EWMA()
+		download.welfordMu.Unlock()
+
+		return ewma
 	}
 
 	return 0
@@ -457,15 +527,28 @@ func (dm *DataManager) GetEWMADownloadRate() float64 {
 
 // GetAvgUploadRate returns the average upload rate.
 func (dm *DataManager) GetAvgUploadRate() float64 {
-	unit := float64(dm.captureTime / time.Millisecond)
+	dm.Lock()
+	upload := dm.upload
+	captureTime := dm.captureTime
+	dm.Unlock()
 
-	return float64(dm.upload.GetTotalDataVolume()*8/bitsToKbps) / unit
+	unit := float64(captureTime / time.Millisecond)
+
+	return float64(upload.GetTotalDataVolume()*8/bitsToKbps) / unit
 }
 
 // GetEWMAUploadRate returns the exponentially weighted moving average upload rate.
 func (dm *DataManager) GetEWMAUploadRate() float64 {
-	if dm.upload.welford != nil {
-		return dm.upload.welford.EWMA()
+	dm.Lock()
+	upload := dm.upload
+	dm.Unlock()
+
+	if upload.welford != nil {
+		upload.welfordMu.Lock()
+		ewma := upload.welford.EWMA()
+		upload.welfordMu.Unlock()
+
+		return ewma
 	}
 
 	return 0
@@ -547,7 +630,7 @@ func (dc *DataChunk) DownloadHandler(reader io.Reader) error {
 		rs := int64(readSize)
 
 		dc.remainOrDiscardSize += rs
-		dc.manager.download.AddTotalDataVolume(rs)
+		dc.manager.AddTotalDownload(rs)
 
 		if dc.err != nil {
 			if errors.Is(dc.err, io.EOF) {

@@ -1,18 +1,14 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:best-practices", ":semanticCommits"],
-  "dependencyDashboard": true,
   "postUpdateOptions": ["gomodTidy"],
   "packageRules": [
     {
-      "matchManagers": ["gomod"],
-      "semanticCommitType": "chore"
-    },
-    {
+      "description": "Handle Go version updates",
       "matchManagers": ["gomod"],
       "matchDepNames": ["go"],
       "matchDepTypes": ["golang"],
-      "rangeStrategy": "bump",
+      "matchUpdateTypes": ["major", "minor"],
       "semanticCommitType": "chore"
     },
     {
@@ -22,9 +18,19 @@
       "enabled": true
     },
     {
+      "description": "Handle Go toolchain updates",
+      "matchManagers": ["gomod"],
+      "matchDepNames": ["toolchain"],
+      "rangeStrategy": "pin",
+      "semanticCommitType": "chore"
+    },
+    {
       "description": "Automerge non-major updates",
       "matchUpdateTypes": ["minor", "patch", "digest"],
       "automerge": true
     }
-  ]
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true
+  }
 }

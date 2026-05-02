@@ -33,7 +33,7 @@ func (s *Speedtest) JSON(servers Servers) ([]byte, error) {
 	data, err := json.Marshal(
 		fullOutput{
 			Timestamp: outputTime(time.Now()),
-			UserInfo:  s.User,
+			UserInfo:  s.GetUser(),
 			Servers:   servers,
 		},
 	)
@@ -49,7 +49,7 @@ func (s *Speedtest) JSONL(server *Server) ([]byte, error) {
 	data, err := json.Marshal(
 		singleServerOutput{
 			Timestamp: outputTime(time.Now()),
-			UserInfo:  s.User,
+			UserInfo:  s.GetUser(),
 			Server:    server,
 		},
 	)

@@ -6,6 +6,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	strTestMessage = "test message"
+	strTestTask    = "test task"
+)
+
 func TestNewManager(t *testing.T) {
 	t.Parallel()
 
@@ -88,6 +93,8 @@ func TestManager_Stop(t *testing.T) {
 }
 
 func TestManager_Println(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		message string
 	}
@@ -100,7 +107,7 @@ func TestManager_Println(t *testing.T) {
 		{
 			name: "println message",
 			tm:   NewManager(false, false),
-			args: args{message: "test message"},
+			args: args{message: strTestMessage},
 		},
 	}
 	for _, tt := range tests {
@@ -112,6 +119,8 @@ func TestManager_Println(t *testing.T) {
 }
 
 func TestManager_RunWithTrigger(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		enable   bool
 		title    string
@@ -128,7 +137,7 @@ func TestManager_RunWithTrigger(t *testing.T) {
 			tm:   NewManager(false, false),
 			args: args{
 				enable:   true,
-				title:    "test task",
+				title:    strTestTask,
 				callback: func(_ *Task) {},
 			},
 		},
@@ -137,7 +146,7 @@ func TestManager_RunWithTrigger(t *testing.T) {
 			tm:   NewManager(false, false),
 			args: args{
 				enable:   false,
-				title:    "test task",
+				title:    strTestTask,
 				callback: func(_ *Task) {},
 			},
 		},
@@ -154,6 +163,8 @@ func TestManager_RunWithTrigger(t *testing.T) {
 }
 
 func TestManager_Run(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		title    string
 		callback func(task *Task)
@@ -168,7 +179,7 @@ func TestManager_Run(t *testing.T) {
 			name: "run task",
 			tm:   NewManager(false, false),
 			args: args{
-				title:    "test task",
+				title:    strTestTask,
 				callback: func(_ *Task) {},
 			},
 		},
@@ -182,6 +193,8 @@ func TestManager_Run(t *testing.T) {
 }
 
 func TestManager_AsyncRun(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		title    string
 		callback func(task *Task)
@@ -196,7 +209,7 @@ func TestManager_AsyncRun(t *testing.T) {
 			name: "async run task",
 			tm:   NewManager(false, false),
 			args: args{
-				title:    "test task",
+				title:    strTestTask,
 				callback: func(_ *Task) {},
 			},
 		},
@@ -210,6 +223,8 @@ func TestManager_AsyncRun(t *testing.T) {
 }
 
 func TestTask_Complete(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		tr   *Task
@@ -228,6 +243,8 @@ func TestTask_Complete(t *testing.T) {
 }
 
 func TestTask_Updatef(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		format string
 		a      []any
@@ -256,6 +273,8 @@ func TestTask_Updatef(t *testing.T) {
 }
 
 func TestTask_Update(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		format string
 	}
@@ -268,7 +287,7 @@ func TestTask_Update(t *testing.T) {
 		{
 			name: "update task",
 			tr:   &Task{manager: NewManager(false, false)},
-			args: args{format: "test message"},
+			args: args{format: strTestMessage},
 		},
 	}
 	for _, tt := range tests {
@@ -280,6 +299,8 @@ func TestTask_Update(t *testing.T) {
 }
 
 func TestTask_Println(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		message string
 	}
@@ -292,7 +313,7 @@ func TestTask_Println(t *testing.T) {
 		{
 			name: "println task",
 			tr:   &Task{manager: NewManager(false, false)},
-			args: args{message: "test message"},
+			args: args{message: strTestMessage},
 		},
 	}
 	for _, tt := range tests {
@@ -304,6 +325,8 @@ func TestTask_Println(t *testing.T) {
 }
 
 func TestTask_Printf(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		format string
 		a      []any
@@ -332,6 +355,8 @@ func TestTask_Printf(t *testing.T) {
 }
 
 func TestTask_CheckError(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		err error
 	}

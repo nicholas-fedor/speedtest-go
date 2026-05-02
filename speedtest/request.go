@@ -320,10 +320,6 @@ func uploadRequest(ctx context.Context, server *Server, writer int) error {
 
 	defer func() { _ = resp.Body.Close() }()
 
-	if err != nil {
-		return fmt.Errorf("failed to upload data: %w", err)
-	}
-
 	return nil
 }
 
@@ -458,10 +454,6 @@ func (s *Server) TCPPing(
 		return nil, ErrConnectTimeout
 	}
 
-	if err != nil {
-		return latencies, fmt.Errorf("failed to perform TCP ping: %w", err)
-	}
-
 	return latencies, nil
 }
 
@@ -540,10 +532,6 @@ func (s *Server) HTTPPing(
 
 	if failTimes == echoTimes {
 		return nil, ErrConnectTimeout
-	}
-
-	if err != nil {
-		return latencies, fmt.Errorf("failed to perform HTTP ping: %w", err)
 	}
 
 	return latencies, nil
@@ -632,9 +620,7 @@ func prepareICMPPacket() []byte {
 	icmpData[7] = 1                                // seq
 
 	echoMessage := "Hi! SpeedTest-Go \\(●'◡'●)/"
-	for i := range len(echoMessage) {
-		icmpData[8+i] = echoMessage[i]
-	}
+	copy(icmpData[8:], echoMessage)
 
 	icmpData[8+echoOptionDataSize-1] = 6
 
@@ -655,7 +641,7 @@ func (s *Server) sendOneICMPPing(dialContext interface {
 	icmpData[7] = byte(1)
 	cs := checkSum(icmpData)
 	icmpData[2] = byte(cs >> 8)
-	icmpData[3] = byte(cs)
+	icmpData[3] = byte(cs & 0xFF)
 
 	sTime := time.Now()
 	_ = dialContext.SetDeadline(sTime.Add(readTimeout))

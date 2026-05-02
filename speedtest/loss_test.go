@@ -12,6 +12,8 @@ import (
 )
 
 func TestNewPacketLossAnalyzer(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		options *PacketLossAnalyzerOptions
 	}
@@ -47,6 +49,8 @@ func TestNewPacketLossAnalyzer(t *testing.T) {
 }
 
 func TestPacketLossAnalyzer_RunMulti(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		hosts []string
 	}
@@ -87,6 +91,8 @@ func TestPacketLossAnalyzer_RunMulti(t *testing.T) {
 }
 
 func TestPacketLossAnalyzer_RunMultiWithContext(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		hosts []string
 	}
@@ -128,6 +134,8 @@ func TestPacketLossAnalyzer_RunMultiWithContext(t *testing.T) {
 }
 
 func TestPacketLossAnalyzer_Run(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		host     string
 		callback func(packetLoss *transport.PLoss)
@@ -164,6 +172,8 @@ func TestPacketLossAnalyzer_Run(t *testing.T) {
 }
 
 func TestPacketLossAnalyzer_RunWithContext(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		host     string
 		callback func(packetLoss *transport.PLoss)
@@ -201,6 +211,8 @@ func TestPacketLossAnalyzer_RunWithContext(t *testing.T) {
 }
 
 func TestPacketLossAnalyzer_loopSampler(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 	}{
@@ -216,14 +228,15 @@ func TestPacketLossAnalyzer_loopSampler(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel() // Cancel immediately
 
-			err := pla.loopSampler(ctx, nil, func(_ *transport.PLoss) {})
-			// Should return nil since context is cancelled
-			assert.NoError(t, err)
+			pla.loopSampler(ctx, nil, func(_ *transport.PLoss) {})
+			// loopSampler does not return an error
 		})
 	}
 }
 
 func TestPacketLossAnalyzer_loopSender(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 	}{

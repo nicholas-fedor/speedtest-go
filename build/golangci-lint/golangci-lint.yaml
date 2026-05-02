@@ -24,7 +24,7 @@ formatters:
       sections:
         - standard # Standard section: captures all standard packages.
         - default # Default section: contains all imports that could not be matched to another section type.
-        - prefix(github.com/nicholas-fedor/watchtower) # Custom section: groups all imports with the specified Prefix.
+        - prefix(github.com/nicholas-fedor/speedtest-go) # Custom section: groups all imports with the specified Prefix.
         - blank # Blank section: contains all blank imports. This section is not present unless explicitly enabled.
         - dot # Dot section: contains all dot imports. This section is not present unless explicitly enabled.
         - alias # Alias section: contains all alias imports. This section is not present unless explicitly enabled.
@@ -60,7 +60,7 @@ formatters:
           replacement: "append(make([]T, 0), x)"
           # or better: just "[]T{x}" if building a new slice
     gofumpt:
-      module-path: "github.com/nicholas-fedor/go-speedtest"
+      module-path: "github.com/nicholas-fedor/speedtest-go"
       extra-rules: true
 
 linters:
@@ -118,7 +118,6 @@ linters:
     - funcorder # Checks the order of functions, methods, and constructors.
     - gocheckcompilerdirectives # Checks that go compiler directive comments (//go:) are valid.
     - gochecksumtype # Run exhaustiveness checks on Go "sum types".
-    - goconst # Finds repeated strings that could be replaced by a constant.
     - godoclint # Checks Golang's documentation practice (godoc).
     - godox # Detects usage of FIXME, TODO and other keywords inside comments.
     - gomoddirectives # Manage the use of 'replace', 'retract', and 'excludes' directives in go.mod.
@@ -131,7 +130,6 @@ linters:
     - iotamixing # Checks if iotas are being used in const blocks with other non-iota declarations.
     - loggercheck # Checks key value pairs for common logger libraries (kitlog,klog,logr,zap).
     - makezero # Finds slice declarations with non-zero initial length.
-    - mnd # An analyzer to detect magic numbers.
     - modernize # A suite of analyzers that suggest simplifications to Go code, using modern language and library features.
     - musttag # Enforce field tags in (un)marshaled structs.
     - nilerr # Finds the code that returns nil even if it checks that the error is not nil.
@@ -141,6 +139,7 @@ linters:
     - noinlineerr # Disallows inline error handling (if err := ...; err != nil {).
     - nonamedreturns # Reports all named returns.
     - nosprintfhostport # Checks for misuse of Sprintf to construct a host with port in a URL.
+    - paralleltest # Detects missing usage of t.Parallel() method in your Go test.
     - prealloc # Finds slice declarations that could potentially be pre-allocated.
     - predeclared # Find code that shadows one of Go's predeclared identifiers.
     - promlinter # Check Prometheus metrics naming via promlint.
@@ -165,14 +164,15 @@ linters:
     - gochecknoglobals # Check that no global variables exist.
     - gochecknoinits # Checks that no init functions are present in Go code.
     - gocognit # Computes and checks the cognitive complexity of functions.
+    - goconst # Finds repeated strings that could be replaced by a constant.
     - gocyclo # Computes and checks the cyclomatic complexity of functions. [fast]
     - gomodguard # Allow and blocklist linter for direct Go module dependencies. This is different from depguard where there are different block types for example version constraints and module recommendations.
     - interfacebloat # A linter that checks the number of methods inside an interface. [fast]
     - ireturn # Accept Interfaces, Return Concrete Types.
     - lll # Reports long lines.
     - maintidx # Maintidx measures the maintainability index of each function.
+    - mnd # An analyzer to detect magic numbers.
     - nestif # Reports deeply nested if statements.
-    - paralleltest # Detects missing usage of t.Parallel() method in your Go test.
     - rowserrcheck # Checks whether Rows.Err of rows is checked successfully.
     - spancheck # Checks for mistakes with OpenTelemetry/Census spans.
     - sqlclosecheck # Checks that sql.Rows, sql.Stmt, sqlx.NamedStmt, pgx.Query are closed.

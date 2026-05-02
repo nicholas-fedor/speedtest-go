@@ -2,7 +2,6 @@ package speedtest
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -95,15 +94,19 @@ func (pla *PacketLossAnalyzer) RunMultiWithContext(
 		go func(h string) {
 			defer wg.Done()
 
+			var lastValid *transport.PLoss
+
 			_ = pla.RunWithContext(ctx, h, func(packetLoss *transport.PLoss) {
 				if packetLoss.Sent != 0 {
-					mutex.Lock()
-
-					results[h] = packetLoss
-
-					mutex.Unlock()
+					lastValid = packetLoss
 				}
 			})
+
+			if lastValid != nil {
+				mutex.Lock()
+				results[h] = lastValid
+				mutex.Unlock()
+			}
 		}(host)
 	}
 
@@ -164,28 +167,29 @@ func (pla *PacketLossAnalyzer) RunWithContext(
 
 	go pla.loopSender(ctx, senderClient)
 
-	return pla.loopSampler(ctx, samplerClient, callback)
+	pla.loopSampler(ctx, samplerClient, callback)
+
+	return nil
 }
 
 func (pla *PacketLossAnalyzer) loopSampler(ctx context.Context, client *transport.Client,
 	callback func(packetLoss *transport.PLoss),
-) error {
+) {
 	ticker := time.NewTicker(pla.options.RemoteSamplingInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			pl, err1 := client.PacketLoss()
-			if err1 == nil {
-				if pl != nil {
-					callback(pl)
-				}
-			} else {
-				return fmt.Errorf("failed to get packet loss: %w", err1)
+			// PacketLoss errors are intentionally suppressed to allow sampling to continue
+			// despite transient network errors; the loop continues on failure.
+			packetLoss, _ := client.PacketLoss()
+
+			if packetLoss != nil {
+				callback(packetLoss)
 			}
 		case <-ctx.Done():
-			return nil
+			return
 		}
 	}
 }

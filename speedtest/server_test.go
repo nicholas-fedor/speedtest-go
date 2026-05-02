@@ -10,6 +10,8 @@ import (
 )
 
 func TestCustomServer(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		host string
 	}
@@ -48,6 +50,8 @@ func TestCustomServer(t *testing.T) {
 }
 
 func TestSpeedtest_CustomServer(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		host string
 	}
@@ -89,6 +93,8 @@ func TestSpeedtest_CustomServer(t *testing.T) {
 }
 
 func TestServers_Available(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		servers Servers
@@ -113,6 +119,8 @@ func TestServers_Available(t *testing.T) {
 }
 
 func TestServers_Len(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		servers Servers
@@ -140,6 +148,8 @@ func TestServers_Len(t *testing.T) {
 }
 
 func TestServers_Swap(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		i int
 		j int
@@ -171,6 +181,8 @@ func TestServers_Swap(t *testing.T) {
 }
 
 func TestServers_Hosts(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		servers Servers
@@ -198,6 +210,8 @@ func TestServers_Hosts(t *testing.T) {
 }
 
 func TestByDistance_Less(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		i int
 		j int
@@ -243,6 +257,8 @@ func TestByDistance_Less(t *testing.T) {
 }
 
 func TestSpeedtest_FetchServerByID(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		serverID string
 	}
@@ -278,6 +294,8 @@ func TestSpeedtest_FetchServerByID(t *testing.T) {
 }
 
 func TestFetchServerByID(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		serverID string
 	}
@@ -311,6 +329,8 @@ func TestFetchServerByID(t *testing.T) {
 }
 
 func TestSpeedtest_FetchServerByIDContext(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		serverID string
 	}
@@ -348,6 +368,8 @@ func TestSpeedtest_FetchServerByIDContext(t *testing.T) {
 }
 
 func TestSpeedtest_FetchServers(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		s       *Speedtest
@@ -377,6 +399,8 @@ func TestSpeedtest_FetchServers(t *testing.T) {
 }
 
 func TestFetchServers(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		wantErr bool
@@ -404,6 +428,8 @@ func TestFetchServers(t *testing.T) {
 }
 
 func TestSpeedtest_FetchServerListContext(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		s       *Speedtest
@@ -435,6 +461,8 @@ func TestSpeedtest_FetchServerListContext(t *testing.T) {
 }
 
 func TestFetchServerListContext(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		wantErr bool
@@ -464,6 +492,8 @@ func TestFetchServerListContext(t *testing.T) {
 }
 
 func Test_distance(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		lat1 float64
 		lon1 float64
@@ -498,6 +528,8 @@ func Test_distance(t *testing.T) {
 }
 
 func TestServers_FindServer(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		serverID []int
 	}
@@ -539,6 +571,8 @@ func TestServers_FindServer(t *testing.T) {
 }
 
 func TestServerList_String(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		servers ServerList
@@ -561,6 +595,8 @@ func TestServerList_String(t *testing.T) {
 }
 
 func TestServers_String(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		servers Servers
@@ -588,6 +624,8 @@ func TestServers_String(t *testing.T) {
 }
 
 func TestServer_String(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		s    *Server
@@ -610,6 +648,8 @@ func TestServer_String(t *testing.T) {
 }
 
 func TestServer_CheckResultValid(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		s    *Server
@@ -637,6 +677,8 @@ func TestServer_CheckResultValid(t *testing.T) {
 }
 
 func TestServer_testDurationTotalCount(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		s    *Server
@@ -669,6 +711,8 @@ func TestServer_testDurationTotalCount(t *testing.T) {
 }
 
 func TestServer_getNotNullValue(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		time *time.Duration
 	}

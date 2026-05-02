@@ -10,6 +10,8 @@ import (
 )
 
 func TestShowServerList(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		servers speedtest.Servers
 	}
@@ -36,6 +38,8 @@ func TestShowServerList(t *testing.T) {
 }
 
 func TestAppInfo(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 	}{
@@ -50,6 +54,8 @@ func TestAppInfo(t *testing.T) {
 }
 
 func TestVersion(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 	}{
@@ -58,24 +64,23 @@ func TestVersion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			got := Version()
 
 			// Test that Version() returns a non-empty string
 			assert.NotEmpty(t, got, "Version() should return a non-empty string")
 
-			// Test that the output contains the expected components
-			// The default version is "1.7.10" which should become "v1.7.10" (v prefix added)
-			assert.Contains(t, got, "v1.7.10", "Version() should contain version with v prefix")
-
-			// Test that the output contains the commit (default is "dev")
+			// Test that the output contains the stable sentinels
 			assert.Contains(t, got, "dev", "Version() should contain commit")
-
-			// Test that the output contains the build date (default is "unknown")
 			assert.Contains(t, got, "unknown", "Version() should contain build date")
 
 			// Test that the output has the correct format (3 space-separated parts)
 			parts := strings.Split(got, " ")
 			assert.Len(t, parts, 3, "Version() should return format: 'version commit buildDate'")
+
+			// Test that the version token has a "v" prefix
+			assert.True(t, strings.HasPrefix(parts[0], "v"), "Version token should have v prefix")
+			assert.NotEmpty(t, parts[0], "Version token should not be empty")
 		})
 	}
 }

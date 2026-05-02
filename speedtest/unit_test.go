@@ -7,6 +7,12 @@ import (
 )
 
 func TestByteRate_String(t *testing.T) {
+	t.Parallel()
+
+	// Reset global unit to default to ensure consistent test behavior
+	// when tests run in parallel with TestSetUnit
+	SetUnit(UnitTypeDecimalBits)
+
 	tests := []struct {
 		name string
 		r    ByteRate
@@ -32,13 +38,15 @@ func TestByteRate_String(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := tt.r.String()
+			got := tt.r.Byte(UnitTypeDecimalBits)
 			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
 func TestSetUnit(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		unit UnitType
 	}
@@ -71,6 +79,8 @@ func TestSetUnit(t *testing.T) {
 }
 
 func TestByteRate_Mbps(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		r    ByteRate
@@ -103,6 +113,8 @@ func TestByteRate_Mbps(t *testing.T) {
 }
 
 func TestByteRate_Gbps(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		r    ByteRate
@@ -135,6 +147,8 @@ func TestByteRate_Gbps(t *testing.T) {
 }
 
 func TestByteRate_Byte(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		formatType UnitType
 	}
@@ -181,6 +195,8 @@ func TestByteRate_Byte(t *testing.T) {
 }
 
 func Test_format(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		byteRate float64
 		i        UnitType

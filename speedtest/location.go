@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 const (
@@ -31,9 +32,8 @@ type Location struct {
 	Lon  float64
 }
 
-// Locations contains predefined location data for cities.
-// TODO more locations need to added.
-var Locations = map[string]*Location{
+// locations contains predefined location data for cities.
+var locations = map[string]*Location{
 	"brasilia":     {"brasilia", "br", -15.793876, -47.8835327},
 	"hongkong":     {"hongkong", "hk", 22.3106806, 114.1700546},
 	"tokyo":        {"tokyo", "jp", 35.680938, 139.7674114},
@@ -62,19 +62,31 @@ var Locations = map[string]*Location{
 	"bangkok":      {"bangkok", "th", 13.7248936, 100.493026},
 }
 
+var locationsMu sync.RWMutex
+
 // PrintCityList prints the list of available cities.
 func PrintCityList() {
 	_, _ = fmt.Fprintln(os.Stdout, "Available city labels (case insensitive): ")
 	_, _ = fmt.Fprintln(os.Stdout, " CC\t\tCityLabel\tLocation")
 
-	for k, v := range Locations {
+	locationsMu.RLock()
+
+	for k, v := range locations {
 		_, _ = fmt.Fprintf(os.Stdout, "(%v)\t%20s\t[%v, %v]\n", v.CC, k, v.Lat, v.Lon)
 	}
+
+	locationsMu.RUnlock()
 }
 
 // GetLocation retrieves a location by name.
 func GetLocation(locationName string) (*Location, error) {
-	if loc, ok := Locations[strings.ToLower(locationName)]; ok {
+	locationsMu.RLock()
+
+	loc, ok := locations[strings.ToLower(locationName)]
+
+	locationsMu.RUnlock()
+
+	if ok {
 		return loc, nil
 	}
 
@@ -88,7 +100,10 @@ func NewLocation(locationName string, latitude, longitude float64) *Location {
 	loc.Lat = latitude
 	loc.Lon = longitude
 	loc.Name = locationName
-	Locations[locationName] = &loc
+
+	locationsMu.Lock()
+	locations[locationName] = &loc
+	locationsMu.Unlock()
 
 	return &loc
 }

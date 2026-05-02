@@ -3,7 +3,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/nicholas-fedor/speedtest-go/speedtest"
@@ -47,6 +46,6 @@ func main() {
 
 func checkError(err error) {
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 }

@@ -421,12 +421,12 @@ func (s *Speedtest) FetchServerListContext(ctx context.Context) (Servers, error)
 	// If we don't call FetchUserInfo() before FetchServers(),
 	// we don't calculate the distance, instead we use the
 	// remote computing distance provided by Ookla as default.
-	if s.User != nil {
+	if user := s.GetUser(); user != nil {
 		for _, server := range servers {
 			sLat, _ := strconv.ParseFloat(server.Lat, 64)
 			sLon, _ := strconv.ParseFloat(server.Lon, 64)
-			uLat, _ := strconv.ParseFloat(s.User.Lat, 64)
-			uLon, _ := strconv.ParseFloat(s.User.Lon, 64)
+			uLat, _ := strconv.ParseFloat(user.Lat, 64)
+			uLon, _ := strconv.ParseFloat(user.Lon, 64)
 			server.Distance = distance(sLat, sLon, uLat, uLon)
 		}
 	}

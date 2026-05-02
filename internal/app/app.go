@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -232,13 +233,21 @@ func runServerTests(
 		packetLossAnalyzerTimeout,
 	)
 
+	var (
+		lastValidLoss transport.PLoss
+		hasValidLoss  bool
+	)
+
 	taskManager.Run("Packet Loss Analyzer", func(task *task.Task) {
 		blocker.Go(func() {
 			err := analyzer.RunWithContext(
 				packetLossAnalyzerCtx,
 				server.Host,
 				func(packetLoss *transport.PLoss) {
-					server.PacketLoss = *packetLoss
+					if packetLoss.Sent != 0 {
+						lastValidLoss = *packetLoss
+						hasValidLoss = true
+					}
 				},
 			)
 			if errors.Is(err, transport.ErrUnsupported) {
@@ -262,6 +271,10 @@ func runServerTests(
 
 	packetLossAnalyzerCancel()
 	blocker.Wait()
+
+	if hasValidLoss {
+		server.PacketLoss = lastValidLoss
+	}
 
 	if !cfg.JSONOutput && !cfg.JSONLOutput {
 		taskManager.Println(server.PacketLoss.String())
@@ -289,7 +302,7 @@ func runTests(
 			return fmt.Errorf("failed to marshal JSON: %w", errMarshal)
 		}
 
-		log.Print(string(json))
+		fmt.Fprintf(os.Stdout, "%s", json)
 	} else if cfg.JSONLOutput {
 		for _, server := range targets {
 			json, errMarshal := speedtestClient.JSONL(server)
@@ -297,7 +310,7 @@ func runTests(
 				return fmt.Errorf("failed to marshal JSONL: %w", errMarshal)
 			}
 
-			log.Println(string(json))
+			fmt.Fprintf(os.Stdout, "%s\n", json)
 		}
 	}
 

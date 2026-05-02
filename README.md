@@ -1,4 +1,11 @@
+<!-- markdownlint-disable -->
+<div align="center">
+
 # speedtest-go
+
+<img src=".github/assets/speedtest-go.svg" alt="speedtest-go logo" width="128"/>
+<!-- markdownlint-enable -->
+</div>
 
 This is a fork of [showwin/speedtest-go](https://github.com/showwin/speedtest-go) that has been updated to use the latest Go version and dependencies.
 
@@ -25,7 +32,7 @@ docker buildx ls
 docker buildx create --name mybuilder --use
 
 # Build and push for multiple platforms
-docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 -t nickfedorspeedtest-go:latest --push .
+docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 -t nickfedor/speedtest-go:latest --push .
 ```
 
 #### Running the Container

@@ -7,6 +7,8 @@ import (
 )
 
 func TestNewDebug(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 	}{
@@ -27,6 +29,8 @@ func TestNewDebug(t *testing.T) {
 }
 
 func TestDebug_Enable(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 	}{
@@ -47,6 +51,8 @@ func TestDebug_Enable(t *testing.T) {
 }
 
 func TestDebug_Println(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		v    []any
@@ -71,6 +77,8 @@ func TestDebug_Println(t *testing.T) {
 }
 
 func TestDebug_Printf(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		format string

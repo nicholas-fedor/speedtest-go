@@ -1,0 +1,242 @@
+################################################################################
+#                                                                              #
+#                 GoReleaser OSS Nightly Release Configuration                 #
+#                                                                              #
+# Project: speedtest-go                                                        #
+# Repository: https://github.com/nicholas-fedor/speedtest-go/                  #
+#                                                                              #
+# GoReleaser URL: https://goreleaser.com/                                      #
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json      #
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj                                             #
+#                                                                              #
+################################################################################
+
+################################################################################
+# Configuration Version
+version: 2
+################################################################################
+
+# ##############################################################################
+# Project Name
+# https://goreleaser.com/customization/project/
+# ##############################################################################
+project_name: "speedtest-go"
+
+################################################################################
+# Go Binary Build Configuration
+# https://goreleaser.com/customization/builds/go/
+################################################################################
+builds:
+  - id: "speedtest-go-binary"
+    main: "main.go"
+    binary: "speedtest-go"
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .Commit }}
+      - -X main.date={{ .CommitDate }}
+      - -X github.com/nicholas-fedor/speedtest-go/speedtest.version={{ .Version }}
+      - -X github.com/nicholas-fedor/speedtest-go/internal/output.commit={{ .Commit }}
+      - -X github.com/nicholas-fedor/speedtest-go/internal/output.date={{ .Date }}
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - "386"
+      - arm
+      - arm64
+      - riscv64
+    ignore:
+      - goos: windows
+        goarch: riscv64
+      - goos: windows
+        goarch: arm
+      - goos: darwin
+        goarch: "386"
+      - goos: darwin
+        goarch: arm
+      - goos: darwin
+        goarch: riscv64
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+################################################################################
+# Release Configuration (SCM)
+# https://goreleaser.com/customization/publish/scm/
+################################################################################
+# Skip release to GitHub for nightly releases
+release:
+  disable: true
+
+################################################################################
+# Docker Digests Configuration
+# https://goreleaser.com/customization/package/docker_digests/
+################################################################################
+docker_digest:
+  name_template: "digests.txt"
+
+################################################################################
+# Docker Image Build Configuration (Modern dockers_v2)
+# https://goreleaser.com/customization/package/dockers_v2/
+################################################################################
+dockers_v2:
+  ##############################################################################
+  # Multi-platform manifest (all platforms) - non-prefixed nightly tag only
+  ##############################################################################
+  - id: "speedtest-go-manifest-nightly"
+    ids: ["speedtest-go-binary"]
+    images:
+      - "nickfedor/speedtest-go"
+      - "ghcr.io/nicholas-fedor/speedtest-go"
+    tags:
+      - "nightly"
+    dockerfile: build/docker/Dockerfile
+    platforms:
+      - linux/amd64
+      - linux/386
+      - linux/arm/v6
+      - linux/arm64
+      - linux/riscv64
+    labels:
+      org.opencontainers.image.name: "speedtest-go"
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.source: "{{ .GitURL }}"
+      org.opencontainers.image.description: "The speedtest-go CLI"
+      org.opencontainers.image.licenses: "MIT"
+      org.opencontainers.image.url: "https://github.com/nicholas-fedor/speedtest-go"
+      org.opencontainers.image.documentation: "https://github.com/nicholas-fedor/speedtest-go"
+
+  ##############################################################################
+  # Platform-specific images - platform-prefixed nightly tags only
+  ##############################################################################
+  - id: "speedtest-go-amd64-nightly"
+    ids: ["speedtest-go-binary"]
+    images:
+      - "nickfedor/speedtest-go"
+      - "ghcr.io/nicholas-fedor/speedtest-go"
+    tags:
+      - "amd64-nightly"
+    dockerfile: build/docker/Dockerfile
+    platforms:
+      - linux/amd64
+    labels:
+      org.opencontainers.image.name: "speedtest-go"
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.source: "{{ .GitURL }}"
+      org.opencontainers.image.description: "The speedtest-go CLI"
+      org.opencontainers.image.licenses: "MIT"
+      org.opencontainers.image.url: "https://github.com/nicholas-fedor/speedtest-go"
+      org.opencontainers.image.documentation: "https://github.com/nicholas-fedor/speedtest-go"
+
+  - id: "speedtest-go-i386-nightly"
+    ids: ["speedtest-go-binary"]
+    images:
+      - "nickfedor/speedtest-go"
+      - "ghcr.io/nicholas-fedor/speedtest-go"
+    tags:
+      - "i386-nightly"
+    dockerfile: build/docker/Dockerfile
+    platforms:
+      - linux/386
+    labels:
+      org.opencontainers.image.name: "speedtest-go"
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.source: "{{ .GitURL }}"
+      org.opencontainers.image.description: "The speedtest-go CLI"
+      org.opencontainers.image.licenses: "MIT"
+      org.opencontainers.image.url: "https://github.com/nicholas-fedor/speedtest-go"
+      org.opencontainers.image.documentation: "https://github.com/nicholas-fedor/speedtest-go"
+
+  - id: "speedtest-go-armhf-nightly"
+    ids: ["speedtest-go-binary"]
+    images:
+      - "nickfedor/speedtest-go"
+      - "ghcr.io/nicholas-fedor/speedtest-go"
+    tags:
+      - "armhf-nightly"
+    dockerfile: build/docker/Dockerfile
+    platforms:
+      - linux/arm/v6
+    labels:
+      org.opencontainers.image.name: "speedtest-go"
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.source: "{{ .GitURL }}"
+      org.opencontainers.image.description: "The speedtest-go CLI"
+      org.opencontainers.image.licenses: "MIT"
+      org.opencontainers.image.url: "https://github.com/nicholas-fedor/speedtest-go"
+      org.opencontainers.image.documentation: "https://github.com/nicholas-fedor/speedtest-go"
+
+  - id: "speedtest-go-arm64v8-nightly"
+    ids: ["speedtest-go-binary"]
+    images:
+      - "nickfedor/speedtest-go"
+      - "ghcr.io/nicholas-fedor/speedtest-go"
+    tags:
+      - "arm64v8-nightly"
+    dockerfile: build/docker/Dockerfile
+    platforms:
+      - linux/arm64
+    labels:
+      org.opencontainers.image.name: "speedtest-go"
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.source: "{{ .GitURL }}"
+      org.opencontainers.image.description: "The speedtest-go CLI"
+      org.opencontainers.image.licenses: "MIT"
+      org.opencontainers.image.url: "https://github.com/nicholas-fedor/speedtest-go"
+      org.opencontainers.image.documentation: "https://github.com/nicholas-fedor/speedtest-go"
+
+  - id: "speedtest-go-riscv64-nightly"
+    ids: ["speedtest-go-binary"]
+    images:
+      - "nickfedor/speedtest-go"
+      - "ghcr.io/nicholas-fedor/speedtest-go"
+    tags:
+      - "riscv64-nightly"
+    dockerfile: build/docker/Dockerfile
+    platforms:
+      - linux/riscv64
+    labels:
+      org.opencontainers.image.name: "speedtest-go"
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.source: "{{ .GitURL }}"
+      org.opencontainers.image.description: "The speedtest-go CLI"
+      org.opencontainers.image.licenses: "MIT"
+      org.opencontainers.image.url: "https://github.com/nicholas-fedor/speedtest-go"
+      org.opencontainers.image.documentation: "https://github.com/nicholas-fedor/speedtest-go"
+
+################################################################################
+# Docker Image Signing (Cosign)
+# https://goreleaser.com/customization/sign/docker_sign/
+################################################################################
+docker_signs:
+  - id: cosign-images
+    cmd: cosign
+    args:
+      - "sign"
+      - "${artifact}@${digest}"
+      - "--yes"
+    output: true
+
+################################################################################
+# Changelog Configuration
+# https://goreleaser.com/customization/changelog/
+################################################################################
+changelog:
+  disable: true

@@ -11,6 +11,8 @@ import (
 )
 
 func TestNewPacketLossSender(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		uuid   string
@@ -109,6 +111,8 @@ func TestPacketLossSender_Send(t *testing.T) {
 }
 
 func Test_generateUUID(t *testing.T) {
+	t.Parallel()
+
 	got, err := generateUUID()
 	require.NoError(t, err)
 	assert.NotEmpty(t, got)

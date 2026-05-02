@@ -9,6 +9,8 @@ import (
 )
 
 func Test_parseAddr(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		addr string
 	}
@@ -50,6 +52,8 @@ func Test_parseAddr(t *testing.T) {
 }
 
 func TestSpeedtest_NewUserConfig(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		uc *UserConfig
 	}
@@ -76,6 +80,8 @@ func TestSpeedtest_NewUserConfig(t *testing.T) {
 }
 
 func TestSpeedtest_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		req *http.Request
 	}
@@ -122,6 +128,8 @@ func TestSpeedtest_RoundTrip(t *testing.T) {
 }
 
 func TestWithDoer(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		doer *http.Client
 	}
@@ -129,30 +137,33 @@ func TestWithDoer(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want Option
 	}{
 		{
 			name: "nil http client",
 			args: args{doer: nil},
-			want: Option(nil), // Option is a function type, nil is expected
 		},
 		{
 			name: "valid http client",
 			args: args{doer: &http.Client{}},
-			want: Option(nil), // Option is a function type, nil is expected
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := WithDoer(tt.args.doer)
-			assert.NotNil(t, got) // Option function should not be nil
+			opt := WithDoer(tt.args.doer)
+			assert.NotNil(t, opt) // Option function should not be nil
+
+			st := &Speedtest{}
+			opt(st)
+			assert.Equal(t, tt.args.doer, st.doer) // Verify doer field was set
 		})
 	}
 }
 
 func TestWithUserConfig(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		userConfig *UserConfig
 	}
@@ -160,30 +171,29 @@ func TestWithUserConfig(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want Option
 	}{
-		{
-			name: "nil user config",
-			args: args{userConfig: nil},
-			want: Option(nil), // Option is a function type, nil is expected
-		},
 		{
 			name: "valid user config",
 			args: args{userConfig: &UserConfig{}},
-			want: Option(nil), // Option is a function type, nil is expected
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := WithUserConfig(tt.args.userConfig)
-			assert.NotNil(t, got) // Option function should not be nil
+			opt := WithUserConfig(tt.args.userConfig)
+			assert.NotNil(t, opt) // Option function should not be nil
+
+			st := &Speedtest{Manager: NewDataManager()}
+			opt(st)
+			assert.Equal(t, tt.args.userConfig, st.config) // Verify config field was set
 		})
 	}
 }
 
 func TestNew(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		opts []Option
 	}
@@ -215,6 +225,8 @@ func TestNew(t *testing.T) {
 }
 
 func TestVersion(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		want string

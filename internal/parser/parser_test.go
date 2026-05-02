@@ -8,7 +8,18 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/speedtest"
 )
 
+const (
+	strDecimalBits  = "decimal-bits"
+	strDecimalBytes = "decimal-bytes"
+	strBinaryBits   = "binary-bits"
+	strBinaryBytes  = "binary-bytes"
+	strICMP         = "icmp"
+	strTCP          = "tcp"
+)
+
 func TestParseUnit(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		str string
 	}
@@ -19,23 +30,23 @@ func TestParseUnit(t *testing.T) {
 		want speedtest.UnitType
 	}{
 		{
-			name: "decimal-bits",
-			args: args{str: "decimal-bits"},
+			name: strDecimalBits,
+			args: args{str: strDecimalBits},
 			want: speedtest.UnitTypeDecimalBits,
 		},
 		{
-			name: "decimal-bytes",
-			args: args{str: "decimal-bytes"},
+			name: strDecimalBytes,
+			args: args{str: strDecimalBytes},
 			want: speedtest.UnitTypeDecimalBytes,
 		},
 		{
-			name: "binary-bits",
-			args: args{str: "binary-bits"},
+			name: strBinaryBits,
+			args: args{str: strBinaryBits},
 			want: speedtest.UnitTypeBinaryBits,
 		},
 		{
-			name: "binary-bytes",
-			args: args{str: "binary-bytes"},
+			name: strBinaryBytes,
+			args: args{str: strBinaryBytes},
 			want: speedtest.UnitTypeBinaryBytes,
 		},
 		{
@@ -55,6 +66,8 @@ func TestParseUnit(t *testing.T) {
 }
 
 func TestParseProto(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		str string
 	}
@@ -65,13 +78,13 @@ func TestParseProto(t *testing.T) {
 		want speedtest.Proto
 	}{
 		{
-			name: "icmp",
-			args: args{str: "icmp"},
+			name: strICMP,
+			args: args{str: strICMP},
 			want: speedtest.ICMP,
 		},
 		{
-			name: "tcp",
-			args: args{str: "tcp"},
+			name: strTCP,
+			args: args{str: strTCP},
 			want: speedtest.TCP,
 		},
 		{

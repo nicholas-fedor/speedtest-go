@@ -8,6 +8,8 @@ import (
 )
 
 func TestPrintCityList(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 	}{
@@ -25,6 +27,8 @@ func TestPrintCityList(t *testing.T) {
 }
 
 func TestGetLocation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		locationName string
 	}
@@ -66,6 +70,8 @@ func TestGetLocation(t *testing.T) {
 }
 
 func TestNewLocation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		locationName string
 		latitude     float64
@@ -102,6 +108,8 @@ func TestNewLocation(t *testing.T) {
 }
 
 func TestParseLocation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		locationName  string
 		coordinateStr string
@@ -176,6 +184,8 @@ func TestParseLocation(t *testing.T) {
 }
 
 func TestLocation_String(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		l    *Location
@@ -202,6 +212,8 @@ func TestLocation_String(t *testing.T) {
 }
 
 func Test_betweenRange(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		inputStrValue string
 		interval      float64

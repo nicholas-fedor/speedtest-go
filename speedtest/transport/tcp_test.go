@@ -11,6 +11,8 @@ import (
 )
 
 func Test_pingFormat(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		locTime int64
@@ -43,6 +45,8 @@ func Test_pingFormat(t *testing.T) {
 }
 
 func TestNewClient(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		dialer *net.Dialer
@@ -70,6 +74,8 @@ func TestNewClient(t *testing.T) {
 }
 
 func TestClient_ID(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		id   string
@@ -134,6 +140,8 @@ func TestClient_Connect(t *testing.T) {
 }
 
 func TestClient_Disconnect(t *testing.T) {
+	t.Parallel()
+
 	client1, client2 := net.Pipe()
 
 	defer func() { _ = client2.Close() }()
@@ -249,6 +257,8 @@ func TestClient_Read(t *testing.T) {
 }
 
 func TestClient_Version(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		version  string
@@ -321,6 +331,8 @@ func TestClient_PingContext(t *testing.T) {
 }
 
 func TestClient_InitPacketLoss(t *testing.T) {
+	t.Parallel()
+
 	client := &Client{
 		id: "test-id",
 	}
@@ -331,6 +343,8 @@ func TestClient_InitPacketLoss(t *testing.T) {
 }
 
 func TestPLoss_String(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		p    PLoss
@@ -356,6 +370,8 @@ func TestPLoss_String(t *testing.T) {
 }
 
 func TestPLoss_Loss(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		p    PLoss
@@ -386,6 +402,8 @@ func TestPLoss_Loss(t *testing.T) {
 }
 
 func TestPLoss_LossPercent(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		p    PLoss
@@ -416,6 +434,8 @@ func TestPLoss_LossPercent(t *testing.T) {
 }
 
 func TestClient_PacketLoss(t *testing.T) {
+	t.Parallel()
+
 	client1, client2 := net.Pipe()
 
 	defer func() { _ = client2.Close() }()
@@ -438,12 +458,16 @@ func TestClient_PacketLoss(t *testing.T) {
 }
 
 func TestClient_Download(t *testing.T) {
+	t.Parallel()
+
 	client := &Client{}
 
 	assert.Panics(t, func() { client.Download() })
 }
 
 func TestClient_Upload(t *testing.T) {
+	t.Parallel()
+
 	client := &Client{}
 
 	assert.Panics(t, func() { client.Upload() })
