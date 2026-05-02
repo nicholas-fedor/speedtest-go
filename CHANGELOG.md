@@ -1,0 +1,487 @@
+<!-- markdownlint-disable MD024 -->
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+
+- Add concurrent safety and modernize CI infrastructure by @nicholas-fedor in [#27](https://github.com/nicholas-fedor/speedtest-go/pull/27)
+- Add jsonl output support by @slim-bean
+- Add RunMulti and RunMultiWithContext by @r3inbowari
+- Support unix like output by @r3inbowari
+- Support human-readable and auto-scaled rate units for output by @r3inbowari
+- Add ua option for cli by @r3inbowari
+- Support dns request binding source by @pig98
+- Support dl/ul and ping at the same time by @r3inbowari
+- Support ping with tcp by @r3inbowari
+- Add new api for getting the server by id by @r3inbowari
+- Add --force-http-ping flag by @r3inbowari
+- Add download, upload, ping tests duration by @bluemanos
+- More platforms by @r3inbowari
+- More platforms by @r3inbowari
+- Ignore .run dir by @r3inbowari
+- More precise latency and jitter support by @r3inbowari
+- More precise latency and jitter support by @r3inbowari
+- Dynamic rate callback by @r3inbowari
+- Add more api for data manager by @r3inbowari
+- Add User-Agent to http request to avoid request error in some cases. by @mikaelpeltier
+- Add link by @showwin
+- More city by @r3inbowari
+- Support --world with valid latitude and longitude as same time by @r3inbowari
+- Support test somewhere with predefined location by @r3inbowari
+- Add Speedtest struct which contains the global variables used by @mr-linch
+- Add more test by @showwin
+- Added context support by @euantorano
+- Add timestamp to the output
+- Add ability to output results in json format
+- Add cbergoon to contributors by @showwin
+- Adds speedtest package to enable use of api by @cbergoon
+- Add release note for me by @showwin
+- Add error handle when www.speedtest.net/speedtest-config.php is unavailable by @showwin
+- Add result validation by @showwin
+- Add Contributors in README by @showwin
+- Add release script by @showwin
+- Add --timeout option: Define timeout seconds by @showwin
+- Add measure upload speed by @showwin
+- Add --server option: select server to speedtest by @showwin
+- Add measure download speed by @showwin
+- Add README by @showwin
+- Add --list option: show available servers by @showwin
+
+### Changed
+
+- Enable gomod indirect dependency updates by @nicholas-fedor in [#7](https://github.com/nicholas-fedor/speedtest-go/pull/7)
+- Enable dependency dashboard and add indirect dependency rules by @nicholas-fedor in [#6](https://github.com/nicholas-fedor/speedtest-go/pull/6)
+- Restructure codebase with CLI migration, comprehensive linting, and testing by @nicholas-fedor
+- Release v1.7.10 by @r3inbowari
+- Release v1.7.9 by @r3inbowari
+- Release v1.7.8 by @r3inbowari
+- Release v1.7.7 by @r3inbowari
+- Release v1.7.6 by @r3inbowari
+- Update speedtest.go by @r3inbowari
+- Release v1.7.4 by @r3inbowari
+- Release v1.7.3 by @r3inbowari
+- Update README.md by @r3inbowari
+- Update README.md by @r3inbowari
+- Release v1.7.2 by @r3inbowari
+- Release 1.7.1 by @r3inbowari
+- Packet loss analyzer implementation by @r3inbowari
+- Release v1.7.0 by @r3inbowari
+- N/A display when no response by @r3inbowari
+- Minimum dynamic measurement time and more accurate measurements by @r3inbowari
+- Release v1.6.12 by @r3inbowari
+- Release v1.6.11 by @r3inbowari
+- Improve URL handling by @eric
+- Expose a way to set the dialer control property to allow binding a connection to an interface by @danielealbano
+- Merge pull request #181 from showwin/build/freebsd by @showwin
+- Release v1.6.10 by @r3inbowari
+- TestFetchServerList by @3mard
+- Close ping response  body by @3mard
+- Release v1.6.9 by @r3inbowari
+- Merge pull request #161 from showwin/fix/stddeviation by @r3inbowari
+- Release v1.6.8 by @r3inbowari
+- Merge pull request #153 from showwin/emoji by @showwin
+- Merge pull request #145 from showwin/release/v1.6.5 by @showwin
+- Release v1.6.5 by @showwin
+- Merge pull request #144 from suzuki-shunsuke/chore/fix-goreleaser by @showwin
+- New ui and fix bugs by @r3inbowari
+- Merge pull request #117 from r3inbowari/fix/test1 by @r3inbowari
+- Merge pull request #116 from r3inbowari/fix/test1 by @r3inbowari
+- Merge pull request #115 from r3inbowari/change/savingmode by @r3inbowari
+- Merge branch 'showwin:master' into master by @r3inbowari
+- Disable down or up test by @r3inbowari
+- Debug mode and fix error down/up calculation method by @r3inbowari
+- Automatic selection of ping algorithm by @r3inbowari
+- Merge pull request #111 from r3inbowari/fix/lowtest by @r3inbowari
+- Merge pull request #110 from r3inbowari/add/multi by @r3inbowari
+- Test using multi server by @r3inbowari
+- Merge branch 'showwin:master' into master by @r3inbowari
+- Use http ping by @r3inbowari
+- Use http ping by @r3inbowari
+- Choose the best server by @r3inbowari
+- Merge pull request #103 from r3inbowari/add/jitter by @r3inbowari
+- Merge branch 'master' into add/jitter by @r3inbowari
+- Merge pull request #100 from r3inbowari/fix/errbuild by @r3inbowari
+- Merge pull request #99 from r3inbowari/fix/context by @r3inbowari
+- Merge branch 'master' into fix/context by @r3inbowari
+- Merge pull request #98 from r3inbowari/fix/dynamic_chunk by @r3inbowari
+- Merge pull request #96 from r3inbowari/add/outbound by @r3inbowari
+- Delete speedtest-go_outbound.zip by @r3inbowari
+- Merge pull request #94 from r3inbowari/add/proxy by @r3inbowari
+- Merge pull request #97 from r3inbowari/patch-1 by @showwin
+- Update release.yml by @r3inbowari
+- Merge branch 'add/outbound' into fix/context by @r3inbowari
+- Update readme by @r3inbowari
+- Update readme by @r3inbowari
+- Outbound interface selection support by @r3inbowari
+- Merge branch 'add/proxy' into fix/context by @r3inbowari
+- Update readme by @r3inbowari
+- Update readme by @r3inbowari
+- Proxy support by @r3inbowari
+- Improve measurement algorithm with dynamic rate by @r3inbowari
+- Dynamic downrate and uprate experiments by @r3inbowari
+- Merge pull request #93 from showwin/fix/error_strings by @showwin
+- Error strings should not start with a capital letter by @showwin
+- Merge pull request #91 from drewstinnett/feature-custom-url by @showwin
+- Optimize if-else for custom-url by @drewstinnett
+- Matching error case styling with other errors int he project by @drewstinnett
+- Fixing error wording by @drewstinnett
+- Fixing casing by @drewstinnett
+- Adding Go style description for new method by @drewstinnett
+- Adding custom-url support by @drewstinnett
+- Merge pull request #92 from showwin/release/v1.3.1 by @showwin
+- Release v1.3.1 by @showwin
+- Merge pull request #90 from r3inbowari/change/upreader by @showwin
+- Use a custom reader to allocate less memory when uploading by @r3inbowari
+- Merge pull request #89 from r3inbowari/fix/negarate by @showwin
+- Merge pull request #86 from showwin/release/v1.3.0 by @showwin
+- Release v1.3.0 by @showwin
+- Merge pull request #87 from showwin/fix_golangci_lint_error by @showwin
+- Evaluate the last code by @showwin
+- Merge pull request #85 from showwin/fix_docs by @showwin
+- Update the way to release new version by @showwin
+- Merge pull request #84 from rtrox/rtrox/header-fix by @showwin
+- Set custom user-agent on all requests by @rtrox
+- Merge pull request #83 from rtrox/rtrox/enable_arm64 by @showwin
+- [fix] Ignore windows/arm64 pair to re-enable linux/arm64 releases by @rtrox
+- Merge pull request #82 from showwin/release/v1.2.1 by @showwin
+- Release v1.2.1 by @showwin
+- Merge pull request #81 from showwin/showwin/disable_arm64 by @showwin
+- Disable arm64 build temporally by @showwin
+- Merge pull request #80 from mikaelpeltier/Fix-Fetch-User-Info by @showwin
+- Merge pull request #78 from showwin/contributors by @showwin
+- Stop updating contributors by @showwin
+- Merge pull request #77 from showwin/release/v1.2.0 by @showwin
+- Release v1.2.0 by @showwin
+- Merge pull request #76 from showwin/better_documentation by @showwin
+- Update GitHub action versions by @showwin
+- Better documentation by @showwin
+- Merge pull request #69 from r3inbowari/add/virtual_location by @showwin
+- Merge branch 'master' into add/virtual_location by @showwin
+- Merge pull request #75 from mystuffs/master by @showwin
+- Merge pull request #71 from cgb/patch-1 by @showwin
+- Update API Usage example to call FetchServers by @cgb
+- Separate arg-name: --location and --city by @r3inbowari
+- Merge pull request #68 from showwin/update_contributors by @showwin
+- Update contributors by @showwin
+- Merge pull request #67 from showwin/release/v1.1.5 by @showwin
+- Release v1.1.5 by @showwin
+- Merge pull request #66 from showwin/fix_minus_speed by @showwin
+- Merge pull request #65 from showwin/fix/conflict by @showwin
+- Merge pull request #63 from redradrat/fix-server-list by @showwin
+- Merge branch 'master' into fix-server-list by @showwin
+- Merge pull request #62 from proxymo-network/custom-client-support by @showwin
+- Fix usage of client in request scope by @mr-linch
+- Use time.Second instead of hardcoded nanosecond values by @mr-linch
+- Fix use client instead global by @mr-linch
+- Adjust tests and Stringer by @redradrat
+- Use /api/js endpoint as new primary endpoint for server list fetching by @redradrat
+- Merge pull request #59 from showwin/release/v1.1.4 by @showwin
+- Release v1.1.4 by @showwin
+- Merge pull request #58 from euantorano/master by @showwin
+- Alter exposed functions that take contexts so that their signature matches the context-less versions, as the previous versions could not be called easily. by @euantorano
+- Merge pull request #56 from juev/master by @showwin
+- [-] os.Exit is redundant by @juev
+- Merge pull request #53 from showwin/add/distance_test by @showwin
+- Merge pull request #52 from showwin/fix/release_process by @showwin
+- Use go 1.16 for release build by @showwin
+- Merge pull request #51 from showwin/release/v1.1.3 by @showwin
+- Release v1.1.3 by @showwin
+- Merge pull request #48 from showwin/fix/adjust_for_high_speed_env by @showwin
+- [fix] test by @showwin
+- [add] workload option for high speed env by @showwin
+- Merge pull request #47 from showwin/add/ci by @showwin
+- [fix] test by @showwin
+- [add] CI by @showwin
+- Merge pull request #46 from showwin/update/go_version by @showwin
+- Update go to 1.16 by @showwin
+- Merge pull request #44 from showwin/add/test by @showwin
+- [add] request test by @showwin
+- Merge pull request #42 from showwin/add/test by @showwin
+- [add] test by @showwin
+- Merge pull request #41 from euantorano/feature/context-support by @showwin
+- Use context.Background() rather than context.TODO(). by @euantorano
+- Merge pull request #39 from showwin/fix/typo_jsonOuput by @showwin
+- [fix] jsonOuput -> jsonOutput by @showwin
+- Merge pull request #38 from mumia/add_json_output by @showwin
+- Correctly format timestamp in output
+- Reflect change in README.md
+- Merge pull request #36 from showwin/release/v1.1.2 by @showwin
+- [add] release operation for homebrew by @showwin
+- Release v1.1.2 by @showwin
+- Merge pull request #35 from ovaldi/bugfix-for-upload by @showwin
+- - bugfix for upload by @ovaldi
+- Merge pull request #33 from showwin/bugfix/upload_weight by @showwin
+- [fix] using dynamic weight by @showwin
+- Merge pull request #31 from aareet/patch-1 by @showwin
+- Fix API example in README by @aareet
+- Merge pull request #29 from showwin/release/v1.1.1 by @showwin
+- Release v1.1.1 by @showwin
+- Merge pull request #28 from showwin/fix/exit_at_testing by @showwin
+- [fix] return err instead of Exit while requesting by @showwin
+- Merge pull request #26 from showwin/release/v1.1.0 by @showwin
+- Release v1.1.0 by @showwin
+- Merge pull request #25 from showwin/update_contributors by @showwin
+- Merge pull request #24 from showwin/memory_saving_mode by @showwin
+- [add] README about --saving-mode by @showwin
+- [add] saving memory option by @showwin
+- Merge pull request #21 from showwin/release/v1.0.5 by @showwin
+- Release v1.0.5 by @showwin
+- Merge pull request #20 from showwin/add/go_api by @showwin
+- Delete not implemented cli option by @showwin
+- Use showwin/speedtest-go/speedtest package by @showwin
+- Update README for Go API by @showwin
+- Updates README with API example by @cbergoon
+- Cleans up some comment formatting by @cbergoon
+- Comments out unused timeout option by @cbergoon
+- Refactors api for more flexible use, adds some error handling, removes app logic (like print statements) out of api, refactor main.go to functional equivalent using new spedtest package. by @cbergoon
+- Merge pull request #19 from showwin/add/release_note by @showwin
+- Merge pull request #18 from showwin/release/v1.0.4 by @showwin
+- Release v1.0.4 by @showwin
+- Merge pull request #17 from showwin/add/go_mod by @showwin
+- [add] go mod files by @showwin
+- Ignore compiled file by @showwin
+- Merge pull request #16 from showwin/add/release_flow by @showwin
+- [add] release with GitHub Actions by @showwin
+- V1.0.3 by @showwin
+- [fix] fetch user info by @showwin
+- V1.0.2 by @showwin
+- Rename for readability by @showwin
+- Merge branch 'master' of github.com:showwin/speedtest-go by @showwin
+- Fix document (markdown table) by @showwin
+- Fix Typo in README by @showwin
+- V1.0.1 by @showwin
+- Merge pull request #8 from kogai/master by @showwin
+- [fix] add fail-safe by @kogai
+- Update README.md by @showwin
+- Update README.md by @showwin
+- Release v1.0.0 by @showwin
+- Update experimental_result.md by @showwin
+- Update README.md by @showwin
+- V0.1.0 by @showwin
+- V0.3.0 by @showwin
+- Better algorithm by @showwin
+- Distribute multi platform by @showwin
+- V0.2.0 by @showwin
+- Change Progress Bar Appearance by @showwin
+- Improve algorithm and considering latency (#1, #6) by @showwin
+- Upload test in parallel by @showwin
+- Download test in parallel by @showwin
+- Update README by @showwin
+- Change images by @showwin
+- Update README by @showwin
+- Update README.md by @showwin
+- Update README.md by @showwin
+- Refactor by @showwin
+- Fmt by @showwin
+- Update README by @showwin
+- Update README by @showwin
+- Update README.md by @showwin
+- Fmt by @showwin
+- Initial commit by @showwin
+
+### Chores
+
+- Update module github.com/pelletier/go-toml/v2 to v2.3.1 by @renovate[bot] in [#26](https://github.com/nicholas-fedor/speedtest-go/pull/26)
+- Update module github.com/fsnotify/fsnotify to v1.10.0 by @renovate[bot] in [#25](https://github.com/nicholas-fedor/speedtest-go/pull/25)
+- Update module github.com/mattn/go-isatty to v0.0.22 by @renovate[bot] in [#24](https://github.com/nicholas-fedor/speedtest-go/pull/24)
+- Update golang:1.26.2-alpine docker digest to f853308 by @renovate[bot] in [#22](https://github.com/nicholas-fedor/speedtest-go/pull/22)
+- Update golang:1.26.2-alpine docker digest to 27f8293 by @renovate[bot] in [#21](https://github.com/nicholas-fedor/speedtest-go/pull/21)
+- Update alpine:latest docker digest to 5b10f43 by @renovate[bot] in [#20](https://github.com/nicholas-fedor/speedtest-go/pull/20)
+- Update module golang.org/x/text to v0.36.0 by @renovate[bot] in [#19](https://github.com/nicholas-fedor/speedtest-go/pull/19)
+- Update module golang.org/x/term to v0.42.0 by @renovate[bot] in [#18](https://github.com/nicholas-fedor/speedtest-go/pull/18)
+- Update module github.com/mattn/go-isatty to v0.0.21 by @renovate[bot] in [#17](https://github.com/nicholas-fedor/speedtest-go/pull/17)
+- Update module golang.org/x/sys to v0.43.0 by @renovate[bot] in [#16](https://github.com/nicholas-fedor/speedtest-go/pull/16)
+- Update golang docker tag to v1.26.2 by @renovate[bot] in [#15](https://github.com/nicholas-fedor/speedtest-go/pull/15)
+- Update dependency go to v1.26.2 by @renovate[bot] in [#14](https://github.com/nicholas-fedor/speedtest-go/pull/14)
+- Update docker/dockerfile:1 docker digest to 2780b5c by @renovate[bot] in [#13](https://github.com/nicholas-fedor/speedtest-go/pull/13)
+- Update module github.com/pelletier/go-toml/v2 to v2.3.0 by @renovate[bot] in [#12](https://github.com/nicholas-fedor/speedtest-go/pull/12)
+- Update module github.com/fatih/color to v1.19.0 by @renovate[bot] in [#11](https://github.com/nicholas-fedor/speedtest-go/pull/11)
+- Update module golang.org/x/term to v0.41.0 by @renovate[bot] in [#9](https://github.com/nicholas-fedor/speedtest-go/pull/9)
+- Update module golang.org/x/text to v0.35.0 by @renovate[bot] in [#10](https://github.com/nicholas-fedor/speedtest-go/pull/10)
+- Update module golang.org/x/sys to v0.42.0 by @renovate[bot] in [#8](https://github.com/nicholas-fedor/speedtest-go/pull/8)
+- Pin dependencies by @renovate[bot] in [#2](https://github.com/nicholas-fedor/speedtest-go/pull/2)
+- Update golang docker tag to v1.26.1 by @renovate[bot] in [#5](https://github.com/nicholas-fedor/speedtest-go/pull/5)
+- Update dependency go to v1.26.1 by @renovate[bot] in [#3](https://github.com/nicholas-fedor/speedtest-go/pull/3)
+- Add renovate by @renovate[bot] in [#1](https://github.com/nicholas-fedor/speedtest-go/pull/1)
+- Fork to nicholas-fedor/speedtest-go by @nicholas-fedor
+- Update Go to 1.26.0 and dependencies by @nicholas-fedor
+- Bump actions/toolkit/cache from v2.1.0 to v4.x by @r3inbowari
+- Add a Dockerfile to allow running from a container by @slim-bean
+- Bump workflows/release/go/version from 1.19.0 to 1.23.4 by @r3inbowari
+- Bump github.com/chelnak/ysmrr from 0.2.1 to 0.5.0 by @r3inbowari
+- Add hash commit and date for release by @r3inbowari
+- Add example for multi test by @r3inbowari
+- Update README.md by @r3inbowari
+- Add Mbps and Gbps for unit by @r3inbowari
+- Update README.md by @r3inbowari
+- Update README.md by @r3inbowari
+- Typos fix by @r3inbowari
+- Update README.md by @r3inbowari
+- Change case for testUploadTestContext by @r3inbowari
+- Change test time parameters by @r3inbowari
+- Fix lint error by @r3inbowari
+- Chore: by @r3inbowari
+- Typo fix by @r3inbowari
+- Remove railure server for TestFetchServerByID by @r3inbowari
+- Revert change by @r3inbowari
+- Lint fix by @r3inbowari
+- Typo fix by @r3inbowari
+- Latency display with -- when no test data by @r3inbowari
+- Unreachable lint by @r3inbowari
+- Add haversine formula test by @r3inbowari
+- Use http ping as default by @r3inbowari
+- Remove redundant field url2 by @r3inbowari
+- Remove emoji by @r3inbowari
+- Update README.md by @r3inbowari
+- Fix GoReleaser's deprecated config. by @suzuki-shunsuke
+- Add new port loong64 for release by @r3inbowari
+- Update README.md by @r3inbowari
+- Update README.md by @r3inbowari
+- Hide internal type params by @r3inbowari
+- Fix typos by @r3inbowari
+- Update README.md by @r3inbowari
+- Update flag Desc by @r3inbowari
+- Update README.md by @r3inbowari
+- Update flag Desc by @r3inbowari
+- Update README.md by @r3inbowari
+- Refactor location, fix calc method and fix typos by @r3inbowari
+- Fix typos by @r3inbowari
+- Fix typos by @r3inbowari
+- Update readme by @r3inbowari
+- Remove not use funcs by @r3inbowari
+- Remove not use funcs by @r3inbowari
+- Remove file by @r3inbowari
+- Embed data manager by @r3inbowari
+- Add a simple example by @r3inbowari
+- Replace doer with speedtest context by @r3inbowari
+- Change flag outbound to source by @r3inbowari
+- Typo fix by @r3inbowari
+- Typo fix by @r3inbowari
+- Update useragent test code by @r3inbowari
+
+### Fixed
+
+- Resolve application metadata not being added during local builds by @nicholas-fedor
+- Allow for query params to be passed for CustomServer by @eric
+- Keepalive state broken by @r3inbowari
+- Data races by @r3inbowari
+- Packet Loss Sample Code Error by @spiritLHLS
+- Hook all traffic after Write() for upload by @r3inbowari
+- Unified packet loss interface by @r3inbowari
+- Remove test error by by @r3inbowari
+- Discard unexpected standard library output by @r3inbowari
+- Packet loss calc method by @r3inbowari
+- Untyped int constant overflows by @r3inbowari
+- Wrong number of connections in saving mode by @r3inbowari
+- Unexpected null pointer exception in uploadRequest by @r3inbowari
+- Calculation lag by @r3inbowari
+- Unexpected error on accompanyEcho by @r3inbowari
+- Use GetEWMAUploadRate in uploadTestContext by @r3inbowari
+- Carry out an extra http request for warmup without considering for the latency calculation by @danielealbano
+- (http-ping) Ensure that the context cancel and deadline hit are respected and the related errors properly propagated by @danielealbano
+- Wrong iec unit representation by @r3inbowari
+- Remove old testcase and use a compatible splicing method by @r3inbowari
+- Cursor hidden after listing available servers by @r3inbowari
+- TestFetchServerByID broken by @r3inbowari
+- Drop all datagram which control type not zero by @r3inbowari
+- Use haversine formula to calculate creat-circle distance avoid precision overflow by @r3inbowari
+- Panic when json failed to create by @r3inbowari
+- User agent is overwritten with empty string by @r3inbowari
+- Unexpected division by a zero-length vector in stddeviation by @r3inbowari
+- Parse uppercase for ping-mode flag by @r3inbowari
+- Incorrectly using the same manager by @r3inbowari
+- Unexpected signal kill on some linux releases by @r3inbowari
+- Specify servers with new api by @r3inbowari
+- Clean-up the rate sequence goroutines to avoid leaking by @d1823
+- Hide redundant json content by @r3inbowari
+- Remove the context dependency of FetchServers() and FetchUserInfo() by @r3inbowari
+- Remove unexpected use of io.discard by @r3inbowari
+- Memory leak risk by @KevynHuang
+- Lint error by @r3inbowari
+- Lint error by @r3inbowari
+- TestDynamicRate error by @r3inbowari
+- Lint unused warning by @r3inbowari
+- TestDataManager_GetAvgDownloadRate warning by @r3inbowari
+- Too slow testing by @r3inbowari
+- Adjust loading factor and default acquisition frequency by @r3inbowari
+- Resolve slow test exception by @r3inbowari
+- List all servers by @r3inbowari
+- List all servers by @r3inbowari
+- Null pointer with no user config by @r3inbowari
+- Lint error by @r3inbowari
+- Null pointer with no user config by @r3inbowari
+- Github action build error by @r3inbowari
+- Task queue exception by @r3inbowari
+- Reset data manager by @r3inbowari
+- Request mock test by @r3inbowari
+- Lint warning by @r3inbowari
+- Lint error by @r3inbowari
+- Any type lint error by @r3inbowari
+- Remove unneeded condition by @r3inbowari
+- Use the correct upload content-type by @r3inbowari
+- Wrong upload value by @r3inbowari
+- Negative up-rate caused by main test skipping by @r3inbowari
+- Change ioutil.Discard to io.Discard by @rilysh
+- Update readme/fix golangci: Error: S1028 by @r3inbowari
+- Crash on network exception by @r3inbowari
+- Fix format by @showwin
+- Speed value can be minus if the bandwidth is large by @showwin
+- Fix conflict from #62 and #63 by @showwin
+- Fix lint by @showwin
+- Fixes linter errors by @cbergoon
+- Fixes linter warnings for unused variable and package/variable name collisions by @cbergoon
+- Fix format by @showwin
+- Fix typo by @showwin
+- Fix typo by @showwin
+- Fix typo by @showwin
+
+### Removed
+
+- Remove legacy GitHub Actions workflows by @nicholas-fedor in [#4](https://github.com/nicholas-fedor/speedtest-go/pull/4)
+- Remove saving-mode to userconfig by @r3inbowari
+
+### Tests
+
+- Testing multiple servers with --server option by @showwin
+
+### New Contributors
+
+- @nicholas-fedor made their first contribution in [#27](https://github.com/nicholas-fedor/speedtest-go/pull/27)
+- @renovate[bot] made their first contribution in [#26](https://github.com/nicholas-fedor/speedtest-go/pull/26)
+- @r3inbowari made their first contribution
+- @slim-bean made their first contribution
+- @eric made their first contribution
+- @spiritLHLS made their first contribution
+- @danielealbano made their first contribution
+- @showwin made their first contribution
+- @pig98 made their first contribution
+- @3mard made their first contribution
+- @suzuki-shunsuke made their first contribution
+- @d1823 made their first contribution
+- @bluemanos made their first contribution
+- @KevynHuang made their first contribution
+- @drewstinnett made their first contribution
+- @rtrox made their first contribution
+- @mikaelpeltier made their first contribution
+- @rilysh made their first contribution
+- @cgb made their first contribution
+- @redradrat made their first contribution
+- @mr-linch made their first contribution
+- @euantorano made their first contribution
+- @juev made their first contribution
+- @ made their first contribution
+- @ovaldi made their first contribution
+- @aareet made their first contribution
+- @cbergoon made their first contribution
+- @kogai made their first contribution
+
+## Compare Releases
+
+
+<!-- generated by git-cliff -->
