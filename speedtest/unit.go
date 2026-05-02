@@ -53,6 +53,11 @@ const (
 	MiB = 1024 * KiB
 	// GiB represents 1073741824 bytes in binary units.
 	GiB = 1024 * MiB
+
+	// StrZeroMbps is the string representation for zero byte rate.
+	StrZeroMbps = "0.00 Mbps"
+	// StrNotAvailable is the string representation for unavailable values.
+	StrNotAvailable = "N/A"
 )
 
 // ByteRate represents a byte rate value with formatting capabilities.
@@ -65,11 +70,11 @@ var (
 
 func (r ByteRate) String() string {
 	if r == 0 {
-		return "0.00 Mbps"
+		return StrZeroMbps
 	}
 
 	if r == -1 {
-		return "N/A"
+		return StrNotAvailable
 	}
 
 	globalByteRateMu.RLock()
@@ -106,11 +111,11 @@ func (r ByteRate) Gbps() float64 {
 // Byte Specifies the format output byte rate.
 func (r ByteRate) Byte(formatType UnitType) string {
 	if r == 0 {
-		return "0.00 Mbps"
+		return StrZeroMbps
 	}
 
 	if r == -1 {
-		return "N/A"
+		return StrNotAvailable
 	}
 
 	return format(float64(r), formatType)

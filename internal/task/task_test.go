@@ -6,6 +6,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	strTestMessage = "test message"
+	strTestTask    = "test task"
+)
+
 func TestNewManager(t *testing.T) {
 	t.Parallel()
 
@@ -102,7 +107,7 @@ func TestManager_Println(t *testing.T) {
 		{
 			name: "println message",
 			tm:   NewManager(false, false),
-			args: args{message: "test message"},
+			args: args{message: strTestMessage},
 		},
 	}
 	for _, tt := range tests {
@@ -132,7 +137,7 @@ func TestManager_RunWithTrigger(t *testing.T) {
 			tm:   NewManager(false, false),
 			args: args{
 				enable:   true,
-				title:    "test task",
+				title:    strTestTask,
 				callback: func(_ *Task) {},
 			},
 		},
@@ -141,7 +146,7 @@ func TestManager_RunWithTrigger(t *testing.T) {
 			tm:   NewManager(false, false),
 			args: args{
 				enable:   false,
-				title:    "test task",
+				title:    strTestTask,
 				callback: func(_ *Task) {},
 			},
 		},
@@ -174,7 +179,7 @@ func TestManager_Run(t *testing.T) {
 			name: "run task",
 			tm:   NewManager(false, false),
 			args: args{
-				title:    "test task",
+				title:    strTestTask,
 				callback: func(_ *Task) {},
 			},
 		},
@@ -204,7 +209,7 @@ func TestManager_AsyncRun(t *testing.T) {
 			name: "async run task",
 			tm:   NewManager(false, false),
 			args: args{
-				title:    "test task",
+				title:    strTestTask,
 				callback: func(_ *Task) {},
 			},
 		},
@@ -282,7 +287,7 @@ func TestTask_Update(t *testing.T) {
 		{
 			name: "update task",
 			tr:   &Task{manager: NewManager(false, false)},
-			args: args{format: "test message"},
+			args: args{format: strTestMessage},
 		},
 	}
 	for _, tt := range tests {
@@ -308,7 +313,7 @@ func TestTask_Println(t *testing.T) {
 		{
 			name: "println task",
 			tr:   &Task{manager: NewManager(false, false)},
-			args: args{message: "test message"},
+			args: args{message: strTestMessage},
 		},
 	}
 	for _, tt := range tests {
