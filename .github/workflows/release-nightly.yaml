@@ -29,14 +29,14 @@ jobs:
       has-changes: ${{ steps.check.outputs.has-changes }}
     steps:
       - name: Checkout Repository
-        if: ${{ inputs.FORCE_RELEASE != 'true' }}
+        if: ${{ !inputs.FORCE_RELEASE }}
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Get Last Successful Nightly Release
-        if: ${{ inputs.FORCE_RELEASE != 'true' }}
+        if: ${{ !inputs.FORCE_RELEASE }}
         id: last-run
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
