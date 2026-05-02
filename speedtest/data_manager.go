@@ -630,7 +630,7 @@ func (dc *DataChunk) DownloadHandler(reader io.Reader) error {
 		rs := int64(readSize)
 
 		dc.remainOrDiscardSize += rs
-		dc.manager.download.AddTotalDataVolume(rs)
+		dc.manager.AddTotalDownload(rs)
 
 		if dc.err != nil {
 			if errors.Is(dc.err, io.EOF) {
