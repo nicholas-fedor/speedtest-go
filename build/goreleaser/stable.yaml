@@ -38,7 +38,7 @@ gomod:
 ################################################################################
 builds:
   - id: "speedtest-go-binary"
-    main: "./speedtest-go/main.go"
+    main: "main.go"
     binary: "speedtest-go"
     flags:
       - -trimpath
