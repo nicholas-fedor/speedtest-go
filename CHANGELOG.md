@@ -8,9 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+### Chores
 
-- Correct license filename by @nicholas-fedor in [#36](https://github.com/nicholas-fedor/speedtest-go/pull/36)
+- Update sigstore/cosign-installer action to v4.1.2 by @renovate[bot] in [#40](https://github.com/nicholas-fedor/speedtest-go/pull/40)
+- Update module github.com/fsnotify/fsnotify to v1.10.1 by @renovate[bot] in [#38](https://github.com/nicholas-fedor/speedtest-go/pull/38)
 
 ## [1.8.0] - 2026-05-02
 
@@ -61,6 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Correct license filename by @nicholas-fedor in [#36](https://github.com/nicholas-fedor/speedtest-go/pull/36)
 - Correct main.go filepath by @nicholas-fedor in [#31](https://github.com/nicholas-fedor/speedtest-go/pull/31)
 - Enable gomod indirect dependency updates by @nicholas-fedor in [#7](https://github.com/nicholas-fedor/speedtest-go/pull/7)
 - Enable dependency dashboard and add indirect dependency rules by @nicholas-fedor in [#6](https://github.com/nicholas-fedor/speedtest-go/pull/6)
@@ -461,9 +463,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### New Contributors
 
+- @nicholas-fedor made their first contribution in [#36](https://github.com/nicholas-fedor/speedtest-go/pull/36)
 - @github-actions[bot] made their first contribution in [#35](https://github.com/nicholas-fedor/speedtest-go/pull/35)
 - @renovate[bot] made their first contribution in [#33](https://github.com/nicholas-fedor/speedtest-go/pull/33)
-- @nicholas-fedor made their first contribution in [#31](https://github.com/nicholas-fedor/speedtest-go/pull/31)
 - @r3inbowari made their first contribution
 - @slim-bean made their first contribution
 - @eric made their first contribution
