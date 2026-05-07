@@ -101,6 +101,77 @@ archives:
       mtime: "{{ .CommitTimestamp }}"
 
 ################################################################################
+# Linux Package Configuration (nFPM)
+# https://goreleaser.com/customization/package/nfpm/
+################################################################################
+nfpms:
+  - id: "speedtest-go-packages"
+    package_name: "speedtest-go"
+    file_name_template: "{{ .ConventionalFileName }}"
+    ids:
+      - "speedtest-go-binary"
+    vendor: "nicholas-fedor"
+    homepage: "https://github.com/nicholas-fedor/speedtest-go"
+    maintainer: "Nicholas Fedor <nick@nickfedor.com>"
+    description: |-
+      CLI tool to test internet download and upload speeds
+      using speedtest.net servers.
+    license: "MIT"
+    formats:
+      - deb
+      - rpm
+      - apk
+      - archlinux
+    bindir: /usr/bin
+    umask: 0o002
+    section: "net"
+    priority: "extra"
+    contents:
+      - src: "LICENSE"
+        dst: "/usr/share/doc/speedtest-go/copyright"
+        packager: deb
+        file_info:
+          mode: 0644
+
+      - src: "LICENSE"
+        dst: "/usr/share/licenses/speedtest-go/LICENSE"
+        packager: archlinux
+        file_info:
+          mode: 0644
+
+      - src: "README.md"
+        dst: "/usr/share/doc/speedtest-go/README.md"
+        file_info:
+          mode: 0644
+
+    overrides:
+      deb:
+        dependencies:
+          - "curl (>= 7.0)"
+
+      rpm:
+        dependencies:
+          - "curl >= 7.0"
+
+      apk:
+        dependencies:
+          - "curl"
+
+    rpm:
+      summary: "Internet speed test CLI tool"
+      group: "Applications/Internet"
+      packager: "Nicholas Fedor <nick@nickfedor.com>"
+      compression: "zstd"
+
+    deb:
+      compression: "zstd"
+      lintian_overrides:
+        - "binary-without-manpage"
+
+    archlinux:
+      packager: "Nicholas Fedor <nick@nickfedor.com>"
+
+################################################################################
 # Source Archive Configuration
 ################################################################################
 source:
@@ -289,6 +360,8 @@ sboms:
     artifacts: archive
   - id: source
     artifacts: source
+  - id: packages
+    artifacts: package
 
 ################################################################################
 # Signing Configuration (Cosign - Keyless OIDC)
@@ -303,6 +376,26 @@ signs:
       - "${artifact}"
       - "--yes"
     artifacts: checksum
+    output: true
+
+  - id: cosign-packages
+    cmd: cosign
+    args:
+      - "sign-blob"
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: package
+    output: true
+
+  - id: cosign-sboms
+    cmd: cosign
+    args:
+      - "sign-blob"
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: sbom
     output: true
 
 ################################################################################

@@ -17,7 +17,30 @@ The project includes both a CLI and a public API that enables internet speed tes
 
 #### Linux, Windows, etc
 
-Please download the compatible package from [Releases](https://github.com/nicholas-fedor/speedtest-go/releases).
+Please download the compatible package from [GitHub Releases](https://github.com/nicholas-fedor/speedtest-go/releases).
+
+#### Building Distribution Packages
+
+Linux distribution packages (`.deb`, `.rpm`, `.apk`, Arch Linux) can be built locally using [nFPM](https://nfpm.goreleaser.com/) via the Makefile:
+
+```bash
+# Build a specific package format
+make nfpm-deb    # Debian/Ubuntu (.deb)
+make nfpm-rpm    # Fedora/RHEL (.rpm)
+make nfpm-apk    # Alpine (.apk)
+make nfpm-arch   # Arch Linux (.pkg.tar.zst)
+
+# Build all package formats at once
+make nfpm-all
+```
+
+Packages are output to the `dist/` directory. The `VERSION` variable defaults to `dev` and can be overridden:
+
+```bash
+VERSION=1.7.10 make nfpm-all
+```
+
+Signed release versions of packages are also built and published to [GitHub Releases](https://github.com/nicholas-fedor/speedtest-go/releases).
 
 #### Docker Build
 
