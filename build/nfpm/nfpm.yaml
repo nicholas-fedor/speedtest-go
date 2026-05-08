@@ -1,0 +1,114 @@
+################################################################################
+#                                                                              #
+#                      nFPM Package Configuration                              #
+#                                                                              #
+# Project: speedtest-go                                                        #
+# Repository: https://github.com/nicholas-fedor/speedtest-go/                  #
+#                                                                              #
+# nfpm URL: https://nfpm.goreleaser.com/                                       #
+# yaml-language-server: $schema=https://nfpm.goreleaser.com/schema.json        #
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj                                             #
+#                                                                              #
+################################################################################
+
+# Package name. (required)
+name: "speedtest-go"
+
+# Architecture (GOARCH format, translated per packager).
+# This will expand any env var you set in the field, e.g. arch: ${GOARCH}
+arch: "${GOARCH}"
+
+# Platform.
+platform: "linux"
+
+# Version (without 'v' prefix for deb compatibility).
+# This will expand any env var you set in the field, e.g. version: ${VERSION}
+version: "${VERSION}"
+
+# Version release (revision).
+release: "1"
+
+# Section (deb only).
+section: "net"
+
+# Priority (deb only).
+priority: "extra"
+
+# Maintainer. (required)
+maintainer: "Nicholas Fedor <nick@nickfedor.com>"
+
+# Description.
+description: |-
+  CLI tool to test internet download and upload speeds
+  using speedtest.net servers.
+
+# Vendor (rpm only).
+vendor: "nicholas-fedor"
+
+# Homepage.
+homepage: "https://github.com/nicholas-fedor/speedtest-go"
+
+# License.
+license: "MIT"
+
+# Umask for files without explicit mode set.
+umask: 0o002
+
+# Contents to add to the package.
+contents:
+  - src: "bin/speedtest-go"
+    dst: "/usr/bin/speedtest-go"
+    file_info:
+      mode: 0755
+
+  - src: "LICENSE"
+    dst: "/usr/share/doc/speedtest-go/copyright"
+    packager: deb
+    file_info:
+      mode: 0644
+
+  - src: "LICENSE"
+    dst: "/usr/share/licenses/speedtest-go/LICENSE"
+    packager: rpm
+    file_info:
+      mode: 0644
+
+  - src: "LICENSE"
+    dst: "/usr/share/licenses/speedtest-go/LICENSE"
+    packager: archlinux
+    file_info:
+      mode: 0644
+
+  - src: "README.md"
+    dst: "/usr/share/doc/speedtest-go/README.md"
+    file_info:
+      mode: 0644
+
+# Overrides per format.
+overrides:
+  deb:
+    depends:
+      - "curl (>= 7.0)"
+
+  rpm:
+    depends:
+      - "curl >= 7.0"
+
+  apk:
+    depends:
+      - "curl"
+
+# RPM-specific configuration.
+rpm:
+  summary: "Internet speed test CLI tool"
+  group: "Applications/Internet"
+  packager: "Nicholas Fedor <nick@nickfedor.com>"
+  compression: "zstd"
+
+# Deb-specific configuration.
+deb:
+  compression: "zstd"
+
+# Archlinux-specific configuration.
+archlinux:
+  packager: "Nicholas Fedor <nick@nickfedor.com>"

@@ -17,7 +17,57 @@ The project includes both a CLI and a public API that enables internet speed tes
 
 #### Linux, Windows, etc
 
-Please download the compatible package from [Releases](https://github.com/nicholas-fedor/speedtest-go/releases).
+Please download the compatible package from [GitHub Releases](https://github.com/nicholas-fedor/speedtest-go/releases).
+
+#### Building Distribution Packages
+
+Linux distribution packages (`.deb`, `.rpm`, `.apk`, Arch Linux) can be built locally using [nFPM](https://nfpm.goreleaser.com/) via the Makefile.
+
+##### Prerequisites
+
+Install nFPM before running these targets.
+See the [nFPM installation docs](https://nfpm.goreleaser.com/install/) for all options, or use one of:
+
+- Homebrew:
+
+```bash
+brew install goreleaser/tap/nfpm
+```
+
+- Go Install:
+
+```bash
+go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+```
+
+- Debian/Ubuntu:
+
+```bash
+echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
+sudo apt update
+sudo apt install nfpm
+```
+
+##### Run using the Makefile
+
+```bash
+# Build a specific package format
+make nfpm-deb    # Debian/Ubuntu (.deb)
+make nfpm-rpm    # Fedora/RHEL (.rpm)
+make nfpm-apk    # Alpine (.apk)
+make nfpm-arch   # Arch Linux (.pkg.tar.zst)
+
+# Build all package formats at once
+make nfpm-all
+```
+
+Packages are output to the `dist/` directory. The `VERSION` variable defaults to `dev` and must be set to a valid semver (e.g. `1.7.10`) before building:
+
+```bash
+VERSION=1.7.10 make nfpm-all
+```
+
+Signed release versions of packages are also built and published to [GitHub Releases](https://github.com/nicholas-fedor/speedtest-go/releases).
 
 #### Docker Build
 
@@ -342,11 +392,11 @@ func main() {
 
 Speedtest-go is a great tool because of the following five reasons:
 
-* Cross-platform available.
-* Low memory environment.
-* We are the first **FULL-FEATURED** open source speed testing project based on speedtest.net, including down/up rates, jitter and packet loss, etc.
-* Testing time is the **SHORTEST** compare to [speedtest.net](http://www.speedtest.net/) and [sivel/speedtest-cli](https://github.com/sivel/speedtest-cli), especially about 2x faster than [speedtest.net](http://www.speedtest.net/).
-* Result is **MORE CLOSE** to [speedtest.net](http://www.speedtest.net/) than [speedtest-cli](https://github.com/sivel/speedtest-cli).
+- Cross-platform available.
+- Low memory environment.
+- We are the first **FULL-FEATURED** open source speed testing project based on speedtest.net, including down/up rates, jitter and packet loss, etc.
+- Testing time is the **SHORTEST** compare to [speedtest.net](http://www.speedtest.net/) and [sivel/speedtest-cli](https://github.com/sivel/speedtest-cli), especially about 2x faster than [speedtest.net](http://www.speedtest.net/).
+- Result is **MORE CLOSE** to [speedtest.net](http://www.speedtest.net/) than [speedtest-cli](https://github.com/sivel/speedtest-cli).
 
 The following data is summarized. If you got interested, please see [more details](https://github.com/nicholas-fedor/speedtest-go/blob/master/docs/experimental_result.md).
 
@@ -354,10 +404,10 @@ The following data is summarized. If you got interested, please see [more detail
 
 distance = distance to testing server
 
-* 0 - 1000(km) ≒ domestic
-* 1000 - 8000(km) ≒ same region
-* 8000 - 20000(km) ≒ really far!
-* 20000km is half of the circumference of our planet.
+- 0 - 1000(km) ≒ domestic
+- 1000 - 8000(km) ≒ same region
+- 8000 - 20000(km) ≒ really far!
+- 20000km is half of the circumference of our planet.
 
 | distance (km) | speedtest.net | speedtest-go | speedtest-cli |
 |:-------------:|:-------------:|:------------:|:-------------:|
