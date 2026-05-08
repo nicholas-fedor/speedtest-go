@@ -86,6 +86,7 @@ jobs:
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
       - name: Install nFPM
+        if: ${{ inputs.BUILD_TYPE == 'stable' }}
         run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@dbae6d52f782080e1a0203e704603f0a37b19f8f # v2.46.3
 
       - name: Login to Docker Hub
@@ -118,12 +119,15 @@ jobs:
             --clean
             ${{ inputs.DRY_RUN && '--skip=publish' || '' }}
 
-      - name: Upload Binary SBOMs
+      - name: Upload Archive & Source SBOMs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !inputs.DRY_RUN && inputs.BUILD_TYPE == 'stable' }}
         with:
-          name: ${{ inputs.BUILD_TYPE }}-binary-sboms
-          path: dist/*.sbom
+          name: ${{ inputs.BUILD_TYPE }}-archive-sboms
+          path: |
+            dist/*.tar.gz.sbom.json
+            dist/*.zip.sbom.json
+            dist/*.src.sbom.json
           if-no-files-found: ignore
 
       - name: Upload Linux Packages
@@ -143,7 +147,11 @@ jobs:
         if: ${{ !inputs.DRY_RUN && inputs.BUILD_TYPE == 'stable' }}
         with:
           name: ${{ inputs.BUILD_TYPE }}-package-sboms
-          path: dist/*.sbom
+          path: |
+            dist/*.deb.sbom.json
+            dist/*.rpm.sbom.json
+            dist/*.apk.sbom.json
+            dist/*.pkg.tar.zst.sbom.json
           if-no-files-found: ignore
 
       - name: Generate Artifact Attestation

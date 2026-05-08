@@ -25,9 +25,6 @@ platform: "linux"
 # This will expand any env var you set in the field, e.g. version: ${VERSION}
 version: "${VERSION}"
 
-# Version schema.
-version_schema: "semver"
-
 # Version release (revision).
 release: "1"
 
@@ -67,6 +64,12 @@ contents:
   - src: "LICENSE"
     dst: "/usr/share/doc/speedtest-go/copyright"
     packager: deb
+    file_info:
+      mode: 0644
+
+  - src: "LICENSE"
+    dst: "/usr/share/licenses/speedtest-go/LICENSE"
+    packager: rpm
     file_info:
       mode: 0644
 

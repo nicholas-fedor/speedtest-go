@@ -2,6 +2,9 @@ BINARY_NAME=speedtest-go
 VERSION ?= dev
 COMMIT = $(shell git rev-parse --short HEAD)
 DATE = $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+NFPM_CONFIG ?= build/nfpm/nfpm.yaml
+NFPM_TARGET ?= dist
+NFPM_GOARCH ?= amd64
 
 .PHONY: all build test clean lint fmt vet install release docker-build examples deps generate build-all test-ci ci mocks setup-ci nfpm-deb nfpm-rpm nfpm-apk nfpm-arch nfpm-all
 
@@ -56,23 +59,20 @@ setup-ci: deps generate fmt vet
 mocks: ## Generate mock files for testing
 	mockery --config build/mockery/mockery.yaml
 
-NFPM_CONFIG ?= build/nfpm/nfpm.yaml
-NFPM_TARGET ?= dist
-
 nfpm-deb: build ## Build a .deb package locally
 	@mkdir -p $(NFPM_TARGET)
-	GOARCH=amd64 VERSION=$(VERSION) nfpm pkg --config $(NFPM_CONFIG) --packager deb --target $(NFPM_TARGET)/
+	GOARCH=$(NFPM_GOARCH) VERSION=$(VERSION) nfpm pkg --config $(NFPM_CONFIG) --packager deb --target $(NFPM_TARGET)/
 
 nfpm-rpm: build ## Build an .rpm package locally
 	@mkdir -p $(NFPM_TARGET)
-	GOARCH=amd64 VERSION=$(VERSION) nfpm pkg --config $(NFPM_CONFIG) --packager rpm --target $(NFPM_TARGET)/
+	GOARCH=$(NFPM_GOARCH) VERSION=$(VERSION) nfpm pkg --config $(NFPM_CONFIG) --packager rpm --target $(NFPM_TARGET)/
 
 nfpm-apk: build ## Build an .apk package locally
 	@mkdir -p $(NFPM_TARGET)
-	GOARCH=amd64 VERSION=$(VERSION) nfpm pkg --config $(NFPM_CONFIG) --packager apk --target $(NFPM_TARGET)/
+	GOARCH=$(NFPM_GOARCH) VERSION=$(VERSION) nfpm pkg --config $(NFPM_CONFIG) --packager apk --target $(NFPM_TARGET)/
 
 nfpm-arch: build ## Build an Archlinux package locally
 	@mkdir -p $(NFPM_TARGET)
-	GOARCH=amd64 VERSION=$(VERSION) nfpm pkg --config $(NFPM_CONFIG) --packager archlinux --target $(NFPM_TARGET)/
+	GOARCH=$(NFPM_GOARCH) VERSION=$(VERSION) nfpm pkg --config $(NFPM_CONFIG) --packager archlinux --target $(NFPM_TARGET)/
 
 nfpm-all: nfpm-deb nfpm-rpm nfpm-apk nfpm-arch ## Build all Linux packages locally
