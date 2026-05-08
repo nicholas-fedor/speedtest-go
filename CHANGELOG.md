@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update cimg/go:1.26.2 docker digest to 0594489 by @renovate[bot] in [#43](https://github.com/nicholas-fedor/speedtest-go/pull/43)
+- Update github/codeql-action action to v4.35.4 by @renovate[bot] in [#41](https://github.com/nicholas-fedor/speedtest-go/pull/41)
 - Update sigstore/cosign-installer action to v4.1.2 by @renovate[bot] in [#40](https://github.com/nicholas-fedor/speedtest-go/pull/40)
 - Update module github.com/fsnotify/fsnotify to v1.10.1 by @renovate[bot] in [#38](https://github.com/nicholas-fedor/speedtest-go/pull/38)
 
