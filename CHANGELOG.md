@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update cimg/go docker tag to v1.26.3 by @renovate[bot] in [#49](https://github.com/nicholas-fedor/speedtest-go/pull/49)
+- Update module golang.org/x/sys to v0.44.0 by @renovate[bot] in [#46](https://github.com/nicholas-fedor/speedtest-go/pull/46)
 - Update cimg/go:1.26.2 docker digest to 0594489 by @renovate[bot] in [#43](https://github.com/nicholas-fedor/speedtest-go/pull/43)
 - Update github/codeql-action action to v4.35.4 by @renovate[bot] in [#41](https://github.com/nicholas-fedor/speedtest-go/pull/41)
 - Update sigstore/cosign-installer action to v4.1.2 by @renovate[bot] in [#40](https://github.com/nicholas-fedor/speedtest-go/pull/40)
