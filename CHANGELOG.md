@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add nFPM-based Linux package build support by @nicholas-fedor in [#44](https://github.com/nicholas-fedor/speedtest-go/pull/44)
+
 ### Chores
 
 - Update cimg/go:1.26.2 docker digest to 0594489 by @renovate[bot] in [#43](https://github.com/nicholas-fedor/speedtest-go/pull/43)
