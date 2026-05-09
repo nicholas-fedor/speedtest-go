@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Implement separate Go toolchain by @nicholas-fedor in [#57](https://github.com/nicholas-fedor/speedtest-go/pull/57)
 - Update module golang.org/x/text to v0.37.0 by @renovate[bot] in [#52](https://github.com/nicholas-fedor/speedtest-go/pull/52)
 - Update module golang.org/x/term to v0.43.0 by @renovate[bot] in [#50](https://github.com/nicholas-fedor/speedtest-go/pull/50)
 - Update cimg/go docker tag to v1.26.3 by @renovate[bot] in [#49](https://github.com/nicholas-fedor/speedtest-go/pull/49)
