@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Bump fast-uri from 3.1.0 to 3.1.2 by @dependabot[bot] in [#54](https://github.com/nicholas-fedor/speedtest-go/pull/54)
 - Implement separate Go toolchain by @nicholas-fedor in [#57](https://github.com/nicholas-fedor/speedtest-go/pull/57)
 - Update module golang.org/x/text to v0.37.0 by @renovate[bot] in [#52](https://github.com/nicholas-fedor/speedtest-go/pull/52)
 - Update module golang.org/x/term to v0.43.0 by @renovate[bot] in [#50](https://github.com/nicholas-fedor/speedtest-go/pull/50)
@@ -27,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update github/codeql-action action to v4.35.4 by @renovate[bot] in [#41](https://github.com/nicholas-fedor/speedtest-go/pull/41)
 - Update sigstore/cosign-installer action to v4.1.2 by @renovate[bot] in [#40](https://github.com/nicholas-fedor/speedtest-go/pull/40)
 - Update module github.com/fsnotify/fsnotify to v1.10.1 by @renovate[bot] in [#38](https://github.com/nicholas-fedor/speedtest-go/pull/38)
+
+### New Contributors
+
+- @dependabot[bot] made their first contribution in [#54](https://github.com/nicholas-fedor/speedtest-go/pull/54)
 
 ## [1.8.0] - 2026-05-02
 
