@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add nFPM-based Linux package build support by @nicholas-fedor in [#44](https://github.com/nicholas-fedor/speedtest-go/pull/44)
 
+### Changed
+
+- Replace composite actionlint action by @nicholas-fedor in [#55](https://github.com/nicholas-fedor/speedtest-go/pull/55)
+
 ### Chores
 
 - Update module golang.org/x/text to v0.37.0 by @renovate[bot] in [#52](https://github.com/nicholas-fedor/speedtest-go/pull/52)
