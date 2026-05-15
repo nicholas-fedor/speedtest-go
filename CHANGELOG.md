@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update step-security/harden-runner action to v2.19.3 by @renovate[bot] in [#64](https://github.com/nicholas-fedor/speedtest-go/pull/64)
+- Update step-security/harden-runner action to v2.19.2 by @renovate[bot] in [#62](https://github.com/nicholas-fedor/speedtest-go/pull/62)
 - Update commitlint monorepo to v21 by @renovate[bot] in [#48](https://github.com/nicholas-fedor/speedtest-go/pull/48)
 - Lock file maintenance by @renovate[bot] in [#53](https://github.com/nicholas-fedor/speedtest-go/pull/53)
 - Bump fast-uri from 3.1.0 to 3.1.2 by @dependabot[bot] in [#54](https://github.com/nicholas-fedor/speedtest-go/pull/54)
