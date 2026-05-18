@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update codecov/codecov-action action to v6.0.1 by @renovate[bot] in [#70](https://github.com/nicholas-fedor/speedtest-go/pull/70)
 - Update commitlint monorepo to v21.0.1 by @renovate[bot] in [#67](https://github.com/nicholas-fedor/speedtest-go/pull/67)
 - Update github/codeql-action action to v4.35.5 by @renovate[bot] in [#65](https://github.com/nicholas-fedor/speedtest-go/pull/65)
 - Update step-security/harden-runner action to v2.19.3 by @renovate[bot] in [#64](https://github.com/nicholas-fedor/speedtest-go/pull/64)
