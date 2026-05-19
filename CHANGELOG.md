@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update goreleaser/goreleaser-action action to v7.2.2 by @renovate[bot] in [#72](https://github.com/nicholas-fedor/speedtest-go/pull/72)
 - Update codecov/codecov-action action to v6.0.1 by @renovate[bot] in [#70](https://github.com/nicholas-fedor/speedtest-go/pull/70)
 - Update commitlint monorepo to v21.0.1 by @renovate[bot] in [#67](https://github.com/nicholas-fedor/speedtest-go/pull/67)
 - Update github/codeql-action action to v4.35.5 by @renovate[bot] in [#65](https://github.com/nicholas-fedor/speedtest-go/pull/65)
