@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update cimg/go:1.26.3 docker digest to 9a5aff9 by @renovate[bot] in [#78](https://github.com/nicholas-fedor/speedtest-go/pull/78)
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.0 by @renovate[bot] in [#76](https://github.com/nicholas-fedor/speedtest-go/pull/76)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.0.9 by @renovate[bot] in [#74](https://github.com/nicholas-fedor/speedtest-go/pull/74)
 - Update goreleaser/goreleaser-action action to v7.2.2 by @renovate[bot] in [#72](https://github.com/nicholas-fedor/speedtest-go/pull/72)
 - Update codecov/codecov-action action to v6.0.1 by @renovate[bot] in [#70](https://github.com/nicholas-fedor/speedtest-go/pull/70)
