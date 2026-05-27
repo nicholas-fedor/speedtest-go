@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update docker/setup-qemu-action action to v4.1.0 by @renovate[bot] in [#88](https://github.com/nicholas-fedor/speedtest-go/pull/88)
 - Update docker/setup-buildx-action action to v4.1.0 by @renovate[bot] in [#86](https://github.com/nicholas-fedor/speedtest-go/pull/86)
 - Update github/codeql-action action to v4.36.0 by @renovate[bot] in [#85](https://github.com/nicholas-fedor/speedtest-go/pull/85)
 - Update docker/login-action action to v4.2.0 by @renovate[bot] in [#84](https://github.com/nicholas-fedor/speedtest-go/pull/84)
