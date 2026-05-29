@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module github.com/mattn/go-colorable to v0.1.15 by @renovate[bot] in [#92](https://github.com/nicholas-fedor/speedtest-go/pull/92)
+- Update module github.com/rogpeppe/go-internal to v1.15.0 by @renovate[bot] in [#90](https://github.com/nicholas-fedor/speedtest-go/pull/90)
 - Update docker/setup-qemu-action action to v4.1.0 by @renovate[bot] in [#88](https://github.com/nicholas-fedor/speedtest-go/pull/88)
 - Update docker/setup-buildx-action action to v4.1.0 by @renovate[bot] in [#86](https://github.com/nicholas-fedor/speedtest-go/pull/86)
 - Update github/codeql-action action to v4.36.0 by @renovate[bot] in [#85](https://github.com/nicholas-fedor/speedtest-go/pull/85)
