@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github/codeql-action action to v4.36.1 by @renovate[bot] in [#97](https://github.com/nicholas-fedor/speedtest-go/pull/97)
+- Update securego/gosec action to v2.27.1 by @renovate[bot] in [#94](https://github.com/nicholas-fedor/speedtest-go/pull/94)
 - Update commitlint monorepo to v21.0.2 by @renovate[bot] in [#93](https://github.com/nicholas-fedor/speedtest-go/pull/93)
 - Update module github.com/mattn/go-colorable to v0.1.15 by @renovate[bot] in [#92](https://github.com/nicholas-fedor/speedtest-go/pull/92)
 - Update module github.com/rogpeppe/go-internal to v1.15.0 by @renovate[bot] in [#90](https://github.com/nicholas-fedor/speedtest-go/pull/90)
