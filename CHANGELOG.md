@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github/codeql-action action to v4.36.2 by @renovate[bot] in [#104](https://github.com/nicholas-fedor/speedtest-go/pull/104)
 - Update cimg/go docker tag to v1.26.4 by @renovate[bot] in [#102](https://github.com/nicholas-fedor/speedtest-go/pull/102)
 - Update go toolchain directive to v1.26.4 by @renovate[bot] in [#100](https://github.com/nicholas-fedor/speedtest-go/pull/100)
 - Update actions/checkout action to v6.0.3 by @renovate[bot] in [#98](https://github.com/nicholas-fedor/speedtest-go/pull/98)
