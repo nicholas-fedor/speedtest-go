@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/sys to v0.46.0 by @renovate[bot] in [#114](https://github.com/nicholas-fedor/speedtest-go/pull/114)
 - Update nicholas-fedor/govulncheck-action action to v1.0.5 by @renovate[bot] in [#112](https://github.com/nicholas-fedor/speedtest-go/pull/112)
 - Update nicholas-fedor/actionlint-action action to v1.0.5 by @renovate[bot] in [#111](https://github.com/nicholas-fedor/speedtest-go/pull/111)
 - Update nicholas-fedor/actionlint-action action to v1.0.4 by @renovate[bot] in [#107](https://github.com/nicholas-fedor/speedtest-go/pull/107)
