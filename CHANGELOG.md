@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.1 by @renovate[bot] in [#122](https://github.com/nicholas-fedor/speedtest-go/pull/122)
 - Update nicholas-fedor/actionlint-action action to v1.0.6 by @renovate[bot] in [#120](https://github.com/nicholas-fedor/speedtest-go/pull/120)
 - Update module golang.org/x/text to v0.38.0 by @renovate[bot] in [#118](https://github.com/nicholas-fedor/speedtest-go/pull/118)
 - Update module golang.org/x/term to v0.44.0 by @renovate[bot] in [#115](https://github.com/nicholas-fedor/speedtest-go/pull/115)
