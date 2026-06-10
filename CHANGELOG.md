@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update alpine:3.24.0 docker digest to 8ddefa9 by @renovate[bot] in [#126](https://github.com/nicholas-fedor/speedtest-go/pull/126)
+- Update alpine docker tag to v3.24.0 by @renovate[bot] in [#124](https://github.com/nicholas-fedor/speedtest-go/pull/124)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.1 by @renovate[bot] in [#122](https://github.com/nicholas-fedor/speedtest-go/pull/122)
 - Update nicholas-fedor/actionlint-action action to v1.0.6 by @renovate[bot] in [#120](https://github.com/nicholas-fedor/speedtest-go/pull/120)
 - Update module golang.org/x/text to v0.38.0 by @renovate[bot] in [#118](https://github.com/nicholas-fedor/speedtest-go/pull/118)
