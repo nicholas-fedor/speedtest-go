@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update alpine docker tag to v3.24.1 by @renovate[bot] in [#140](https://github.com/nicholas-fedor/speedtest-go/pull/140)
+- Update nicholas-fedor/actionlint-action action to v1.0.9 by @renovate[bot] in [#138](https://github.com/nicholas-fedor/speedtest-go/pull/138)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.4 by @renovate[bot] in [#137](https://github.com/nicholas-fedor/speedtest-go/pull/137)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.3 by @renovate[bot] in [#134](https://github.com/nicholas-fedor/speedtest-go/pull/134)
 - Update nicholas-fedor/actionlint-action action to v1.0.8 by @renovate[bot] in [#133](https://github.com/nicholas-fedor/speedtest-go/pull/133)
