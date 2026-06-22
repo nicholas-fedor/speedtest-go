@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module github.com/pelletier/go-toml/v2 to v2.4.1 by @renovate[bot] in [#154](https://github.com/nicholas-fedor/speedtest-go/pull/154)
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.7 by @renovate[bot] in [#151](https://github.com/nicholas-fedor/speedtest-go/pull/151)
 - Update nicholas-fedor/actionlint-action action to v1.0.12 by @renovate[bot] in [#150](https://github.com/nicholas-fedor/speedtest-go/pull/150)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.5 by @renovate[bot] in [#148](https://github.com/nicholas-fedor/speedtest-go/pull/148)
 - Update nicholas-fedor/actionlint-action action to v1.0.10 by @renovate[bot] in [#147](https://github.com/nicholas-fedor/speedtest-go/pull/147)
