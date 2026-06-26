@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.9 by @renovate[bot] in [#166](https://github.com/nicholas-fedor/speedtest-go/pull/166)
+- Update actions/attest-build-provenance action to v4.1.1 by @renovate[bot] in [#165](https://github.com/nicholas-fedor/speedtest-go/pull/165)
 - Update commitlint monorepo to v21.1.0 by @renovate[bot] in [#163](https://github.com/nicholas-fedor/speedtest-go/pull/163)
 - Update nicholas-fedor/actionlint-action action to v1.0.14 by @renovate[bot] in [#161](https://github.com/nicholas-fedor/speedtest-go/pull/161)
 - Update actions/setup-go action to v6.5.0 by @renovate[bot] in [#160](https://github.com/nicholas-fedor/speedtest-go/pull/160)
