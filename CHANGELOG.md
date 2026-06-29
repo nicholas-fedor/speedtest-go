@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update golangci/golangci-lint-action action to v9.3.0 by @renovate[bot] in [#174](https://github.com/nicholas-fedor/speedtest-go/pull/174)
 - Update goreleaser/goreleaser-action action to v7.2.3 by @renovate[bot] in [#172](https://github.com/nicholas-fedor/speedtest-go/pull/172)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.10 by @renovate[bot] in [#170](https://github.com/nicholas-fedor/speedtest-go/pull/170)
 - Update nicholas-fedor/actionlint-action action to v1.0.15 by @renovate[bot] in [#168](https://github.com/nicholas-fedor/speedtest-go/pull/168)
