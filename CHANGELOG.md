@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.11 by @renovate[bot] in [#183](https://github.com/nicholas-fedor/speedtest-go/pull/183)
+- Update nicholas-fedor/actionlint-action action to v1.0.16 by @renovate[bot] in [#180](https://github.com/nicholas-fedor/speedtest-go/pull/180)
 - Update github/codeql-action action to v4.36.3 by @renovate[bot] in [#179](https://github.com/nicholas-fedor/speedtest-go/pull/179)
 - Update docker/setup-qemu-action action to v4.2.0 by @renovate[bot] in [#177](https://github.com/nicholas-fedor/speedtest-go/pull/177)
 - Update golangci/golangci-lint-action action to v9.3.0 by @renovate[bot] in [#174](https://github.com/nicholas-fedor/speedtest-go/pull/174)
