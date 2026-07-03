@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update commitlint monorepo to v21.2.0 by @renovate[bot] in [#187](https://github.com/nicholas-fedor/speedtest-go/pull/187)
 - Update docker/setup-buildx-action action to v4.2.0 by @renovate[bot] in [#186](https://github.com/nicholas-fedor/speedtest-go/pull/186)
 - Update docker/login-action action to v4.3.0 by @renovate[bot] in [#184](https://github.com/nicholas-fedor/speedtest-go/pull/184)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.11 by @renovate[bot] in [#183](https://github.com/nicholas-fedor/speedtest-go/pull/183)
