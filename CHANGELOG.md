@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/actionlint-action action to v1.0.18 by @renovate[bot] in [#195](https://github.com/nicholas-fedor/speedtest-go/pull/195)
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.14 by @renovate[bot] in [#196](https://github.com/nicholas-fedor/speedtest-go/pull/196)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.13 by @renovate[bot] in [#193](https://github.com/nicholas-fedor/speedtest-go/pull/193)
 - Update nicholas-fedor/actionlint-action action to v1.0.17 by @renovate[bot] in [#192](https://github.com/nicholas-fedor/speedtest-go/pull/192)
 - Update docker/login-action action to v4.4.0 by @renovate[bot] in [#190](https://github.com/nicholas-fedor/speedtest-go/pull/190)
