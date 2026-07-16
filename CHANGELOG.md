@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/sys to v0.47.0 by @renovate[bot] in [#210](https://github.com/nicholas-fedor/speedtest-go/pull/210)
+- Update github/codeql-action action to v4.37.0 by @renovate[bot] in [#208](https://github.com/nicholas-fedor/speedtest-go/pull/208)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.23 by @renovate[bot] in [#207](https://github.com/nicholas-fedor/speedtest-go/pull/207)
 - Update go toolchain directive to v1.26.5 by @renovate[bot] in [#205](https://github.com/nicholas-fedor/speedtest-go/pull/205)
 - Update dependency @commitlint/cli to v21.2.1 by @renovate[bot] in [#204](https://github.com/nicholas-fedor/speedtest-go/pull/204)
