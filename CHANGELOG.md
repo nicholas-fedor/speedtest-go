@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update actions/setup-go action to v7 by @renovate[bot] in [#224](https://github.com/nicholas-fedor/speedtest-go/pull/224)
+- Bump js-yaml from 4.1.1 to 4.3.0 by @dependabot[bot] in [#176](https://github.com/nicholas-fedor/speedtest-go/pull/176)
 - Update actions/checkout action to v7 by @renovate[bot] in [#146](https://github.com/nicholas-fedor/speedtest-go/pull/146)
 - Update codecov/codecov-action action to v7 by @renovate[bot] in [#110](https://github.com/nicholas-fedor/speedtest-go/pull/110)
 - Update step-security/harden-runner action to v2.20.0 by @renovate[bot] in [#223](https://github.com/nicholas-fedor/speedtest-go/pull/223)
@@ -127,7 +129,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### New Contributors
 
-- @dependabot[bot] made their first contribution in [#54](https://github.com/nicholas-fedor/speedtest-go/pull/54)
+- @dependabot[bot] made their first contribution in [#176](https://github.com/nicholas-fedor/speedtest-go/pull/176)
 
 ## [1.8.0] - 2026-05-02
 
