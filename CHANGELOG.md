@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update actions/checkout action to v7 by @renovate[bot] in [#146](https://github.com/nicholas-fedor/speedtest-go/pull/146)
+- Update codecov/codecov-action action to v7 by @renovate[bot] in [#110](https://github.com/nicholas-fedor/speedtest-go/pull/110)
 - Update step-security/harden-runner action to v2.20.0 by @renovate[bot] in [#223](https://github.com/nicholas-fedor/speedtest-go/pull/223)
 - Update securego/gosec action to v2.28.0 by @renovate[bot] in [#221](https://github.com/nicholas-fedor/speedtest-go/pull/221)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.26 by @renovate[bot] in [#220](https://github.com/nicholas-fedor/speedtest-go/pull/220)
