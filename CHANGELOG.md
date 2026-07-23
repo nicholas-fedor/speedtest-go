@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update ossf/scorecard-action action to v2.4.4 by @renovate[bot] in [#246](https://github.com/nicholas-fedor/speedtest-go/pull/246)
+- Lock file maintenance by @renovate[bot] in [#228](https://github.com/nicholas-fedor/speedtest-go/pull/228)
 - Bump fast-uri from 3.1.3 to 3.1.4 by @dependabot[bot] in [#236](https://github.com/nicholas-fedor/speedtest-go/pull/236)
 - Update docker/login-action action to v4.5.0 by @renovate[bot] in [#242](https://github.com/nicholas-fedor/speedtest-go/pull/242)
 - Update module github.com/mattn/go-isatty to v0.0.24 by @renovate[bot] in [#241](https://github.com/nicholas-fedor/speedtest-go/pull/241)
