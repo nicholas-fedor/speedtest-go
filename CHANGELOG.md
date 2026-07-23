@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module github.com/mattn/go-isatty to v0.0.24 by @renovate[bot] in [#241](https://github.com/nicholas-fedor/speedtest-go/pull/241)
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.30 by @renovate[bot] in [#238](https://github.com/nicholas-fedor/speedtest-go/pull/238)
 - Update github/codeql-action action to v4.37.3 by @renovate[bot] in [#237](https://github.com/nicholas-fedor/speedtest-go/pull/237)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.29 by @renovate[bot] in [#234](https://github.com/nicholas-fedor/speedtest-go/pull/234)
 - Update github/codeql-action action to v4.37.2 by @renovate[bot] in [#233](https://github.com/nicholas-fedor/speedtest-go/pull/233)
