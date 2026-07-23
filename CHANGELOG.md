@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Bump fast-uri from 3.1.3 to 3.1.4 by @dependabot[bot] in [#236](https://github.com/nicholas-fedor/speedtest-go/pull/236)
+- Update docker/login-action action to v4.5.0 by @renovate[bot] in [#242](https://github.com/nicholas-fedor/speedtest-go/pull/242)
 - Update module github.com/mattn/go-isatty to v0.0.24 by @renovate[bot] in [#241](https://github.com/nicholas-fedor/speedtest-go/pull/241)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.30 by @renovate[bot] in [#238](https://github.com/nicholas-fedor/speedtest-go/pull/238)
 - Update github/codeql-action action to v4.37.3 by @renovate[bot] in [#237](https://github.com/nicholas-fedor/speedtest-go/pull/237)
@@ -138,7 +140,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### New Contributors
 
-- @dependabot[bot] made their first contribution in [#176](https://github.com/nicholas-fedor/speedtest-go/pull/176)
+- @dependabot[bot] made their first contribution in [#236](https://github.com/nicholas-fedor/speedtest-go/pull/236)
 
 ## [1.8.0] - 2026-05-02
 
