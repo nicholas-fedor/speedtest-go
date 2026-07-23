@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Skip bot commits by @nicholas-fedor in [#244](https://github.com/nicholas-fedor/speedtest-go/pull/244)
 - Replace composite actionlint action by @nicholas-fedor in [#55](https://github.com/nicholas-fedor/speedtest-go/pull/55)
 
 ### Chores
