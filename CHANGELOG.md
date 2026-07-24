@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update docker/login-action action to v4.5.1 by @renovate[bot] in [#250](https://github.com/nicholas-fedor/speedtest-go/pull/250)
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.32 by @renovate[bot] in [#251](https://github.com/nicholas-fedor/speedtest-go/pull/251)
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.31 by @renovate[bot] in [#248](https://github.com/nicholas-fedor/speedtest-go/pull/248)
 - Update ossf/scorecard-action action to v2.4.4 by @renovate[bot] in [#246](https://github.com/nicholas-fedor/speedtest-go/pull/246)
 - Lock file maintenance by @renovate[bot] in [#228](https://github.com/nicholas-fedor/speedtest-go/pull/228)
 - Bump fast-uri from 3.1.3 to 3.1.4 by @dependabot[bot] in [#236](https://github.com/nicholas-fedor/speedtest-go/pull/236)
