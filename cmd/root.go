@@ -49,6 +49,7 @@ func Init() {
 
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(citiesCmd)
+	rootCmd.AddCommand(versionCmd)
 
 	flags.RegisterListFlags(listCmd)
 }

@@ -34,12 +34,10 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X main.version={{ .Version }}
-      - -X main.commit={{ .Commit }}
-      - -X main.date={{ .CommitDate }}
+      - -X github.com/nicholas-fedor/speedtest-go/internal/version.version={{ .Version }}
+      - -X github.com/nicholas-fedor/speedtest-go/internal/version.commit={{ .FullCommit }}
+      - -X github.com/nicholas-fedor/speedtest-go/internal/version.date={{ .Date }}
       - -X github.com/nicholas-fedor/speedtest-go/speedtest.version={{ .Version }}
-      - -X github.com/nicholas-fedor/speedtest-go/internal/output.commit={{ .Commit }}
-      - -X github.com/nicholas-fedor/speedtest-go/internal/output.date={{ .Date }}
     env:
       - CGO_ENABLED=0
     goos:
