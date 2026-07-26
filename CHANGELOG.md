@@ -144,6 +144,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update sigstore/cosign-installer action to v4.1.2 by @renovate[bot] in [#40](https://github.com/nicholas-fedor/speedtest-go/pull/40)
 - Update module github.com/fsnotify/fsnotify to v1.10.1 by @renovate[bot] in [#38](https://github.com/nicholas-fedor/speedtest-go/pull/38)
 
+### Fixed
+
+- Resolve library and CLI version from build metadata by @nicholas-fedor in [#253](https://github.com/nicholas-fedor/speedtest-go/pull/253)
+
 ### New Contributors
 
 - @dependabot[bot] made their first contribution in [#236](https://github.com/nicholas-fedor/speedtest-go/pull/236)
