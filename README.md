@@ -167,6 +167,7 @@ Available Commands:
   completion  Generate the autocompletion script for the specified shell
   help        Help about any command
   list        List available speedtest servers
+  version     Print version information
 
 Flags:
       --config string       config file (default is $HOME/.speedtest-go.yaml)
@@ -188,10 +189,18 @@ Flags:
       --ua string           Set the user-agent header for the speedtest.
   -u, --unit string         Set human-readable and auto-scaled rate units for output (options: decimal-bits/decimal-bytes/binary-bits/binary-bytes).
       --unix                Output results in unix like format.
-  -v, --version             version for speedtest-go
 
 Use "speedtest-go [command] --help" for more information about a command.
 ```
+
+#### Version
+
+```bash
+speedtest-go version
+# speedtest-go v1.8.0 (1559e47, 2026-05-02) go1.26.5 linux/amd64
+```
+
+
 
 #### Test Internet Speed
 
@@ -202,7 +211,7 @@ Simply use `speedtest-go` command. The closest server is selected by default. Us
 # speedtest-go --unix
 speedtest-go
 
-    speedtest-go v1.7.10 @nicholas-fedor
+    speedtest-go v1.8.0 (1559e47, 2026-05-02)
 
 ✓ ISP: 124.27.199.165 (Fujitsu) [34.9769, 138.3831]
 ✓ Found 20 Public Servers
@@ -234,7 +243,7 @@ and select them by id.
 ```bash
 $ speedtest-go --server 6691 --server 6087
 
-    speedtest-go v1.7.10 @nicholas-fedor
+    speedtest-go v1.8.0 (1559e47, 2026-05-02)
 
 ✓ ISP: 124.27.199.165 (Fujitsu) [34.9769, 138.3831]
 ✓ Found 2 Specified Public Server(s)

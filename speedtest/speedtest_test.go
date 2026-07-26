@@ -226,22 +226,29 @@ func TestNew(t *testing.T) {
 
 func TestVersion(t *testing.T) {
 	t.Parallel()
+	t.Cleanup(func() { version = "" })
 
-	tests := []struct {
-		name string
-		want string
-	}{
-		{
-			name: "get version",
-			want: "", // Version should be a non-empty string
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	t.Run(
+		"ldflag override",
+		func(t *testing.T) {
 			t.Parallel()
 
+			version = "v9.9.9"
+
+			assert.Equal(t, "9.9.9", Version())
+			assert.Equal(t, "nicholas-fedor/speedtest-go 9.9.9", DefaultUserAgent())
+		},
+	)
+
+	t.Run(
+		"resolved non-empty",
+		func(t *testing.T) {
+			t.Parallel()
+
+			version = ""
 			got := Version()
-			assert.NotEmpty(t, got) // Version should be a non-empty string
-		})
-	}
+			assert.NotEmpty(t, got)
+			assert.NotContains(t, got, "(devel)")
+		},
+	)
 }

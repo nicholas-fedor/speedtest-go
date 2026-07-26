@@ -1,7 +1,12 @@
 BINARY_NAME=speedtest-go
-VERSION ?= dev
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo dev)
 COMMIT = $(shell git rev-parse --short HEAD)
 DATE = $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+LDFLAGS = -s -w \
+	-X github.com/nicholas-fedor/speedtest-go/internal/version.version=$(VERSION) \
+	-X github.com/nicholas-fedor/speedtest-go/internal/version.commit=$(COMMIT) \
+	-X github.com/nicholas-fedor/speedtest-go/internal/version.date=$(DATE) \
+	-X github.com/nicholas-fedor/speedtest-go/speedtest.version=$(VERSION)
 NFPM_CONFIG ?= build/nfpm/nfpm.yaml
 NFPM_TARGET ?= dist
 NFPM_GOARCH ?= amd64
@@ -11,7 +16,7 @@ NFPM_GOARCH ?= amd64
 all: build
 
 build:
-	go build -ldflags "-s -w -X github.com/nicholas-fedor/speedtest-go/speedtest.version=$(VERSION) -X github.com/nicholas-fedor/speedtest-go/internal/output.commit=$(COMMIT) -X github.com/nicholas-fedor/speedtest-go/internal/output.date=$(DATE)" -o bin/$(BINARY_NAME) .
+	go build -ldflags "$(LDFLAGS)" -o bin/$(BINARY_NAME) .
 
 test:
 	go test -v -covermode atomic ./...
@@ -29,7 +34,7 @@ vet:
 	go vet
 
 install:
-	go install -ldflags "-s -w -X github.com/nicholas-fedor/speedtest-go/speedtest.version=$(VERSION) -X github.com/nicholas-fedor/speedtest-go/internal/output.commit=$(COMMIT) -X github.com/nicholas-fedor/speedtest-go/internal/output.date=$(DATE)" .
+	go install -ldflags "$(LDFLAGS)" .
 
 release:
 	goreleaser release --clean --config build/goreleaser/stable.yaml

@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/nicholas-fedor/speedtest-go/internal/config"
 	"github.com/nicholas-fedor/speedtest-go/internal/output"
 	"github.com/nicholas-fedor/speedtest-go/internal/parser"
 	"github.com/nicholas-fedor/speedtest-go/speedtest"
 )
 
 // RunList lists available speedtest servers.
-func RunList(cfg Config) error {
-	setupConfig(cfg)
+func RunList(cfg config.Config) error {
+	cfg = config.Setup(cfg)
 
 	// 0. speed test setting
 	speedtestClient := speedtest.New(speedtest.WithUserConfig(

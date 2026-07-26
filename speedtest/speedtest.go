@@ -8,17 +8,18 @@ import (
 	"net/http"
 	"net/url"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 )
 
-var (
-	version = "1.7.10"
-	// DefaultUserAgent is the default user agent string for speedtest requests.
-	DefaultUserAgent = "showwin/speedtest-go " + version
-)
+// modulePath is this module's path; used to resolve version from build info.
+const modulePath = "github.com/nicholas-fedor/speedtest-go"
+
+// version is set via ldflags; empty means resolve from build info.
+var version string
 
 var (
 	// ErrClientNil is returned when the speedtest client is nil.
@@ -124,7 +125,7 @@ func (s *Speedtest) NewUserConfig(userConfig *UserConfig) {
 
 	s.config = userConfig
 	if len(s.config.UserAgent) == 0 {
-		s.config.UserAgent = DefaultUserAgent
+		s.config.UserAgent = DefaultUserAgent()
 	}
 
 	if len(userConfig.Source) == 0 {
@@ -260,7 +261,7 @@ func New(opts ...Option) *Speedtest {
 		Manager: NewDataManager(),
 	}
 	// load default config
-	s.NewUserConfig(&UserConfig{UserAgent: DefaultUserAgent})
+	s.NewUserConfig(&UserConfig{})
 
 	for _, opt := range opts {
 		opt(s)
@@ -269,9 +270,61 @@ func New(opts ...Option) *Speedtest {
 	return s
 }
 
+// DefaultUserAgent returns the default user agent string for speedtest requests.
+//
+// Returns:
+//   - string: user agent including the resolved library version
+func DefaultUserAgent() string {
+	return "nicholas-fedor/speedtest-go " + Version()
+}
+
 // Version returns the version of the speedtest library.
+//
+// Resolution order: ldflag version, then this module's version from
+// debug.BuildInfo (Main or Deps), then "dev".
+//
+// Returns:
+//   - string: normalized version without a leading v
 func Version() string {
-	return version
+	if resolved := normalizeVersion(version); resolved != "" {
+		return resolved
+	}
+
+	buildInfo, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "dev"
+	}
+
+	if buildInfo.Main.Path == modulePath {
+		if resolved := usableModuleVersion(buildInfo.Main.Version); resolved != "" {
+			return resolved
+		}
+	}
+
+	for _, dep := range buildInfo.Deps {
+		if dep.Path == modulePath {
+			if resolved := usableModuleVersion(dep.Version); resolved != "" {
+				return resolved
+			}
+		}
+	}
+
+	return "dev"
+}
+
+// normalizeVersion trims a single leading v from a version token.
+func normalizeVersion(raw string) string {
+	return strings.TrimPrefix(strings.TrimSpace(raw), "v")
+}
+
+// usableModuleVersion returns a normalized module version, or empty if unusable.
+func usableModuleVersion(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || raw == "(devel)" {
+		return ""
+	}
+
+	return normalizeVersion(raw)
 }
 
 var defaultClient = New()
