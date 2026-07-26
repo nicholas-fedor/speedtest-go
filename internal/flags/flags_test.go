@@ -4,12 +4,15 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+//nolint:paralleltest // mutates global viper
 func TestRegisterRootFlagsAddsPersistentFlags(t *testing.T) {
-	t.Parallel()
+	viper.Reset()
+	t.Cleanup(viper.Reset)
 
 	rootCmd := &cobra.Command{Use: "test"}
 
@@ -26,8 +29,10 @@ func TestRegisterRootFlagsAddsPersistentFlags(t *testing.T) {
 	require.NotNil(t, pf.Lookup("debug"))
 }
 
+//nolint:paralleltest // mutates global viper
 func TestRegisterRootFlagsAddsLocalFlags(t *testing.T) {
-	t.Parallel()
+	viper.Reset()
+	t.Cleanup(viper.Reset)
 
 	rootCmd := &cobra.Command{Use: "test"}
 
@@ -50,8 +55,10 @@ func TestRegisterRootFlagsAddsLocalFlags(t *testing.T) {
 	require.NotNil(t, f.Lookup("unit"))
 }
 
+//nolint:paralleltest // mutates global viper
 func TestRegisterRootFlagsBindsViper(t *testing.T) {
-	t.Parallel()
+	viper.Reset()
+	t.Cleanup(viper.Reset)
 
 	rootCmd := &cobra.Command{Use: "test"}
 
@@ -59,12 +66,21 @@ func TestRegisterRootFlagsBindsViper(t *testing.T) {
 
 	RegisterRootFlags(rootCmd, &cfgFile)
 
-	assert.NotNil(t, rootCmd.PersistentFlags().Lookup("proxy"))
-	assert.NotNil(t, rootCmd.Flags().Lookup("json"))
+	require.NoError(t, rootCmd.PersistentFlags().Set("proxy", "socks5://127.0.0.1:1080"))
+	require.NoError(t, rootCmd.Flags().Set("json", "true"))
+	require.NoError(t, rootCmd.Flags().Set("thread", "8"))
+	require.NoError(t, rootCmd.Flags().Set("ping-mode", "tcp"))
+
+	assert.Equal(t, "socks5://127.0.0.1:1080", viper.GetString("proxy"))
+	assert.True(t, viper.GetBool("json"))
+	assert.Equal(t, 8, viper.GetInt("thread"))
+	assert.Equal(t, "tcp", viper.GetString("ping-mode"))
 }
 
+//nolint:paralleltest // mutates global viper
 func TestRegisterListFlagsAddsFlags(t *testing.T) {
-	t.Parallel()
+	viper.Reset()
+	t.Cleanup(viper.Reset)
 
 	listCmd := &cobra.Command{Use: "list"}
 
@@ -76,12 +92,20 @@ func TestRegisterListFlagsAddsFlags(t *testing.T) {
 	require.NotNil(t, f.Lookup("search"))
 }
 
+//nolint:paralleltest // mutates global viper
 func TestRegisterListFlagsBindsViper(t *testing.T) {
-	t.Parallel()
+	viper.Reset()
+	t.Cleanup(viper.Reset)
 
 	listCmd := &cobra.Command{Use: "list"}
 
 	RegisterListFlags(listCmd)
 
-	assert.NotNil(t, listCmd.Flags().Lookup("location"))
+	require.NoError(t, listCmd.Flags().Set("location", "60,-110"))
+	require.NoError(t, listCmd.Flags().Set("city", "capetown"))
+	require.NoError(t, listCmd.Flags().Set("search", "fiber"))
+
+	assert.Equal(t, "60,-110", viper.GetString("location"))
+	assert.Equal(t, "capetown", viper.GetString("city"))
+	assert.Equal(t, "fiber", viper.GetString("search"))
 }
