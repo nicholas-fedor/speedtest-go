@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -74,9 +75,17 @@ func InitViper(cfgFile string) error {
 	err := viper.ReadInConfig()
 	if err == nil {
 		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
+
+		return nil
 	}
 
-	return nil
+	// Missing default config file is optional; any other read/parse error is fatal.
+	var notFound viper.ConfigFileNotFoundError
+	if cfgFile == "" && errors.As(err, &notFound) {
+		return nil
+	}
+
+	return fmt.Errorf("failed to read config file: %w", err)
 }
 
 // Load reads the current viper state and returns a Config.
