@@ -9,9 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRegisterRootFlagsAddsPersistentFlags(
-	t *testing.T,
-) { //nolint:paralleltest // mutates global viper
+//nolint:paralleltest // mutates global viper
+func TestRegisterRootFlagsAddsPersistentFlags(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)
 
@@ -30,9 +29,8 @@ func TestRegisterRootFlagsAddsPersistentFlags(
 	require.NotNil(t, pf.Lookup("debug"))
 }
 
-func TestRegisterRootFlagsAddsLocalFlags(
-	t *testing.T,
-) { //nolint:paralleltest // mutates global viper
+//nolint:paralleltest // mutates global viper
+func TestRegisterRootFlagsAddsLocalFlags(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)
 
@@ -57,7 +55,8 @@ func TestRegisterRootFlagsAddsLocalFlags(
 	require.NotNil(t, f.Lookup("unit"))
 }
 
-func TestRegisterRootFlagsBindsViper(t *testing.T) { //nolint:paralleltest // mutates global viper
+//nolint:paralleltest // mutates global viper
+func TestRegisterRootFlagsBindsViper(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)
 
@@ -78,7 +77,8 @@ func TestRegisterRootFlagsBindsViper(t *testing.T) { //nolint:paralleltest // mu
 	assert.Equal(t, "tcp", viper.GetString("ping-mode"))
 }
 
-func TestRegisterListFlagsAddsFlags(t *testing.T) { //nolint:paralleltest // mutates global viper
+//nolint:paralleltest // mutates global viper
+func TestRegisterListFlagsAddsFlags(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)
 
@@ -92,7 +92,8 @@ func TestRegisterListFlagsAddsFlags(t *testing.T) { //nolint:paralleltest // mut
 	require.NotNil(t, f.Lookup("search"))
 }
 
-func TestRegisterListFlagsBindsViper(t *testing.T) { //nolint:paralleltest // mutates global viper
+//nolint:paralleltest // mutates global viper
+func TestRegisterListFlagsBindsViper(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)
 

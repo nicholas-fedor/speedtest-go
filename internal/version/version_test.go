@@ -64,9 +64,8 @@ func TestString_release(t *testing.T) { //nolint:paralleltest // mutates package
 	assert.NotContains(t, got, "-X:")
 }
 
-func TestString_gitDescribeOmitsDuplicateCommit(
-	t *testing.T,
-) { //nolint:paralleltest // mutates package-level ldflag vars
+//nolint:paralleltest // mutates package-level ldflag vars
+func TestString_gitDescribeOmitsDuplicateCommit(t *testing.T) {
 	t.Cleanup(resetVars)
 
 	version = "1.8.0-209-g8000595-dirty"
@@ -81,9 +80,8 @@ func TestString_gitDescribeOmitsDuplicateCommit(
 	assert.NotContains(t, got, "(8000595)")
 }
 
-func TestString_omitsUnknownMeta(
-	t *testing.T,
-) { //nolint:paralleltest // mutates package-level ldflag vars
+//nolint:paralleltest // mutates package-level ldflag vars
+func TestString_omitsUnknownMeta(t *testing.T) {
 	t.Cleanup(resetVars)
 
 	version = "1.8.0"
@@ -111,9 +109,8 @@ func TestBanner(t *testing.T) { //nolint:paralleltest // mutates package-level l
 	assert.Equal(t, "speedtest-go v1.8.0 (1559e47, 2026-05-02)", Banner())
 }
 
-func TestBanner_gitDescribe(
-	t *testing.T,
-) { //nolint:paralleltest // mutates package-level ldflag vars
+//nolint:paralleltest // mutates package-level ldflag vars
+func TestBanner_gitDescribe(t *testing.T) {
 	t.Cleanup(resetVars)
 
 	version = "1.8.0-209-g8000595-dirty"

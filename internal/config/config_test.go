@@ -12,9 +12,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSetupSavingModeEnablesUnixOutput(
-	t *testing.T,
-) { //nolint:paralleltest // Setup mutates global logger
+// snapshotLogger restores the standard logger writer and flags after the test.
+func snapshotLogger(t *testing.T) {
+	t.Helper()
+
+	writer := log.Writer()
+	flags := log.Flags()
+
+	t.Cleanup(func() {
+		log.SetOutput(writer)
+		log.SetFlags(flags)
+	})
+}
+
+//nolint:paralleltest // Setup mutates global logger
+func TestSetupSavingModeEnablesUnixOutput(t *testing.T) {
+	snapshotLogger(t)
+
 	cfg := Config{
 		SavingMode:  true,
 		JSONOutput:  false,
@@ -31,9 +45,10 @@ func TestSetupSavingModeEnablesUnixOutput(
 	)
 }
 
-func TestSetupDoesNotOverrideExplicitUnixOutput(
-	t *testing.T,
-) { //nolint:paralleltest // Setup mutates global logger
+//nolint:paralleltest // Setup mutates global logger
+func TestSetupDoesNotOverrideExplicitUnixOutput(t *testing.T) {
+	snapshotLogger(t)
+
 	cfg := Config{
 		SavingMode: true,
 		JSONOutput: true,
@@ -65,7 +80,8 @@ func TestSetupDoesNotMutateWhenSavingModeInactive(t *testing.T) {
 	assert.False(t, cfg.UnixOutput, "Setup should not mutate the caller's Config value")
 }
 
-func TestLoadReadsViperState(t *testing.T) { //nolint:paralleltest // mutates global viper
+//nolint:paralleltest // mutates global viper
+func TestLoadReadsViperState(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)
 
@@ -115,9 +131,8 @@ func TestLoadReadsViperState(t *testing.T) { //nolint:paralleltest // mutates gl
 	assert.True(t, cfg.Debug)
 }
 
-func TestLoadReturnsDefaultsWhenViperEmpty(
-	t *testing.T,
-) { //nolint:paralleltest // mutates global viper
+//nolint:paralleltest // mutates global viper
+func TestLoadReturnsDefaultsWhenViperEmpty(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)
 
@@ -146,7 +161,8 @@ func TestLoadReturnsDefaultsWhenViperEmpty(
 	assert.False(t, cfg.Debug)
 }
 
-func TestInitViperWithConfigFile(t *testing.T) { //nolint:paralleltest // mutates global viper
+//nolint:paralleltest // mutates global viper
+func TestInitViperWithConfigFile(t *testing.T) {
 	tmpFile, err := os.CreateTemp(t.TempDir(), "speedtest-go*.yaml")
 	require.NoError(t, err)
 
@@ -164,7 +180,11 @@ func TestInitViperWithConfigFile(t *testing.T) { //nolint:paralleltest // mutate
 	assert.True(t, viper.GetBool("json"))
 }
 
-func TestInitViperWithDefaultPath(t *testing.T) { //nolint:paralleltest // mutates global viper
+func TestInitViperWithDefaultPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
 	viper.Reset()
 	t.Cleanup(viper.Reset)
 
@@ -175,7 +195,8 @@ func TestInitViperWithDefaultPath(t *testing.T) { //nolint:paralleltest // mutat
 	assert.Empty(t, viper.ConfigFileUsed())
 }
 
-func TestInitViperPropagatesParseError(t *testing.T) { //nolint:paralleltest // mutates global viper
+//nolint:paralleltest // mutates global viper
+func TestInitViperPropagatesParseError(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, "bad.yaml")
 	require.NoError(t, os.WriteFile(cfgPath, []byte("json: [\n"), 0o600))
@@ -188,9 +209,8 @@ func TestInitViperPropagatesParseError(t *testing.T) { //nolint:paralleltest // 
 	assert.Contains(t, err.Error(), "failed to read config file")
 }
 
-func TestInitViperPropagatesMissingExplicitFile(
-	t *testing.T,
-) { //nolint:paralleltest // mutates global viper
+//nolint:paralleltest // mutates global viper
+func TestInitViperPropagatesMissingExplicitFile(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)
 
@@ -199,13 +219,13 @@ func TestInitViperPropagatesMissingExplicitFile(
 	assert.Contains(t, err.Error(), "failed to read config file")
 }
 
-func TestSetupDoesNotSuppressLogInPlainMode(
-	t *testing.T,
-) { //nolint:paralleltest // mutates global logger
+//nolint:paralleltest // mutates global logger
+func TestSetupDoesNotSuppressLogInPlainMode(t *testing.T) {
+	snapshotLogger(t)
+
 	var buf bytes.Buffer
 
 	log.SetOutput(&buf)
-	t.Cleanup(func() { log.SetOutput(os.Stderr) })
 
 	cfg := Config{
 		JSONOutput:  false,
@@ -222,11 +242,13 @@ func TestSetupDoesNotSuppressLogInPlainMode(
 	)
 }
 
-func TestSetupSuppressesLogInJSONMode(t *testing.T) { //nolint:paralleltest // mutates global logger
+//nolint:paralleltest // mutates global logger
+func TestSetupSuppressesLogInJSONMode(t *testing.T) {
+	snapshotLogger(t)
+
 	var buf bytes.Buffer
 
 	log.SetOutput(&buf)
-	t.Cleanup(func() { log.SetOutput(os.Stderr) })
 
 	cfg := Config{
 		JSONOutput:  true,
@@ -243,13 +265,13 @@ func TestSetupSuppressesLogInJSONMode(t *testing.T) { //nolint:paralleltest // m
 	)
 }
 
-func TestSetupSuppressesLogInJSONLMode(
-	t *testing.T,
-) { //nolint:paralleltest // mutates global logger
+//nolint:paralleltest // mutates global logger
+func TestSetupSuppressesLogInJSONLMode(t *testing.T) {
+	snapshotLogger(t)
+
 	var buf bytes.Buffer
 
 	log.SetOutput(&buf)
-	t.Cleanup(func() { log.SetOutput(os.Stderr) })
 
 	cfg := Config{
 		JSONOutput:  false,
@@ -266,11 +288,13 @@ func TestSetupSuppressesLogInJSONLMode(
 	)
 }
 
-func TestSetupSuppressesLogInUnixMode(t *testing.T) { //nolint:paralleltest // mutates global logger
+//nolint:paralleltest // mutates global logger
+func TestSetupSuppressesLogInUnixMode(t *testing.T) {
+	snapshotLogger(t)
+
 	var buf bytes.Buffer
 
 	log.SetOutput(&buf)
-	t.Cleanup(func() { log.SetOutput(os.Stderr) })
 
 	cfg := Config{
 		JSONOutput:  false,
@@ -287,13 +311,13 @@ func TestSetupSuppressesLogInUnixMode(t *testing.T) { //nolint:paralleltest // m
 	)
 }
 
-func TestSetupSuppressesLogWhenSavingModeEnablesUnixOutput(
-	t *testing.T,
-) { //nolint:paralleltest // mutates global logger
+//nolint:paralleltest // mutates global logger
+func TestSetupSuppressesLogWhenSavingModeEnablesUnixOutput(t *testing.T) {
+	snapshotLogger(t)
+
 	var buf bytes.Buffer
 
 	log.SetOutput(&buf)
-	t.Cleanup(func() { log.SetOutput(os.Stderr) })
 
 	cfg := Config{
 		SavingMode:  true,
