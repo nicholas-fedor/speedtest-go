@@ -146,6 +146,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Harden InitViper and isolate config/flags tests by @nicholas-fedor in [#252](https://github.com/nicholas-fedor/speedtest-go/pull/252)
 - Resolve library and CLI version from build metadata by @nicholas-fedor in [#253](https://github.com/nicholas-fedor/speedtest-go/pull/253)
 
 ### New Contributors
