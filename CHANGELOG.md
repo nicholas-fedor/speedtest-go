@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.37 by @renovate[bot] in [#275](https://github.com/nicholas-fedor/speedtest-go/pull/275)
 - Update github/codeql-action action to v4.37.5 by @renovate[bot] in [#273](https://github.com/nicholas-fedor/speedtest-go/pull/273)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.36 by @renovate[bot] in [#271](https://github.com/nicholas-fedor/speedtest-go/pull/271)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.35 by @renovate[bot] in [#270](https://github.com/nicholas-fedor/speedtest-go/pull/270)
