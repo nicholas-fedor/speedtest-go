@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.42 by @renovate[bot] in [#293](https://github.com/nicholas-fedor/speedtest-go/pull/293)
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.41 by @renovate[bot] in [#291](https://github.com/nicholas-fedor/speedtest-go/pull/291)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.40 by @renovate[bot] in [#290](https://github.com/nicholas-fedor/speedtest-go/pull/290)
 - Update actions/attest-build-provenance action to v4.2.2 by @renovate[bot] in [#288](https://github.com/nicholas-fedor/speedtest-go/pull/288)
 - Update module github.com/rogpeppe/go-internal to v1.16.0 by @renovate[bot] in [#285](https://github.com/nicholas-fedor/speedtest-go/pull/285)
