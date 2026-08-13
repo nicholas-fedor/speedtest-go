@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github/codeql-action action to v4.37.7 by @renovate[bot] in [#296](https://github.com/nicholas-fedor/speedtest-go/pull/296)
+- Update module golang.org/x/text to v0.41.0 by @renovate[bot] in [#294](https://github.com/nicholas-fedor/speedtest-go/pull/294)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.42 by @renovate[bot] in [#293](https://github.com/nicholas-fedor/speedtest-go/pull/293)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.41 by @renovate[bot] in [#291](https://github.com/nicholas-fedor/speedtest-go/pull/291)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.40 by @renovate[bot] in [#290](https://github.com/nicholas-fedor/speedtest-go/pull/290)
