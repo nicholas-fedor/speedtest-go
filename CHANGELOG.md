@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module github.com/stretchr/testify to v1.12.0 by @renovate[bot] in [#310](https://github.com/nicholas-fedor/speedtest-go/pull/310)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.46 by @renovate[bot] in [#309](https://github.com/nicholas-fedor/speedtest-go/pull/309)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.45 by @renovate[bot] in [#306](https://github.com/nicholas-fedor/speedtest-go/pull/306)
 - Update commitlint monorepo to v21.2.2 by @renovate[bot] in [#305](https://github.com/nicholas-fedor/speedtest-go/pull/305)
