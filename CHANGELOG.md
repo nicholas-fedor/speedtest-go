@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update cimg/go docker tag to v1.27.0 by @renovate[bot] in [#319](https://github.com/nicholas-fedor/speedtest-go/pull/319)
+- Update go toolchain directive to v1.27.0 by @renovate[bot] in [#316](https://github.com/nicholas-fedor/speedtest-go/pull/316)
 - Update docker/setup-buildx-action action to v4.3.0 by @renovate[bot] in [#315](https://github.com/nicholas-fedor/speedtest-go/pull/315)
 - Update module github.com/stretchr/testify to v1.12.1 by @renovate[bot] in [#313](https://github.com/nicholas-fedor/speedtest-go/pull/313)
 - Update cimg/go docker tag to v1.26.7 by @renovate[bot] in [#312](https://github.com/nicholas-fedor/speedtest-go/pull/312)
