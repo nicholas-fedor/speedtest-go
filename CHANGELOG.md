@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update cimg/go:1.27.0 docker digest to 91e576b by @renovate[bot] in [#320](https://github.com/nicholas-fedor/speedtest-go/pull/320)
 - Update cimg/go docker tag to v1.27.0 by @renovate[bot] in [#319](https://github.com/nicholas-fedor/speedtest-go/pull/319)
 - Update go toolchain directive to v1.27.0 by @renovate[bot] in [#316](https://github.com/nicholas-fedor/speedtest-go/pull/316)
 - Update docker/setup-buildx-action action to v4.3.0 by @renovate[bot] in [#315](https://github.com/nicholas-fedor/speedtest-go/pull/315)
