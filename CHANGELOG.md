@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update step-security/harden-runner action to v2.21.1 by @renovate[bot] in [#336](https://github.com/nicholas-fedor/speedtest-go/pull/336)
 - Update anchore/sbom-action action to v0.24.2 by @renovate[bot] in [#335](https://github.com/nicholas-fedor/speedtest-go/pull/335)
 - Update anchore/sbom-action action to v0.24.1 by @renovate[bot] in [#333](https://github.com/nicholas-fedor/speedtest-go/pull/333)
 - Update securego/gosec action to v2.29.0 by @renovate[bot] in [#332](https://github.com/nicholas-fedor/speedtest-go/pull/332)
