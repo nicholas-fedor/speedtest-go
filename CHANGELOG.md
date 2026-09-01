@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update docker/setup-qemu-action action to v4.3.0 by @renovate[bot] in [#338](https://github.com/nicholas-fedor/speedtest-go/pull/338)
 - Update step-security/harden-runner action to v2.21.1 by @renovate[bot] in [#336](https://github.com/nicholas-fedor/speedtest-go/pull/336)
 - Update anchore/sbom-action action to v0.24.2 by @renovate[bot] in [#335](https://github.com/nicholas-fedor/speedtest-go/pull/335)
 - Update anchore/sbom-action action to v0.24.1 by @renovate[bot] in [#333](https://github.com/nicholas-fedor/speedtest-go/pull/333)
@@ -464,7 +465,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update experimental_result.md by @showwin
 - Update README.md by @showwin
 - V0.1.0 by @showwin
-- V0.3.0 by @showwin
 - Better algorithm by @showwin
 - Distribute multi platform by @showwin
 - V0.2.0 by @showwin
@@ -558,7 +558,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update readme by @r3inbowari
 - Remove not use funcs by @r3inbowari
 - Remove not use funcs by @r3inbowari
-- Remove file by @r3inbowari
 - Embed data manager by @r3inbowari
 - Add a simple example by @r3inbowari
 - Replace doer with speedtest context by @r3inbowari
