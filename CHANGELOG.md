@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/go-proxy-pull-action action to v1.1.50 by @renovate[bot] in [#348](https://github.com/nicholas-fedor/speedtest-go/pull/348)
 - Update cimg/go docker tag to v1.27.1 by @renovate[bot] in [#344](https://github.com/nicholas-fedor/speedtest-go/pull/344)
 - Update cimg/go:1.27.0 docker digest to 6026c28 by @renovate[bot] in [#343](https://github.com/nicholas-fedor/speedtest-go/pull/343)
 - Update go toolchain directive to v1.27.1 by @renovate[bot] in [#342](https://github.com/nicholas-fedor/speedtest-go/pull/342)
