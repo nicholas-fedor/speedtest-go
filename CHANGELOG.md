@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/sys to v0.48.0 by @renovate[bot] in [#352](https://github.com/nicholas-fedor/speedtest-go/pull/352)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.51 by @renovate[bot] in [#350](https://github.com/nicholas-fedor/speedtest-go/pull/350)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.50 by @renovate[bot] in [#348](https://github.com/nicholas-fedor/speedtest-go/pull/348)
 - Update cimg/go docker tag to v1.27.1 by @renovate[bot] in [#344](https://github.com/nicholas-fedor/speedtest-go/pull/344)
