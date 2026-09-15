@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Lock file maintenance by @renovate[bot] in [#260](https://github.com/nicholas-fedor/speedtest-go/pull/260)
 - Update docker/setup-qemu-action action to v4.4.0 by @renovate[bot] in [#363](https://github.com/nicholas-fedor/speedtest-go/pull/363)
 - Update docker/setup-buildx-action action to v4.4.0 by @renovate[bot] in [#362](https://github.com/nicholas-fedor/speedtest-go/pull/362)
 - Update codecov/codecov-action action to v7.1.0 by @renovate[bot] in [#361](https://github.com/nicholas-fedor/speedtest-go/pull/361)
