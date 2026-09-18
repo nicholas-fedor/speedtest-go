@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github/codeql-action action to v4.38.1 by @renovate[bot] in [#374](https://github.com/nicholas-fedor/speedtest-go/pull/374)
+- Update alpine:3.24.2 docker digest to 294b683 by @renovate[bot] in [#373](https://github.com/nicholas-fedor/speedtest-go/pull/373)
 - Update alpine:3.24.2 docker digest to 31b6477 by @renovate[bot] in [#371](https://github.com/nicholas-fedor/speedtest-go/pull/371)
 - Update alpine docker tag to v3.24.2 by @renovate[bot] in [#370](https://github.com/nicholas-fedor/speedtest-go/pull/370)
 - Update codecov/codecov-action action to v7.1.1 by @renovate[bot] in [#368](https://github.com/nicholas-fedor/speedtest-go/pull/368)
