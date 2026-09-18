@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update alpine docker tag to v3.24.2 by @renovate[bot] in [#370](https://github.com/nicholas-fedor/speedtest-go/pull/370)
+- Update codecov/codecov-action action to v7.1.1 by @renovate[bot] in [#368](https://github.com/nicholas-fedor/speedtest-go/pull/368)
 - Update docker/setup-buildx-action action to v4.4.1 by @renovate[bot] in [#366](https://github.com/nicholas-fedor/speedtest-go/pull/366)
 
 ## [1.8.4] - 2026-09-15
