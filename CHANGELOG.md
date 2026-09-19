@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update orhun/git-cliff-action action to v4.9.1 by @renovate[bot] in [#376](https://github.com/nicholas-fedor/speedtest-go/pull/376)
 - Update github/codeql-action action to v4.38.1 by @renovate[bot] in [#374](https://github.com/nicholas-fedor/speedtest-go/pull/374)
 - Update alpine:3.24.2 docker digest to 294b683 by @renovate[bot] in [#373](https://github.com/nicholas-fedor/speedtest-go/pull/373)
 - Update alpine:3.24.2 docker digest to 31b6477 by @renovate[bot] in [#371](https://github.com/nicholas-fedor/speedtest-go/pull/371)
