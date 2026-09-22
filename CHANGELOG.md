@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Use the commit date for archive mtime by @nicholas-fedor in [#379](https://github.com/nicholas-fedor/speedtest-go/pull/379)
+
 ### Chores
 
 - Update orhun/git-cliff-action action to v4.9.1 by @renovate[bot] in [#376](https://github.com/nicholas-fedor/speedtest-go/pull/376)
