@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Use the commit date for archive mtime by @nicholas-fedor in [#383](https://github.com/nicholas-fedor/speedtest-go/pull/383)
 - Use the commit date for archive mtime by @nicholas-fedor in [#379](https://github.com/nicholas-fedor/speedtest-go/pull/379)
 
 ### Chores
