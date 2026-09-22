@@ -71,7 +71,7 @@ builds:
         goarch: arm
       - goos: darwin
         goarch: riscv64
-    mod_timestamp: "{{ .CommitTimestamp }}"
+    mod_timestamp: "{{ .CommitDate }}"
 
 ################################################################################
 # Binary Archive Configuration
