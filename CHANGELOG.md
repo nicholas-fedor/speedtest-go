@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update step-security/harden-runner action to v2.22.0 by @renovate[bot] in [#392](https://github.com/nicholas-fedor/speedtest-go/pull/392)
 - Update anchore/sbom-action action to v0.24.3 by @renovate[bot] in [#389](https://github.com/nicholas-fedor/speedtest-go/pull/389)
 - Update nicholas-fedor/go-proxy-pull-action action to v1.1.52 by @renovate[bot] in [#387](https://github.com/nicholas-fedor/speedtest-go/pull/387)
 - Update github/codeql-action action to v4.38.2 by @renovate[bot] in [#385](https://github.com/nicholas-fedor/speedtest-go/pull/385)
