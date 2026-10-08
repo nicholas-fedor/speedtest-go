@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github/codeql-action action to v4.38.3 by @renovate[bot] in [#399](https://github.com/nicholas-fedor/speedtest-go/pull/399)
+- Update step-security/harden-runner action to v2.22.1 by @renovate[bot] in [#397](https://github.com/nicholas-fedor/speedtest-go/pull/397)
 - Update actions/upload-artifact action to v7.0.2 by @renovate[bot] in [#395](https://github.com/nicholas-fedor/speedtest-go/pull/395)
 - Update module github.com/mattn/go-colorable to v0.1.16 by @renovate[bot] in [#391](https://github.com/nicholas-fedor/speedtest-go/pull/391)
 - Update step-security/harden-runner action to v2.22.0 by @renovate[bot] in [#392](https://github.com/nicholas-fedor/speedtest-go/pull/392)
