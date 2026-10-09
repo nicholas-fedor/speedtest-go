@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/nicholas-fedor/speedtest-go/speedtest/transport"
+	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/transport"
 )
 
 func TestNewPacketLossAnalyzer(t *testing.T) {

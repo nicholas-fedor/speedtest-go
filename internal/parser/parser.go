@@ -4,7 +4,7 @@ package parser
 import (
 	"strings"
 
-	"github.com/nicholas-fedor/speedtest-go/speedtest"
+	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
 
 // ParseUnit parses the unit string to a UnitType.

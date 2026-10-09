@@ -16,7 +16,7 @@ import (
 )
 
 // modulePath is this module's path; used to resolve version from build info.
-const modulePath = "github.com/nicholas-fedor/speedtest-go"
+const modulePath = "github.com/nicholas-fedor/speedtest-go/v2"
 
 // version is set via ldflags; empty means resolve from build info.
 var version string

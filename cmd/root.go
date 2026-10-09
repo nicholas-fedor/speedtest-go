@@ -6,9 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/nicholas-fedor/speedtest-go/internal/app"
-	"github.com/nicholas-fedor/speedtest-go/internal/config"
-	"github.com/nicholas-fedor/speedtest-go/internal/flags"
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/app"
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/config"
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/flags"
 )
 
 // rootCmd represents the base command when called without any subcommands.

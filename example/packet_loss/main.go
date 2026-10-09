@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nicholas-fedor/speedtest-go/speedtest"
-	"github.com/nicholas-fedor/speedtest-go/speedtest/transport"
+	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
+	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/transport"
 )
 
 const packetSendingInterval = 100 * time.Millisecond

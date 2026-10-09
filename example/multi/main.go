@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/nicholas-fedor/speedtest-go/speedtest"
+	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
 
 func main() {

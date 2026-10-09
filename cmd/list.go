@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/nicholas-fedor/speedtest-go/internal/app"
-	"github.com/nicholas-fedor/speedtest-go/internal/config"
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/app"
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/config"
 )
 
 // listCmd represents the list command.

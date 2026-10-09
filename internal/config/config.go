@@ -9,8 +9,8 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/nicholas-fedor/speedtest-go/internal/parser"
-	"github.com/nicholas-fedor/speedtest-go/speedtest"
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/parser"
+	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
 
 // Config holds the application configuration.

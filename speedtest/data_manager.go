@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/nicholas-fedor/speedtest-go/speedtest/internal"
+	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/internal"
 )
 
 const (

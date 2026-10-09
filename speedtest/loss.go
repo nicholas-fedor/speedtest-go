@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nicholas-fedor/speedtest-go/speedtest/transport"
+	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/transport"
 )
 
 // PacketLossAnalyzerOptions configures the packet loss analyzer.

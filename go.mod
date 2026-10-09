@@ -1,4 +1,4 @@
-module github.com/nicholas-fedor/speedtest-go
+module github.com/nicholas-fedor/speedtest-go/v2
 
 go 1.26.0
 

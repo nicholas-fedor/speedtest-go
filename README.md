@@ -299,7 +299,7 @@ For more details, please see [saving mode experimental result](https://github.co
 ## Go API
 
 ```bash
-go get github.com/nicholas-fedor/speedtest-go
+go get github.com/nicholas-fedor/speedtest-go/v2
 ```
 
 ### API Usage
@@ -311,7 +311,7 @@ package main
 
 import (
  "fmt"
- "github.com/nicholas-fedor/speedtest-go/speedtest"
+ "github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
 
 func main() {
@@ -359,8 +359,8 @@ package main
 
 import (
  "fmt"
- "github.com/nicholas-fedor/speedtest-go/speedtest"
- "github.com/nicholas-fedor/speedtest-go/speedtest/transport"
+ "github.com/nicholas-fedor/speedtest-go/v2/speedtest"
+ "github.com/nicholas-fedor/speedtest-go/v2/speedtest/transport"
  "log"
 )
 
