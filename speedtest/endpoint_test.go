@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,6 +40,31 @@ func requestFor(t *testing.T, api *testserver.API, endpoint string) testserver.R
 	require.Failf(t, "endpoint not requested", "no request for %s", endpoint)
 
 	return testserver.Request{}
+}
+
+// assertProbed checks that every server got a latency result and that the probes reached the fake API.
+//
+// It does not require a positive latency. A loopback round trip can finish between ticks of a coarse clock, such as
+// the monotonic clock on Windows, and then measures exactly zero. A failed probe is recorded as PingTimeout.
+func assertProbed(t *testing.T, api *testserver.API, servers Servers) {
+	t.Helper()
+
+	timeout := time.Duration(PingTimeout)
+
+	for _, server := range servers {
+		assert.NotEqual(t, timeout, server.Latency, "server %s should be probed", server.ID)
+		assert.GreaterOrEqual(t, server.Latency, time.Duration(0), "server %s latency", server.ID)
+	}
+
+	var probes int
+
+	for _, req := range api.Requests() {
+		if req.Endpoint == testserver.PathLatency {
+			probes++
+		}
+	}
+
+	assert.GreaterOrEqual(t, probes, len(servers), "each server should receive a latency request")
 }
 
 // TestParseBaseURL covers the accepted base URL forms and each rejection rule.
@@ -197,9 +223,7 @@ func TestFetchServerListContext_BaseURL(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, servers, len(testserver.DefaultServers()))
 
-	for _, server := range servers {
-		assert.Positive(t, server.Latency, "the latency probe should reach the fake server")
-	}
+	assertProbed(t, api, servers)
 
 	list := requestFor(t, api, testserver.PathServers)
 	assert.Equal(t, mirrorPrefix+testserver.PathServers, list.Path)

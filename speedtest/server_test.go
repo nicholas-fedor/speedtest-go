@@ -375,9 +375,10 @@ func TestSpeedtest_FetchServerListContext(t *testing.T) {
 
 		assert.ElementsMatch(t, []string{"1001", "1002"}, serverIDs(servers))
 
+		assertProbed(t, api, servers)
+
 		for _, server := range servers {
 			assert.Same(t, client, server.Context)
-			assert.Positive(t, server.Latency, "every server should be probed")
 			assert.Zero(t, server.Distance, "distance needs the user's location")
 		}
 	})
