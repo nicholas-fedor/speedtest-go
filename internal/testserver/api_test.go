@@ -98,7 +98,7 @@ func TestAPI_ServersJSON(t *testing.T) {
 	assert.Equal(t, "1001", list[1].ID)
 
 	for _, server := range list {
-		assert.Equal(t, api.UploadURL(), server.URL)
+		assert.Equal(t, api.ServerUploadURL(server.ID), server.URL)
 		assert.Equal(t, api.Host(), server.Host)
 	}
 
@@ -120,7 +120,7 @@ func TestAPI_ServersStatic(t *testing.T) {
 
 	assert.Nil(t, doc.Client)
 	require.Len(t, doc.Servers, 2)
-	assert.Equal(t, api.UploadURL(), doc.Servers[0].URL)
+	assert.Equal(t, api.ServerUploadURL(doc.Servers[0].ID), doc.Servers[0].URL)
 }
 
 // TestAPI_ServerLookup checks that the lookup returns only the requested server, and none for an unknown ID.
@@ -183,6 +183,87 @@ func TestAPI_ServerEndpoints(t *testing.T) {
 	assert.Equal(t, PathDownload, requests[1].Endpoint)
 	assert.Equal(t, "/speedtest/random1000x1000.jpg", requests[1].Path)
 	assert.Equal(t, int64(1234), requests[2].BodySize)
+
+	for _, req := range requests {
+		assert.Empty(t, req.ServerID, "root server paths belong to no listed server")
+	}
+}
+
+// TestAPI_PerServerPaths checks that requests under a listed server's path are attributed to that server, and that
+// unknown servers and unknown files are rejected.
+func TestAPI_PerServerPaths(t *testing.T) {
+	t.Parallel()
+
+	api := NewAPI(t)
+	root := strings.TrimSuffix(api.ServerUploadURL("1001"), "/upload.php")
+
+	tests := []struct {
+		name         string
+		method       string
+		path         string
+		wantEndpoint string
+		wantServerID string
+		wantStatus   int
+	}{
+		{
+			name:         "latency",
+			method:       http.MethodGet,
+			path:         root + "/latency.txt",
+			wantEndpoint: PathLatency,
+			wantServerID: "1001",
+			wantStatus:   http.StatusOK,
+		},
+		{
+			name:         "download",
+			method:       http.MethodGet,
+			path:         root + "/random350x350.jpg",
+			wantEndpoint: PathDownload,
+			wantServerID: "1001",
+			wantStatus:   http.StatusOK,
+		},
+		{
+			name:         "upload",
+			method:       http.MethodPost,
+			path:         api.ServerUploadURL("1001"),
+			wantEndpoint: PathUpload,
+			wantServerID: "1001",
+			wantStatus:   http.StatusOK,
+		},
+		{
+			name:       "unknown server",
+			method:     http.MethodGet,
+			path:       strings.Replace(root, "/1001", "/9999", 1) + "/latency.txt",
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:       "nested file",
+			method:     http.MethodGet,
+			path:       root + "/extra/latency.txt",
+			wantStatus: http.StatusNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := do(t, tt.method, tt.path, "payload")
+			assert.Equal(t, tt.wantStatus, got.status)
+
+			var found bool
+
+			for _, req := range api.Requests() {
+				if strings.HasSuffix(tt.path, req.Path) && req.Method == tt.method {
+					found = true
+
+					assert.Equal(t, tt.wantEndpoint, req.Endpoint)
+					assert.Equal(t, tt.wantServerID, req.ServerID)
+				}
+			}
+
+			assert.True(t, found, "the request should be recorded")
+		})
+	}
 }
 
 // TestAPI_PathPrefix checks that the prefix applies only to the speedtest.net endpoints.

@@ -326,7 +326,7 @@ func TestSpeedtest_FetchServerByIDContext(t *testing.T) {
 			default:
 				require.NoError(t, err)
 				assert.Equal(t, tt.id, server.ID)
-				assert.Equal(t, api.UploadURL(), server.URL)
+				assert.Equal(t, api.ServerUploadURL(tt.id), server.URL)
 				assert.Same(t, client, server.Context)
 				assert.Positive(
 					t,

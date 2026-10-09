@@ -65,12 +65,16 @@ type Request struct {
 	Path string
 	// Endpoint is the endpoint the path matched, such as [PathServers], or empty for an unknown path.
 	Endpoint string
+	// ServerID is the listed server a per-server request was addressed to, or empty for the root server paths and
+	// the speedtest.net endpoints.
+	ServerID string
 	// BodySize is the number of body bytes the fake read. Overridden responses read no body.
 	BodySize int64
 }
 
-// Endpoint paths. The speedtest.net endpoints are served under the [WithPathPrefix] prefix, and the per-server
-// endpoints are always served at the root, because listed servers point at [API.UploadURL].
+// Endpoint paths. The speedtest.net endpoints are served under the [WithPathPrefix] prefix. The per-server
+// endpoints are served at these root paths for custom servers, and under /speedtest/<id>/ for each listed server,
+// so requests can be attributed to the server they were sent to.
 const (
 	// PathUserConfig reports the caller's details as XML.
 	PathUserConfig = "/speedtest-config.php"
@@ -84,7 +88,7 @@ const (
 	PathLatency = "/speedtest/latency.txt"
 	// PathDownload stands for every /speedtest/randomNxN.jpg download, which all share one behavior.
 	PathDownload = "/speedtest/random.jpg"
-	// PathUpload accepts uploads and is each listed server's URL.
+	// PathUpload accepts uploads. Its per-server form is each listed server's URL.
 	PathUpload = "/speedtest/upload.php"
 )
 
@@ -95,11 +99,15 @@ const DefaultDownloadSize = 64 << 10
 // serverPathPrefix is the path prefix of the per-server endpoints.
 const serverPathPrefix = "/speedtest/"
 
-// Download path parts, matching names such as random1000x1000.jpg.
+// Per-server file names, matched after the server path prefix and any server ID.
 const (
-	// downloadPrefix starts every download path.
-	downloadPrefix = serverPathPrefix + "random"
-	// downloadSuffix ends every download path.
+	// latencyFile answers latency probes.
+	latencyFile = "latency.txt"
+	// uploadFile accepts uploads.
+	uploadFile = "upload.php"
+	// downloadPrefix starts every download file name, such as random1000x1000.jpg.
+	downloadPrefix = "random"
+	// downloadSuffix ends every download file name.
 	downloadSuffix = ".jpg"
 )
 
@@ -199,12 +207,27 @@ func (api *API) URL() string {
 	return api.server.URL + api.prefix
 }
 
-// UploadURL returns the upload URL that every listed server uses, which also works as a custom server URL.
+// UploadURL returns the root upload URL, which works as a custom server URL.
+//
+// Requests sent through it have an empty [Request.ServerID].
 //
 // Returns:
 //   - string: the upload URL.
 func (api *API) UploadURL() string {
 	return api.server.URL + PathUpload
+}
+
+// ServerUploadURL returns the upload URL of the listed server with the given ID.
+//
+// Requests derived from it, such as latency probes and downloads, are recorded with that [Request.ServerID].
+//
+// Parameters:
+//   - id: the listed server's ID, which must be safe to use as a path segment.
+//
+// Returns:
+//   - string: the server's upload URL.
+func (api *API) ServerUploadURL(id string) string {
+	return api.server.URL + serverPathPrefix + id + "/" + uploadFile
 }
 
 // Host returns the host and port that every listed server reports.
@@ -253,27 +276,35 @@ func (api *API) Requested(endpoint string) bool {
 
 // serveHTTP routes a request to its endpoint, records it, and writes the response.
 //
+// The request is recorded before any response bytes are written, so a client that has read a response can rely on
+// [API.Requests] including the request. Upload bodies are read first, so their size is recorded too.
+//
 // Parameters:
 //   - w: the response writer.
 //   - r: the request.
 func (api *API) serveHTTP(w http.ResponseWriter, r *http.Request) {
+	endpoint, serverID := api.route(r.URL.Path)
+
+	api.mu.Lock()
+	override, overridden := api.responses[endpoint]
+	api.mu.Unlock()
+
 	record := Request{
 		Query:    r.URL.Query(),
 		Header:   r.Header.Clone(),
 		Method:   r.Method,
 		Path:     r.URL.Path,
-		Endpoint: api.endpoint(r.URL.Path),
+		Endpoint: endpoint,
+		ServerID: serverID,
 		BodySize: 0,
 	}
 
-	defer func() {
-		api.mu.Lock()
-		api.requests = append(api.requests, record)
-		api.mu.Unlock()
-	}()
+	if !overridden && endpoint == PathUpload {
+		record.BodySize, _ = io.Copy(io.Discard, r.Body)
+	}
 
 	api.mu.Lock()
-	override, overridden := api.responses[record.Endpoint]
+	api.requests = append(api.requests, record)
 	api.mu.Unlock()
 
 	if overridden {
@@ -282,7 +313,7 @@ func (api *API) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch record.Endpoint {
+	switch endpoint {
 	case PathUserConfig:
 		writeXML(w, xmlSettings{XMLName: xml.Name{}, Client: toXMLClient(api.user), Servers: nil})
 	case PathServers:
@@ -300,38 +331,64 @@ func (api *API) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	case PathDownload:
 		api.writeDownload(w)
 	case PathUpload:
-		record.BodySize, _ = io.Copy(io.Discard, r.Body)
 		writeBody(w, "text/plain", []byte("size="+strconv.FormatInt(record.BodySize, 10)))
 	default:
 		http.NotFound(w, r)
 	}
 }
 
-// endpoint maps a request path to the endpoint it serves.
+// route maps a request path to the endpoint it serves and the listed server it was addressed to.
 //
 // Parameters:
 //   - path: the request path.
 //
 // Returns:
-//   - string: one of the Path constants, or empty when the path matches no endpoint.
-func (api *API) endpoint(path string) string {
-	if strings.HasPrefix(path, serverPathPrefix) {
-		switch {
-		case path == PathLatency, path == PathUpload:
-			return path
-		case strings.HasPrefix(path, downloadPrefix) && strings.HasSuffix(path, downloadSuffix):
-			return PathDownload
-		default:
-			return ""
+//   - endpoint: one of the Path constants, or empty when the path matches no endpoint.
+//   - serverID: the listed server's ID for a per-server path, or empty.
+//
+//nolint:nonamedreturns // Same-type returns need names.
+func (api *API) route(path string) (endpoint, serverID string) {
+	file, isServerPath := strings.CutPrefix(path, serverPathPrefix)
+	if !isServerPath {
+		rest, ok := strings.CutPrefix(path, api.prefix)
+		if ok && slices.Contains(apiEndpoints, rest) {
+			return rest, ""
 		}
+
+		return "", ""
 	}
 
-	rest, ok := strings.CutPrefix(path, api.prefix)
-	if ok && slices.Contains(apiEndpoints, rest) {
-		return rest
+	if id, name, ok := strings.Cut(file, "/"); ok {
+		if !api.hasServer(id) {
+			return "", ""
+		}
+
+		serverID, file = id, name
 	}
 
-	return ""
+	switch {
+	case file == latencyFile:
+		return PathLatency, serverID
+	case file == uploadFile:
+		return PathUpload, serverID
+	case strings.HasPrefix(file, downloadPrefix) && strings.HasSuffix(file, downloadSuffix):
+		return PathDownload, serverID
+	default:
+		return "", ""
+	}
+}
+
+// hasServer reports whether a listed server has the given ID.
+//
+// Parameters:
+//   - id: the server ID.
+//
+// Returns:
+//   - bool: true when the ID belongs to a listed server.
+func (api *API) hasServer(id string) bool {
+	return slices.ContainsFunc(api.servers, func(server Server) bool {
+		return server.ID == id
+	})
 }
 
 // writeServersJSON writes the server list as JSON.
@@ -342,7 +399,7 @@ func (api *API) writeServersJSON(w http.ResponseWriter) {
 	list := make([]wireServer, 0, len(api.servers))
 	for _, server := range api.servers {
 		list = append(list, wireServer{
-			URL:     api.UploadURL(),
+			URL:     api.ServerUploadURL(server.ID),
 			Lat:     server.Lat,
 			Lon:     server.Lon,
 			Name:    server.Name,
@@ -379,7 +436,7 @@ func (api *API) xmlServers(id string) []xmlServer {
 		}
 
 		servers = append(servers, xmlServer{
-			URL:     api.UploadURL(),
+			URL:     api.ServerUploadURL(server.ID),
 			Lat:     server.Lat,
 			Lon:     server.Lon,
 			Name:    server.Name,
