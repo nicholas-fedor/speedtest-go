@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/nicholas-fedor/speedtest-go/internal/config"
-	"github.com/nicholas-fedor/speedtest-go/internal/output"
-	"github.com/nicholas-fedor/speedtest-go/internal/parser"
-	"github.com/nicholas-fedor/speedtest-go/speedtest"
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/config"
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/output"
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/parser"
+	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
 
 // RunList lists available speedtest servers.

@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/nicholas-fedor/speedtest-go/internal/version"
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/version"
 )
 
 // versionCmd prints application version information.

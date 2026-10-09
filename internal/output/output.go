@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/nicholas-fedor/speedtest-go/internal/version"
-	"github.com/nicholas-fedor/speedtest-go/speedtest"
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/version"
+	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
 
 // ShowServerList prints the list of available servers.

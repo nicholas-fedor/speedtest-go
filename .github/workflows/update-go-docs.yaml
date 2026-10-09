@@ -21,4 +21,4 @@ jobs:
         uses: nicholas-fedor/go-proxy-pull-action@8f784b07227e87c2d6555d3805c3a83e02e29227 # v1.1.52
         with:
           goproxy: https://proxy.golang.org
-          import_path: github.com/nicholas-fedor/speedtest-go
+          import_path: github.com/nicholas-fedor/speedtest-go/v2

@@ -4,7 +4,7 @@ package main
 import (
 	"os"
 
-	"github.com/nicholas-fedor/speedtest-go/cmd"
+	"github.com/nicholas-fedor/speedtest-go/v2/cmd"
 )
 
 func main() {

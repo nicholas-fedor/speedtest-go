@@ -1,6 +1,6 @@
 package app
 
-import "github.com/nicholas-fedor/speedtest-go/speedtest"
+import "github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 
 // ShowCities displays the list of predefined cities.
 func ShowCities() error {
