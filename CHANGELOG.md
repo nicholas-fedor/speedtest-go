@@ -50,6 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update codecov/codecov-action action to v7.1.1 by @renovate[bot] in [#368](https://github.com/nicholas-fedor/speedtest-go/pull/368)
 - Update docker/setup-buildx-action action to v4.4.1 by @renovate[bot] in [#366](https://github.com/nicholas-fedor/speedtest-go/pull/366)
 
+### Fixed
+
+- Always build the client network setup and fix ICMP ping by @nicholas-fedor in [#430](https://github.com/nicholas-fedor/speedtest-go/pull/430)
+
 ### Tests
 
 - Accept zero latency from loopback probes by @nicholas-fedor in [#427](https://github.com/nicholas-fedor/speedtest-go/pull/427)
