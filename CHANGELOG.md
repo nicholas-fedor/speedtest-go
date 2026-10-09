@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Support a custom speedtest API base URL by @nicholas-fedor in [#413](https://github.com/nicholas-fedor/speedtest-go/pull/413)
+
 ### Changed
 
 - Raise the minimum go version to 1.27 by @nicholas-fedor in [#411](https://github.com/nicholas-fedor/speedtest-go/pull/411)
