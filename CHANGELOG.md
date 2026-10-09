@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add a fake speedtest TCP and UDP server by @nicholas-fedor in [#428](https://github.com/nicholas-fedor/speedtest-go/pull/428)
 - Support a custom speedtest API base URL by @nicholas-fedor in [#413](https://github.com/nicholas-fedor/speedtest-go/pull/413)
 
 ### Changed
