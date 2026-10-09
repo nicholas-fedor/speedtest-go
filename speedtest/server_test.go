@@ -512,6 +512,32 @@ func TestServers_FindServer(t *testing.T) {
 	}
 }
 
+// TestFetchServerListContext_TCPPingMode checks that TCP ping mode probes every listed server over TCP.
+func TestFetchServerListContext_TCPPingMode(t *testing.T) {
+	t.Parallel()
+
+	tcp := testserver.NewTCPServer(t)
+	api := testserver.NewAPI(t, testserver.WithServerHost(tcp.Addr()))
+	client := New(WithUserConfig(&UserConfig{BaseURL: api.URL(), PingMode: TCP}))
+
+	servers, err := client.FetchServerListContext(context.Background())
+	require.NoError(t, err)
+	require.Len(t, servers, 2)
+
+	for _, server := range servers {
+		assert.NotEqual(
+			t,
+			time.Duration(PingTimeout),
+			server.Latency,
+			"server %s probe timed out",
+			server.ID,
+		)
+	}
+
+	assert.GreaterOrEqual(t, tcp.Accepted(), len(servers), "each server should be pinged over TCP")
+	assert.False(t, api.Requested(testserver.PathLatency), "TCP mode must not use HTTP probes")
+}
+
 // TestServerList_Encoding checks that the XML root name is used only for XML, so JSON output has no XMLName key.
 func TestServerList_Encoding(t *testing.T) {
 	t.Parallel()

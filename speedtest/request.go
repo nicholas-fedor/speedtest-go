@@ -1,6 +1,7 @@
 package speedtest
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -541,6 +542,10 @@ func (s *Server) HTTPPing(
 const (
 	PingTimeout        = -1
 	echoOptionDataSize = 32 // `echoMessage` need to change at same time
+	// icmpEchoReply is the ICMP message type of an echo reply.
+	icmpEchoReply = 0
+	// maxIPv4HeaderSize is the largest IPv4 header, which precedes the ICMP message on a raw socket.
+	maxIPv4HeaderSize = 60
 )
 
 // ICMPPing privileged method.
@@ -651,27 +656,70 @@ func (s *Server) sendOneICMPPing(dialContext interface {
 		return 0, fmt.Errorf("failed to write ICMP packet: %w", err)
 	}
 
-	buf := make([]byte, 20+echoOptionDataSize+8)
+	buf := make([]byte, maxIPv4HeaderSize+8+echoOptionDataSize)
 
-	_, err = dialContext.Read(buf)
-	if err != nil || buf[20] != 0x00 {
-		return 0, fmt.Errorf("failed to read ICMP response: %w", err)
+	// A raw ICMP socket receives every ICMP packet addressed to the host, including this client's own request when
+	// the target is local. Keep reading until the matching reply arrives or the deadline set above expires.
+	for {
+		n, err := dialContext.Read(buf)
+		if err != nil {
+			return 0, fmt.Errorf("failed to read ICMP response: %w", err)
+		}
+
+		if isEchoReply(buf[:n], icmpData) {
+			return time.Since(sTime), nil
+		}
 	}
-
-	return time.Since(sTime), nil
 }
 
+// isEchoReply reports whether an IPv4 packet read from a raw ICMP socket is the echo reply to request.
+//
+// Parameters:
+//   - packet: the IPv4 packet, starting with its header.
+//   - request: the ICMP echo request that was sent.
+//
+// Returns:
+//   - bool: true when the packet is an echo reply with the request's identifier and sequence number.
+func isEchoReply(packet, request []byte) bool {
+	if len(packet) == 0 {
+		return false
+	}
+
+	headerLen := int(packet[0]&0x0f) * 4
+	if len(packet) < headerLen+8 {
+		return false
+	}
+
+	icmp := packet[headerLen:]
+
+	return icmp[0] == icmpEchoReply && bytes.Equal(icmp[4:8], request[4:8])
+}
+
+// checkSum computes the RFC 1071 Internet checksum of an ICMP message.
+//
+// The 16-bit words are added in a wider accumulator and the carries are folded back in, giving the one's complement
+// sum that receivers verify. An odd final byte is padded with a zero low byte.
+//
+// Parameters:
+//   - data: the message, with its checksum field set to zero.
+//
+// Returns:
+//   - uint16: the checksum to store in the message.
 func checkSum(data []byte) uint16 {
-	var sum uint16
-	for i := 0; i < len(data)-1; i += 2 {
-		sum += uint16(data[i])<<8 + uint16(data[i+1])
+	var sum uint32
+	for i := 0; i+1 < len(data); i += 2 {
+		sum += uint32(data[i])<<8 | uint32(data[i+1])
 	}
 
 	if len(data)%2 == 1 {
-		sum += uint16(data[len(data)-1]) << 8
+		sum += uint32(data[len(data)-1]) << 8
 	}
 
-	return ^sum
+	for sum>>16 != 0 {
+		sum = sum&0xffff + sum>>16
+	}
+
+	return ^uint16(sum)
 }
 
 // StandardDeviation calculates the mean, variance, standard deviation, min, and max of a vector.

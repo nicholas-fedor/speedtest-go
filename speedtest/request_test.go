@@ -2,11 +2,17 @@ package speedtest
 
 import (
 	"context"
+	"net"
+	"runtime"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/testserver"
 )
 
 func TestServer_MultiDownloadTestContext(t *testing.T) {
@@ -607,6 +613,26 @@ func Test_checkSum(t *testing.T) {
 			args: args{data: []byte{1, 2, 3, 4}},
 			want: 0xfbf9,
 		},
+		{
+			name: "RFC 1071 example folds the carry",
+			args: args{data: []byte{0x00, 0x01, 0xf2, 0x03, 0xf4, 0xf5, 0xf6, 0xf7}},
+			want: 0x220d,
+		},
+		{
+			name: "echo request sent by ICMPPing",
+			args: args{data: prepareICMPPacket()},
+			want: 0xc770,
+		},
+		{
+			name: "odd length pads the last byte",
+			args: args{data: []byte{0xab, 0xcd, 0xef}},
+			want: 0x6531,
+		},
+		{
+			name: "carry wraps more than once",
+			args: args{data: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}},
+			want: 0x0000,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -614,6 +640,151 @@ func Test_checkSum(t *testing.T) {
 
 			got := checkSum(tt.args.data)
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// Test_checkSum_Verifies checks the property receivers rely on: a message carrying its checksum sums to zero.
+func Test_checkSum_Verifies(t *testing.T) {
+	t.Parallel()
+
+	packet := prepareICMPPacket()
+
+	sum := checkSum(packet)
+	packet[2], packet[3] = byte(sum>>8), byte(sum)
+
+	assert.Zero(t, checkSum(packet))
+}
+
+// TestServer_TCPPing_FakeServer checks that a client from New can TCP-ping a server. The dialer used to be nil
+// unless a source address was configured, which made this call panic.
+func TestServer_TCPPing_FakeServer(t *testing.T) {
+	t.Parallel()
+
+	tcp := testserver.NewTCPServer(t)
+	server := &Server{Host: tcp.Addr(), Context: New()}
+
+	var callbacks int
+
+	latencies, err := server.TCPPing(
+		context.Background(),
+		3,
+		time.Millisecond,
+		func(time.Duration) {
+			callbacks++
+		},
+	)
+	require.NoError(t, err)
+
+	assert.Len(t, latencies, 3)
+	assert.Equal(t, 3, callbacks)
+
+	var pings int
+
+	for _, command := range tcp.Commands() {
+		if strings.HasPrefix(command.Line, "PING ") {
+			pings++
+		}
+	}
+
+	assert.Equal(t, 6, pings, "each echo sends two PING commands")
+}
+
+// TestServer_TCPPing_Refused checks that pinging a closed port reports an error instead of panicking.
+func TestServer_TCPPing_Refused(t *testing.T) {
+	t.Parallel()
+
+	var config net.ListenConfig
+
+	listener, err := config.Listen(context.Background(), "tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	addr := listener.Addr().String()
+	require.NoError(t, listener.Close())
+
+	server := &Server{Host: addr, Context: New()}
+
+	_, err = server.TCPPing(context.Background(), 1, time.Millisecond, nil)
+	require.Error(t, err)
+}
+
+// TestServer_ICMPPing_Loopback checks that ICMP ping no longer panics on a nil dialer, and that a privileged run
+// gets a reply from loopback. The kernel only answers a request with a valid checksum, and the client must skip its
+// own request, which a raw socket also receives on loopback. Unprivileged runs fail to open the raw socket.
+func TestServer_ICMPPing_Loopback(t *testing.T) {
+	t.Parallel()
+
+	server := &Server{URL: "http://127.0.0.1/speedtest/upload.php", Context: New()}
+
+	var (
+		latencies []int64
+		err       error
+	)
+
+	require.NotPanics(t, func() {
+		latencies, err = server.ICMPPing(
+			context.Background(),
+			time.Second,
+			1,
+			time.Millisecond,
+			nil,
+		)
+	})
+
+	switch {
+	case err == nil:
+		assert.Len(t, latencies, 1)
+	case strings.Contains(err.Error(), "failed to dial ICMP"):
+		t.Logf("raw ICMP sockets need privileges: %v", err)
+	case runtime.GOOS == "linux":
+		require.NoError(t, err, "a privileged Linux run should receive the loopback echo reply")
+	default:
+		t.Skipf("raw ICMP on %s: %v", runtime.GOOS, err)
+	}
+}
+
+// Test_isEchoReply checks which packets read from a raw ICMP socket count as the reply to a request.
+func Test_isEchoReply(t *testing.T) {
+	t.Parallel()
+
+	request := prepareICMPPacket()
+
+	// ipv4 prefixes an ICMP message with a minimal IPv4 header, or one with options when optionWords is set.
+	ipv4 := func(optionWords int, icmp []byte) []byte {
+		headerLen := 20 + 4*optionWords
+
+		packet := make([]byte, headerLen+len(icmp))
+		packet[0] = 0x40 | byte(5+optionWords)
+		copy(packet[headerLen:], icmp)
+
+		return packet
+	}
+
+	reply := slices.Clone(request)
+	reply[0] = icmpEchoReply
+
+	otherPing := slices.Clone(reply)
+	otherPing[5] = 0x99
+
+	tests := []struct {
+		name   string
+		packet []byte
+		want   bool
+	}{
+		{name: "matching reply", packet: ipv4(0, reply), want: true},
+		{name: "reply after IP options", packet: ipv4(2, reply), want: true},
+		{name: "own request on loopback", packet: ipv4(0, request)},
+		{name: "reply to another ping", packet: ipv4(0, otherPing)},
+		{name: "truncated message", packet: ipv4(0, reply[:4])},
+		{name: "header longer than packet", packet: ipv4(0, reply)[:10]},
+		{name: "empty packet", packet: nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, isEchoReply(tt.packet, request))
 		})
 	}
 }
