@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/testserver"
 )
 
 func TestCustomServer(t *testing.T) {
@@ -256,239 +258,176 @@ func TestByDistance_Less(t *testing.T) {
 	}
 }
 
+// serverIDs returns the IDs of servers in order.
+func serverIDs(servers Servers) []string {
+	ids := make([]string, 0, len(servers))
+	for _, server := range servers {
+		ids = append(ids, server.ID)
+	}
+
+	return ids
+}
+
+// TestSpeedtest_FetchServerByID checks the context-free wrapper against the fake API and with a nil client.
 func TestSpeedtest_FetchServerByID(t *testing.T) {
 	t.Parallel()
 
-	type args struct {
-		serverID string
-	}
+	_, err := (*Speedtest)(nil).FetchServerByID("1001")
+	require.Error(t, err)
 
-	tests := []struct {
-		name    string
-		s       *Speedtest
-		args    args
-		wantErr bool
-	}{
-		{
-			name:    "nil speedtest",
-			s:       nil,
-			args:    args{serverID: "123"},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	api := testserver.NewAPI(t)
 
-			got, err := tt.s.FetchServerByID(tt.args.serverID)
-			if tt.wantErr {
-				require.Error(t, err)
-
-				return
-			}
-
-			require.NoError(t, err)
-			assert.NotNil(t, got)
-		})
-	}
+	server, err := newBaseURLClient(api.URL()).FetchServerByID("1001")
+	require.NoError(t, err)
+	assert.Equal(t, "1001", server.ID)
 }
 
-func TestFetchServerByID(t *testing.T) {
-	t.Parallel()
-
-	type args struct {
-		serverID string
-	}
-
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		{
-			name:    "invalid server ID",
-			args:    args{serverID: "invalid"},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, err := FetchServerByID(tt.args.serverID)
-			if tt.wantErr {
-				require.Error(t, err)
-
-				return
-			}
-
-			require.NoError(t, err)
-			assert.NotNil(t, got)
-		})
-	}
-}
-
+// TestSpeedtest_FetchServerByIDContext covers finding a server, computing its distance, and lookup failures.
 func TestSpeedtest_FetchServerByIDContext(t *testing.T) {
 	t.Parallel()
 
-	type args struct {
-		serverID string
-	}
-
 	tests := []struct {
-		name    string
-		s       *Speedtest
-		args    args
-		wantErr bool
+		override *testserver.Response
+		wantErr  error
+		name     string
+		id       string
+		anyErr   bool
 	}{
+		{name: "known server", id: "1001"},
+		{name: "unknown server", id: "9999", wantErr: ErrServerNotFound},
 		{
-			name:    "nil speedtest",
-			s:       nil,
-			args:    args{serverID: "123"},
-			wantErr: true,
+			name:     "malformed XML",
+			id:       "1001",
+			override: &testserver.Response{Body: "<settings><servers"},
+			anyErr:   true,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := context.Background()
-
-			got, err := tt.s.FetchServerByIDContext(ctx, tt.args.serverID)
-			if tt.wantErr {
-				require.Error(t, err)
-
-				return
+			api := testserver.NewAPI(t)
+			if tt.override != nil {
+				api.SetResponse(testserver.PathServerLookup, *tt.override)
 			}
 
-			require.NoError(t, err)
-			assert.NotNil(t, got)
+			client := newBaseURLClient(api.URL())
+
+			server, err := client.FetchServerByIDContext(context.Background(), tt.id)
+
+			switch {
+			case tt.wantErr != nil:
+				require.ErrorIs(t, err, tt.wantErr)
+			case tt.anyErr:
+				require.Error(t, err)
+			default:
+				require.NoError(t, err)
+				assert.Equal(t, tt.id, server.ID)
+				assert.Equal(t, api.UploadURL(), server.URL)
+				assert.Same(t, client, server.Context)
+				assert.Positive(
+					t,
+					server.Distance,
+					"distance comes from the client element in the lookup",
+				)
+			}
 		})
 	}
+
+	t.Run("nil client", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := (*Speedtest)(nil).FetchServerByIDContext(context.Background(), "1001")
+		require.Error(t, err)
+	})
 }
 
+// TestSpeedtest_FetchServers checks the context-free wrapper against the fake API and with a nil client.
 func TestSpeedtest_FetchServers(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name    string
-		s       *Speedtest
-		wantErr bool
-	}{
-		{
-			name:    "nil speedtest",
-			s:       nil,
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	_, err := (*Speedtest)(nil).FetchServers()
+	require.Error(t, err)
 
-			got, err := tt.s.FetchServers()
-			if tt.wantErr {
-				require.Error(t, err)
+	api := testserver.NewAPI(t)
 
-				return
-			}
-
-			require.NoError(t, err)
-			assert.NotNil(t, got)
-		})
-	}
+	servers, err := newBaseURLClient(api.URL()).FetchServers()
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"1001", "1002"}, serverIDs(servers))
 }
 
-func TestFetchServers(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		wantErr bool
-	}{
-		{
-			name:    "fetch servers",
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, err := FetchServers()
-			if tt.wantErr {
-				require.Error(t, err)
-
-				return
-			}
-
-			require.NoError(t, err)
-			assert.NotNil(t, got)
-		})
-	}
-}
-
+// TestSpeedtest_FetchServerListContext covers fetching, probing, and sorting the server list, and list failures.
 func TestSpeedtest_FetchServerListContext(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name    string
-		s       *Speedtest
-		wantErr bool
-	}{
-		{
-			name:    "nil speedtest",
-			s:       nil,
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	t.Run("without user info keeps the API distance", func(t *testing.T) {
+		t.Parallel()
 
-			ctx := context.Background()
+		api := testserver.NewAPI(t)
+		client := newBaseURLClient(api.URL())
 
-			got, err := tt.s.FetchServerListContext(ctx)
-			if tt.wantErr {
-				require.Error(t, err)
+		servers, err := client.FetchServerListContext(context.Background())
+		require.NoError(t, err)
+		require.Len(t, servers, 2)
 
-				return
-			}
+		assert.ElementsMatch(t, []string{"1001", "1002"}, serverIDs(servers))
 
-			require.NoError(t, err)
-			assert.NotNil(t, got)
-		})
-	}
-}
+		for _, server := range servers {
+			assert.Same(t, client, server.Context)
+			assert.Positive(t, server.Latency, "every server should be probed")
+			assert.Zero(t, server.Distance, "distance needs the user's location")
+		}
+	})
 
-func TestFetchServerListContext(t *testing.T) {
-	t.Parallel()
+	t.Run("with user info sorts by distance", func(t *testing.T) {
+		t.Parallel()
 
-	tests := []struct {
-		name    string
-		wantErr bool
-	}{
-		{
-			name:    "fetch server list with context",
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+		api := testserver.NewAPI(t)
+		client := newBaseURLClient(api.URL())
 
-			ctx := context.Background()
+		_, err := client.FetchUserInfoContext(context.Background())
+		require.NoError(t, err)
 
-			got, err := FetchServerListContext(ctx)
-			if tt.wantErr {
-				require.Error(t, err)
+		servers, err := client.FetchServerListContext(context.Background())
+		require.NoError(t, err)
+		require.Len(t, servers, 2)
 
-				return
-			}
+		assert.Equal(
+			t,
+			[]string{"1001", "1002"},
+			serverIDs(servers),
+			"Tokyo is nearer to the Tokyo user",
+		)
+		assert.Less(t, servers[0].Distance, servers[1].Distance)
+	})
 
-			require.NoError(t, err)
-			assert.NotNil(t, got)
-		})
-	}
+	t.Run("empty list", func(t *testing.T) {
+		t.Parallel()
+
+		api := testserver.NewAPI(t)
+		api.SetResponse(testserver.PathServers, testserver.Response{Body: "[]"})
+
+		_, err := newBaseURLClient(api.URL()).FetchServerListContext(context.Background())
+		require.ErrorIs(t, err, ErrServerNotFound)
+	})
+
+	t.Run("malformed JSON", func(t *testing.T) {
+		t.Parallel()
+
+		api := testserver.NewAPI(t)
+		api.SetResponse(testserver.PathServers, testserver.Response{Body: "[{"})
+
+		_, err := newBaseURLClient(api.URL()).FetchServerListContext(context.Background())
+		require.Error(t, err)
+	})
+
+	t.Run("nil client", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := (*Speedtest)(nil).FetchServerListContext(context.Background())
+		require.Error(t, err)
+	})
 }
 
 func Test_distance(t *testing.T) {
