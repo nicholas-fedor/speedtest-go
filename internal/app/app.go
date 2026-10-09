@@ -43,7 +43,8 @@ func setupSpeedtestClient(cfg config.Config) *speedtest.Speedtest {
 			LocationFlag:   cfg.Location,
 			Keyword:        cfg.Search,
 			BaseURL:        cfg.BaseURL,
-		}))
+		},
+	))
 }
 
 // retrieveServers fetches and selects the target servers.
@@ -120,15 +121,9 @@ func runTest(
 ) {
 	switch {
 	case cfg.Multi && isDownload:
-		task.CheckError(server.MultiDownloadTestContext(
-			context.Background(),
-			servers),
-		)
+		task.CheckError(server.MultiDownloadTestContext(context.Background(), servers))
 	case cfg.Multi && !isDownload:
-		task.CheckError(server.MultiUploadTestContext(
-			context.Background(),
-			servers),
-		)
+		task.CheckError(server.MultiUploadTestContext(context.Background(), servers))
 	case isDownload:
 		task.CheckError(server.DownloadTest())
 	default:
@@ -245,7 +240,8 @@ func runServerTests(
 	analyzer := speedtest.NewPacketLossAnalyzer(
 		&speedtest.PacketLossAnalyzerOptions{
 			SourceInterface: cfg.Source,
-		})
+		},
+	)
 
 	blocker := sync.WaitGroup{}
 	packetLossAnalyzerCtx, packetLossAnalyzerCancel := context.WithTimeout(
@@ -381,7 +377,8 @@ func RunSpeedtest(cfg config.Config) error {
 			t.CheckError(err)
 			t.Printf("ISP: %s", u.String())
 			t.Complete()
-		})
+		},
+	)
 
 	// Fetch and select the target server.
 	servers, targets := retrieveServers(

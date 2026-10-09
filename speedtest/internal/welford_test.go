@@ -162,7 +162,8 @@ func TestWelford_Update(t *testing.T) {
 				cap: tt.fields.cap,
 				vector: append(
 					[]float64(nil),
-					tt.fields.vector...), // copy slice
+					tt.fields.vector...,
+				), // copy slice
 				mean:                                 tt.fields.mean,
 				sum:                                  tt.fields.sum,
 				eraseIndex:                           tt.fields.eraseIndex,
@@ -177,7 +178,8 @@ func TestWelford_Update(t *testing.T) {
 				scale:                                tt.fields.scale,
 				movingVector: append(
 					[]float64(nil),
-					tt.fields.movingVector...), // copy slice
+					tt.fields.movingVector...,
+				), // copy slice
 				movingAvg: tt.fields.movingAvg,
 			}
 			got := w.Update(tt.args.globalAvg, tt.args.value)
