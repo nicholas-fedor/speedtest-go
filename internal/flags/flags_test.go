@@ -27,6 +27,7 @@ func TestRegisterRootFlagsAddsPersistentFlags(t *testing.T) {
 	require.NotNil(t, pf.Lookup("dns-bind-source"))
 	require.NotNil(t, pf.Lookup("ua"))
 	require.NotNil(t, pf.Lookup("debug"))
+	require.NotNil(t, pf.Lookup("base-url"))
 }
 
 //nolint:paralleltest // mutates global viper
@@ -70,11 +71,13 @@ func TestRegisterRootFlagsBindsViper(t *testing.T) {
 	require.NoError(t, rootCmd.Flags().Set("json", "true"))
 	require.NoError(t, rootCmd.Flags().Set("thread", "8"))
 	require.NoError(t, rootCmd.Flags().Set("ping-mode", "tcp"))
+	require.NoError(t, rootCmd.PersistentFlags().Set("base-url", "http://127.0.0.1:8080/mirror"))
 
 	assert.Equal(t, "socks5://127.0.0.1:1080", viper.GetString("proxy"))
 	assert.True(t, viper.GetBool("json"))
 	assert.Equal(t, 8, viper.GetInt("thread"))
 	assert.Equal(t, "tcp", viper.GetString("ping-mode"))
+	assert.Equal(t, "http://127.0.0.1:8080/mirror", viper.GetString("base-url"))
 }
 
 //nolint:paralleltest // mutates global viper

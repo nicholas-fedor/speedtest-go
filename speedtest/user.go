@@ -8,8 +8,6 @@ import (
 	"net/http"
 )
 
-const speedTestConfigURL = "https://www.speedtest.net/speedtest-config.php"
-
 var (
 	// ErrInstanceNil is returned when the speedtest instance is nil.
 	ErrInstanceNil = errors.New("speedtest instance is nil")
@@ -46,9 +44,14 @@ func (s *Speedtest) FetchUserInfoContext(ctx context.Context) (*User, error) {
 		return nil, ErrInstanceNil
 	}
 
-	dbg.Printf("Retrieving user info: %s\n", speedTestConfigURL)
+	configURL, err := s.endpoint(userConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build user info URL: %w", err)
+	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, speedTestConfigURL, nil)
+	dbg.Printf("Retrieving user info: %s\n", configURL)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, configURL.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
