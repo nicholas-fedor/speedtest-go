@@ -286,12 +286,28 @@ func DefaultUserAgent() string {
 // Returns:
 //   - string: normalized version without a leading v
 func Version() string {
-	if resolved := normalizeVersion(version); resolved != "" {
+	buildInfo, ok := debug.ReadBuildInfo()
+
+	return resolveVersion(version, buildInfo, ok)
+}
+
+// resolveVersion picks the library version from an ldflag value and build info.
+//
+// It reads no package state, so tests can cover every resolution path in parallel.
+//
+// Parameters:
+//   - ldflag: the version injected at link time, possibly empty.
+//   - buildInfo: the binary's build info, ignored when ok is false.
+//   - ok: whether buildInfo is available.
+//
+// Returns:
+//   - string: normalized version without a leading v, or "dev" when unresolved.
+func resolveVersion(ldflag string, buildInfo *debug.BuildInfo, ok bool) string {
+	if resolved := normalizeVersion(ldflag); resolved != "" {
 		return resolved
 	}
 
-	buildInfo, ok := debug.ReadBuildInfo()
-	if !ok {
+	if !ok || buildInfo == nil {
 		return "dev"
 	}
 

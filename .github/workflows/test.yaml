@@ -8,9 +8,11 @@ on:
       - speedtest/**
       - cmd/**
       - internal/**
+      - example/**
       - main.go
       - go.mod
       - go.sum
+      - .github/workflows/test.yaml
 
 permissions:
   contents: read # Set default read-only permissions
@@ -48,9 +50,19 @@ jobs:
       - name: Install Dependencies
         run: go mod download
 
-      - name: Run Tests
+      - name: Build Examples
+        run: go build ./example/...
+
+      # The race detector needs cgo and a C toolchain, which the Windows runner lacks.
+      - name: Run Tests with Race Detector
+        if: runner.os != 'Windows'
         shell: bash
-        run: go test -v -coverprofile coverage.out -covermode atomic ./...
+        run: go test -v -race -shuffle=on -count=1 -coverprofile coverage.out -covermode atomic ./...
+
+      - name: Run Tests
+        if: runner.os == 'Windows'
+        shell: bash
+        run: go test -v -shuffle=on -count=1 -coverprofile coverage.out -covermode atomic ./...
 
       - name: Upload Coverage Report to Codecov
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1

@@ -2,6 +2,8 @@ package speedtest
 
 import (
 	"net/http"
+	"runtime/debug"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -224,31 +226,106 @@ func TestNew(t *testing.T) {
 	}
 }
 
+// TestVersion checks that Version resolves to a usable, normalized string from the real build info.
 func TestVersion(t *testing.T) {
 	t.Parallel()
-	t.Cleanup(func() { version = "" })
 
-	t.Run(
-		"ldflag override",
-		func(t *testing.T) {
+	got := Version()
+
+	assert.NotEmpty(t, got)
+	assert.NotContains(t, got, "(devel)")
+	assert.False(t, strings.HasPrefix(got, "v"), "version must not keep a leading v")
+	assert.Equal(t, "nicholas-fedor/speedtest-go "+got, DefaultUserAgent())
+}
+
+// TestVersion_ldflag checks that Version passes the link-time version variable to resolveVersion.
+//
+// It writes the package-level version, so it must not run in parallel. Serial top-level tests finish before any
+// parallel test resumes, and the cleanup restores the variable before then.
+//
+//nolint:paralleltest // Mutates the package-level version variable.
+func TestVersion_ldflag(t *testing.T) {
+	original := version
+
+	t.Cleanup(func() { version = original })
+
+	version = "v9.9.9"
+
+	assert.Equal(t, "9.9.9", Version())
+	assert.Equal(t, "nicholas-fedor/speedtest-go 9.9.9", DefaultUserAgent())
+}
+
+// Test_resolveVersion covers each resolution path without touching the package-level version variable.
+func Test_resolveVersion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		buildInfo *debug.BuildInfo
+		name      string
+		ldflag    string
+		want      string
+		ok        bool
+	}{
+		{
+			name:      "ldflag wins over build info",
+			ldflag:    "v9.9.9",
+			buildInfo: &debug.BuildInfo{Main: debug.Module{Path: modulePath, Version: "v1.2.3"}},
+			ok:        true,
+			want:      "9.9.9",
+		},
+		{
+			name:   "ldflag is trimmed",
+			ldflag: "  v1.0.0 ",
+			want:   "1.0.0",
+		},
+		{
+			name: "no build info",
+			want: "dev",
+		},
+		{
+			name: "nil build info reported as available",
+			ok:   true,
+			want: "dev",
+		},
+		{
+			name:      "main module version",
+			buildInfo: &debug.BuildInfo{Main: debug.Module{Path: modulePath, Version: "v1.2.3"}},
+			ok:        true,
+			want:      "1.2.3",
+		},
+		{
+			name:      "main module devel falls back to dev",
+			buildInfo: &debug.BuildInfo{Main: debug.Module{Path: modulePath, Version: "(devel)"}},
+			ok:        true,
+			want:      "dev",
+		},
+		{
+			name: "dependency version when imported as a library",
+			buildInfo: &debug.BuildInfo{
+				Main: debug.Module{Path: "example.com/consumer", Version: "v0.1.0"},
+				Deps: []*debug.Module{
+					{Path: "github.com/other/module", Version: "v5.0.0"},
+					{Path: modulePath, Version: "v1.4.0"},
+				},
+			},
+			ok:   true,
+			want: "1.4.0",
+		},
+		{
+			name: "unrelated main module without dependency",
+			buildInfo: &debug.BuildInfo{
+				Main: debug.Module{Path: "example.com/consumer", Version: "v0.1.0"},
+			},
+			ok:   true,
+			want: "dev",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			version = "v9.9.9"
-
-			assert.Equal(t, "9.9.9", Version())
-			assert.Equal(t, "nicholas-fedor/speedtest-go 9.9.9", DefaultUserAgent())
-		},
-	)
-
-	t.Run(
-		"resolved non-empty",
-		func(t *testing.T) {
-			t.Parallel()
-
-			version = ""
-			got := Version()
-			assert.NotEmpty(t, got)
-			assert.NotContains(t, got, "(devel)")
-		},
-	)
+			assert.Equal(t, tt.want, resolveVersion(tt.ldflag, tt.buildInfo, tt.ok))
+		})
+	}
 }
