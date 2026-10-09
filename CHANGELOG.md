@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/actionlint-action action to v1.0.19 by @renovate[bot] in [#415](https://github.com/nicholas-fedor/speedtest-go/pull/415)
 - Update nicholas-fedor/govulncheck-action action to v1.1.0 by @renovate[bot] in [#406](https://github.com/nicholas-fedor/speedtest-go/pull/406)
 - Update nicholas-fedor/govulncheck-action action to v1.0.6 by @renovate[bot] in [#403](https://github.com/nicholas-fedor/speedtest-go/pull/403)
 - Lock file maintenance by @renovate[bot] in [#378](https://github.com/nicholas-fedor/speedtest-go/pull/378)
