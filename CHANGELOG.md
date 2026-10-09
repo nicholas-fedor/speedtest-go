@@ -10,11 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Maintain commitlint through bun.lock only by @nicholas-fedor in [#408](https://github.com/nicholas-fedor/speedtest-go/pull/408)
+- Run tests with the race detector by @nicholas-fedor in [#405](https://github.com/nicholas-fedor/speedtest-go/pull/405)
 - Use the commit date for archive mtime by @nicholas-fedor in [#383](https://github.com/nicholas-fedor/speedtest-go/pull/383)
 - Use the commit date for archive mtime by @nicholas-fedor in [#379](https://github.com/nicholas-fedor/speedtest-go/pull/379)
 
 ### Chores
 
+- Update nicholas-fedor/govulncheck-action action to v1.1.0 by @renovate[bot] in [#406](https://github.com/nicholas-fedor/speedtest-go/pull/406)
 - Update nicholas-fedor/govulncheck-action action to v1.0.6 by @renovate[bot] in [#403](https://github.com/nicholas-fedor/speedtest-go/pull/403)
 - Lock file maintenance by @renovate[bot] in [#378](https://github.com/nicholas-fedor/speedtest-go/pull/378)
 - Update go toolchain directive to v1.27.2 by @renovate[bot] in [#400](https://github.com/nicholas-fedor/speedtest-go/pull/400)
