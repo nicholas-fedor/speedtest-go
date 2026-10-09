@@ -2,92 +2,43 @@ package speedtest
 
 import (
 	"context"
-	"fmt"
 	"net/http"
-	"net/http/httptest"
-	"slices"
-	"strings"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/testserver"
 )
 
-// mirrorPrefix is the path prefix the fake API servers are mounted under, so tests prove base paths survive.
+// mirrorPrefix is the path prefix the fake API is mounted under, so tests prove base paths survive.
 const mirrorPrefix = "/mirror"
-
-// fakeAPI is an httptest server that serves canned speedtest API responses and records the paths it receives.
-type fakeAPI struct {
-	server *httptest.Server
-	routes map[string]http.HandlerFunc
-	paths  []string
-	mu     sync.Mutex
-}
-
-// newFakeAPI starts a fake API server with the given routes, keyed by request path.
-//
-// Unknown paths answer 404 and are still recorded, so a test can show which URL the client built.
-func newFakeAPI(t *testing.T, routes map[string]http.HandlerFunc) *fakeAPI {
-	t.Helper()
-
-	api := &fakeAPI{routes: routes}
-	api.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		api.mu.Lock()
-		api.paths = append(api.paths, r.URL.Path)
-		api.mu.Unlock()
-
-		handler, ok := api.routes[r.URL.Path]
-		if !ok {
-			http.NotFound(w, r)
-
-			return
-		}
-
-		handler(w, r)
-	}))
-	t.Cleanup(api.server.Close)
-
-	return api
-}
-
-// baseURL returns the fake server's URL with the mirror prefix, for use as UserConfig.BaseURL.
-func (api *fakeAPI) baseURL() string {
-	return api.server.URL + mirrorPrefix
-}
-
-// requested reports whether the fake server received a request for path.
-func (api *fakeAPI) requested(path string) bool {
-	api.mu.Lock()
-	defer api.mu.Unlock()
-
-	return slices.Contains(api.paths, path)
-}
-
-// writeBody returns a handler that answers with a fixed content type and body.
-func writeBody(contentType, body string) http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", contentType)
-		_, _ = fmt.Fprint(w, body)
-	}
-}
-
-// serverEntryXML renders one server element whose upload URL points at the fake API server.
-func (api *fakeAPI) serverEntryXML(id string) string {
-	host := strings.TrimPrefix(api.server.URL, "http://")
-
-	return fmt.Sprintf(
-		`<server url="%s/speedtest/upload.php" lat="35.68" lon="139.76" name="Tokyo" country="Japan" `+
-			`sponsor="Fake ISP" id="%s" host="%s"/>`,
-		api.server.URL,
-		id,
-		host,
-	)
-}
 
 // newBaseURLClient returns a client that talks to the given base URL.
 func newBaseURLClient(baseURL string) *Speedtest {
 	return New(WithUserConfig(&UserConfig{BaseURL: baseURL}))
+}
+
+// newMirrorAPI starts a fake API whose speedtest.net endpoints are served under mirrorPrefix.
+func newMirrorAPI(t *testing.T) *testserver.API {
+	t.Helper()
+
+	return testserver.NewAPI(t, testserver.WithPathPrefix(mirrorPrefix))
+}
+
+// requestFor returns the first recorded request for endpoint, failing the test when there is none.
+func requestFor(t *testing.T, api *testserver.API, endpoint string) testserver.Request {
+	t.Helper()
+
+	for _, req := range api.Requests() {
+		if req.Endpoint == endpoint {
+			return req
+		}
+	}
+
+	require.Failf(t, "endpoint not requested", "no request for %s", endpoint)
+
+	return testserver.Request{}
 }
 
 // TestParseBaseURL covers the accepted base URL forms and each rejection rule.
@@ -216,100 +167,76 @@ func TestNewUserConfig_BaseURL(t *testing.T) {
 	)
 }
 
-// TestFetchUserInfoContext_BaseURL checks that user info is fetched from the configured base URL.
+// TestFetchUserInfoContext_BaseURL checks that user info is fetched under the configured base path.
 func TestFetchUserInfoContext_BaseURL(t *testing.T) {
 	t.Parallel()
 
-	api := newFakeAPI(t, map[string]http.HandlerFunc{
-		mirrorPrefix + "/speedtest-config.php": writeBody(
-			"application/xml",
-			`<settings><client ip="203.0.113.7" lat="35.68" lon="139.76" isp="Fake ISP"/></settings>`,
-		),
-	})
+	api := newMirrorAPI(t)
 
-	user, err := newBaseURLClient(api.baseURL()).FetchUserInfoContext(context.Background())
+	user, err := newBaseURLClient(api.URL()).FetchUserInfoContext(context.Background())
 	require.NoError(t, err)
 
-	assert.Equal(t, &User{IP: "203.0.113.7", Lat: "35.68", Lon: "139.76", Isp: "Fake ISP"}, user)
+	want := testserver.DefaultUser()
+	assert.Equal(t, &User{IP: want.IP, Lat: want.Lat, Lon: want.Lon, Isp: want.ISP}, user)
+	assert.Equal(
+		t,
+		mirrorPrefix+testserver.PathUserConfig,
+		requestFor(t, api, testserver.PathUserConfig).Path,
+	)
 }
 
-// TestFetchServerListContext_BaseURL checks that the JSON server list and the latency probe use the base URL.
+// TestFetchServerListContext_BaseURL checks that the JSON server list is fetched under the base path with the
+// search keyword, and that the latency probes reach the listed servers.
 func TestFetchServerListContext_BaseURL(t *testing.T) {
 	t.Parallel()
 
-	var api *fakeAPI
-
-	api = newFakeAPI(t, map[string]http.HandlerFunc{
-		mirrorPrefix + "/api/js/servers": func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "fiber", r.URL.Query().Get("search"))
-
-			host := strings.TrimPrefix(api.server.URL, "http://")
-			writeBody("application/json", fmt.Sprintf(
-				`[{"url":"%s/speedtest/upload.php","lat":"35.68","lon":"139.76","name":"Tokyo",`+
-					`"country":"Japan","sponsor":"Fake ISP","id":"1","host":"%s"}]`,
-				api.server.URL, host,
-			))(w, r)
-		},
-		"/speedtest/latency.txt": writeBody("text/plain", "test=test"),
-	})
-
-	client := New(WithUserConfig(&UserConfig{BaseURL: api.baseURL(), Keyword: "fiber"}))
+	api := newMirrorAPI(t)
+	client := New(WithUserConfig(&UserConfig{BaseURL: api.URL(), Keyword: "fiber"}))
 
 	servers, err := client.FetchServerListContext(context.Background())
 	require.NoError(t, err)
-	require.Len(t, servers, 1)
+	require.Len(t, servers, len(testserver.DefaultServers()))
 
-	assert.Equal(t, "1", servers[0].ID)
-	assert.Positive(t, servers[0].Latency, "the latency probe should reach the fake server")
-	assert.False(t, api.requested(mirrorPrefix+"/speedtest-servers-static.php"))
+	for _, server := range servers {
+		assert.Positive(t, server.Latency, "the latency probe should reach the fake server")
+	}
+
+	list := requestFor(t, api, testserver.PathServers)
+	assert.Equal(t, mirrorPrefix+testserver.PathServers, list.Path)
+	assert.Equal(t, "fiber", list.Query.Get("search"))
+	assert.False(t, api.Requested(testserver.PathServersStatic))
 }
 
 // TestFetchServerListContext_BaseURLFallback checks that an empty JSON response falls back to the XML list
-// under the same base URL.
+// under the same base path.
 func TestFetchServerListContext_BaseURLFallback(t *testing.T) {
 	t.Parallel()
 
-	var api *fakeAPI
+	api := newMirrorAPI(t)
+	api.SetResponse(testserver.PathServers, testserver.Response{})
 
-	api = newFakeAPI(t, map[string]http.HandlerFunc{
-		mirrorPrefix + "/api/js/servers": func(http.ResponseWriter, *http.Request) {},
-		mirrorPrefix + "/speedtest-servers-static.php": func(w http.ResponseWriter, r *http.Request) {
-			body := "<settings><servers>" + api.serverEntryXML("2") + "</servers></settings>"
-			writeBody("application/xml", body)(w, r)
-		},
-		"/speedtest/latency.txt": writeBody("text/plain", "test=test"),
-	})
-
-	servers, err := newBaseURLClient(api.baseURL()).FetchServerListContext(context.Background())
+	servers, err := newBaseURLClient(api.URL()).FetchServerListContext(context.Background())
 	require.NoError(t, err)
-	require.Len(t, servers, 1)
+	require.Len(t, servers, len(testserver.DefaultServers()))
 
-	assert.Equal(t, "2", servers[0].ID)
-	assert.True(t, api.requested(mirrorPrefix+"/speedtest-servers-static.php"))
+	static := requestFor(t, api, testserver.PathServersStatic)
+	assert.Equal(t, mirrorPrefix+testserver.PathServersStatic, static.Path)
 }
 
-// TestFetchServerByIDContext_BaseURL checks that a server lookup uses the base URL and sends the server ID.
+// TestFetchServerByIDContext_BaseURL checks that a server lookup is sent under the base path with the server ID.
 func TestFetchServerByIDContext_BaseURL(t *testing.T) {
 	t.Parallel()
 
-	var api *fakeAPI
+	api := newMirrorAPI(t)
 
-	api = newFakeAPI(t, map[string]http.HandlerFunc{
-		mirrorPrefix + "/api/ios-config.php": func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "3", r.URL.Query().Get("serverid"))
-
-			client := `<client ip="203.0.113.7" lat="34.69" lon="135.50" isp="Fake ISP"/>`
-			servers := "<servers>" + api.serverEntryXML("3") + "</servers>"
-			body := "<settings>" + client + servers + "</settings>"
-			writeBody("application/xml", body)(w, r)
-		},
-	})
-
-	server, err := newBaseURLClient(api.baseURL()).FetchServerByIDContext(context.Background(), "3")
+	server, err := newBaseURLClient(api.URL()).FetchServerByIDContext(context.Background(), "1001")
 	require.NoError(t, err)
 
-	assert.Equal(t, "3", server.ID)
-	assert.Positive(t, server.Distance, "distance should be computed from the client location")
+	assert.Equal(t, "1001", server.ID)
+
+	lookup := requestFor(t, api, testserver.PathServerLookup)
+	assert.Equal(t, mirrorPrefix+testserver.PathServerLookup, lookup.Path)
+	assert.Equal(t, "1001", lookup.Query.Get("serverid"))
 }
 
 // TestFetchers_InvalidBaseURL checks that every fetcher reports an invalid base URL instead of sending a request.
