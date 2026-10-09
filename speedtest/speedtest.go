@@ -55,6 +55,7 @@ type Speedtest struct {
 
 // UserConfig holds configuration options for speedtest.
 type UserConfig struct {
+	// T is the HTTP transport built from this configuration. NewUserConfig replaces any value set here.
 	T             *http.Transport
 	UserAgent     string
 	Proxy         string
@@ -77,6 +78,24 @@ type UserConfig struct {
 	BaseURL string
 }
 
+// Network timeouts used by the dialers and the HTTP transport.
+const (
+	// dialTimeout bounds establishing a TCP connection or an ICMP socket.
+	dialTimeout = 30 * time.Second
+	// dialKeepAlive is the TCP keep-alive period.
+	dialKeepAlive = 30 * time.Second
+	// dnsDialTimeout bounds connecting to a DNS server through the source-bound resolver.
+	dnsDialTimeout = 5 * time.Second
+	// idleConnTimeout closes idle HTTP connections.
+	idleConnTimeout = 90 * time.Second
+	// tlsHandshakeTimeout bounds TLS handshakes.
+	tlsHandshakeTimeout = 10 * time.Second
+	// expectContinueTimeout bounds waiting for a 100 Continue response.
+	expectContinueTimeout = 1 * time.Second
+	// maxIdleConns caps idle HTTP connections across all hosts.
+	maxIdleConns = 100
+)
+
 func parseAddr(addr string) (string, string) {
 	before, after, ok := strings.Cut(addr, "://")
 	if ok {
@@ -87,6 +106,11 @@ func parseAddr(addr string) (string, string) {
 }
 
 // NewUserConfig sets the user configuration for the speedtest instance.
+//
+// It always builds the TCP and ICMP dialers and the HTTP transport from the configuration, so the user agent,
+// proxy, source address, and dialer control apply whether or not a source address is set. The client's own HTTP
+// client sends requests through that transport. Process-wide defaults such as [http.DefaultClient] and
+// [net.DefaultResolver] are never modified.
 func (s *Speedtest) NewUserConfig(userConfig *UserConfig) {
 	if userConfig.Debug {
 		dbg.Enable()
@@ -119,13 +143,6 @@ func (s *Speedtest) NewUserConfig(userConfig *UserConfig) {
 		}
 	}
 
-	var tcpSource net.Addr // If nil, a local address is automatically chosen.
-
-	var (
-		icmpSource net.Addr
-		proxy      = http.ProxyFromEnvironment
-	)
-
 	s.config = userConfig
 	if len(s.config.UserAgent) == 0 {
 		s.config.UserAgent = DefaultUserAgent()
@@ -135,87 +152,44 @@ func (s *Speedtest) NewUserConfig(userConfig *UserConfig) {
 		s.config.BaseURL = DefaultBaseURL
 	}
 
-	if len(userConfig.Source) == 0 {
-		return
-	}
+	tcpSource, icmpSource, sourceIP := resolveSource(userConfig.Source)
 
-	_, address := parseAddr(userConfig.Source)
-
-	addr0, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("[%s]:0", address))
-	if err == nil {
-		tcpSource = addr0
-	} else {
-		dbg.Printf("Warning: skipping parse the source address. err: %s\n", err.Error())
-	}
-
-	addr1, err := net.ResolveIPAddr("ip", address)
-	if err == nil {
-		icmpSource = addr1
-	} else {
-		dbg.Printf("Warning: skipping parse the source address. err: %s\n", err.Error())
-	}
-
-	if !userConfig.DNSBindSource {
-		return
-	}
-
-	net.DefaultResolver.Dial = func(ctx context.Context, network, dnsServer string) (net.Conn, error) {
-		dialer := &net.Dialer{
-			Timeout: 5 * time.Second,
-			LocalAddr: func(network string) net.Addr {
-				switch network {
-				case "udp", "udp4", "udp6":
-					return &net.UDPAddr{IP: net.ParseIP(address)}
-				case "tcp", "tcp4", "tcp6":
-					return &net.TCPAddr{IP: net.ParseIP(address)}
-				default:
-					return nil
-				}
-			}(network),
-		}
-
-		return dialer.DialContext(ctx, network, dnsServer)
-	}
-
-	if len(userConfig.Proxy) > 0 {
-		parse, err := url.Parse(userConfig.Proxy)
-		if err != nil {
-			dbg.Printf("Warning: skipping parse the proxy host. err: %s\n", err.Error())
-		} else {
-			proxy = func(_ *http.Request) (*url.URL, error) {
-				return parse, nil
-			}
-		}
+	var resolver *net.Resolver
+	if userConfig.DNSBindSource && sourceIP != nil {
+		resolver = sourceBoundResolver(sourceIP)
 	}
 
 	s.tcpDialer = &net.Dialer{
 		LocalAddr: tcpSource,
-		Timeout:   30 * time.Second,
-		KeepAlive: 30 * time.Second,
+		Timeout:   dialTimeout,
+		KeepAlive: dialKeepAlive,
 		Control:   userConfig.DialerControl,
+		Resolver:  resolver,
 	}
 
 	s.ipDialer = &net.Dialer{
 		LocalAddr: icmpSource,
-		Timeout:   30 * time.Second,
-		KeepAlive: 30 * time.Second,
+		Timeout:   dialTimeout,
+		KeepAlive: dialKeepAlive,
 		Control:   userConfig.DialerControl,
+		Resolver:  resolver,
 	}
 
 	s.config.T = &http.Transport{
-		Proxy:                 proxy,
+		Proxy:                 proxyFunc(userConfig.Proxy),
 		DialContext:           s.tcpDialer.DialContext,
 		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
+		MaxIdleConns:          maxIdleConns,
+		IdleConnTimeout:       idleConnTimeout,
+		TLSHandshakeTimeout:   tlsHandshakeTimeout,
+		ExpectContinueTimeout: expectContinueTimeout,
 	}
-
-	s.doer.Transport = s
 }
 
 // RoundTrip executes a single HTTP request using the speedtest client's round tripper.
+//
+// It sends a copy of req with the configured User-Agent, so the caller's request is never modified and the header
+// is never sent twice.
 func (s *Speedtest) RoundTrip(req *http.Request) (*http.Response, error) {
 	if s == nil {
 		return nil, ErrClientNil
@@ -225,9 +199,10 @@ func (s *Speedtest) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, ErrRequestNil
 	}
 
-	req.Header.Add("User-Agent", s.config.UserAgent)
+	out := req.Clone(req.Context())
+	out.Header.Set("User-Agent", s.config.UserAgent)
 
-	resp, err := s.config.T.RoundTrip(req)
+	resp, err := s.config.T.RoundTrip(out)
 	if err != nil {
 		return nil, fmt.Errorf("failed to round trip request: %w", err)
 	}
@@ -239,16 +214,29 @@ func (s *Speedtest) RoundTrip(req *http.Request) (*http.Response, error) {
 type Option func(*Speedtest)
 
 // WithDoer sets the http.Client used to make requests.
+//
+// The client is copied, so the caller's client is never modified. When the copy has no Transport, requests go
+// through the speedtest client's own round tripper, which applies the user agent, proxy, and dialers from the user
+// configuration. A copy with its own Transport keeps it and bypasses those settings. A nil client is ignored.
 func WithDoer(doer *http.Client) Option {
 	return func(s *Speedtest) {
-		s.doer = doer
+		if doer == nil {
+			return
+		}
+
+		client := *doer
+		if client.Transport == nil {
+			client.Transport = s
+		}
+
+		s.doer = &client
 	}
 }
 
 // WithUserConfig adds a custom user config for speedtest.
-// This configuration may be overwritten again by WithDoer,
-// because client and transport are parent-child relationship:
-// `New(WithDoer(myDoer), WithUserAgent(myUserAgent), WithDoer(myDoer))`.
+//
+// The configuration applies to requests sent through the speedtest client's round tripper, which includes the
+// default HTTP client and any client given to [WithDoer] without its own Transport.
 func WithUserConfig(userConfig *UserConfig) Option {
 	return func(s *Speedtest) {
 		s.NewUserConfig(userConfig)
@@ -263,11 +251,14 @@ func WithUserConfig(userConfig *UserConfig) Option {
 }
 
 // New creates a new speedtest client.
+//
+// The client owns its HTTP client, so it never shares or modifies [http.DefaultClient].
 func New(opts ...Option) *Speedtest {
 	s := &Speedtest{
-		doer:    http.DefaultClient,
 		Manager: NewDataManager(),
 	}
+	s.doer = &http.Client{Transport: s}
+
 	// load default config
 	s.NewUserConfig(&UserConfig{})
 
@@ -276,6 +267,115 @@ func New(opts ...Option) *Speedtest {
 	}
 
 	return s
+}
+
+// resolveSource parses a source address for the TCP and ICMP dialers.
+//
+// The source may carry a network prefix such as "tcp://", which is ignored. Addresses that do not resolve leave
+// the corresponding dialer unbound, with a debug warning.
+//
+// Parameters:
+//   - source: the configured source address, possibly empty.
+//
+// Returns:
+//   - net.Addr: the local TCP address, or nil to let the system choose.
+//   - net.Addr: the local IP address for ICMP, or nil to let the system choose.
+//   - net.IP: the source IP for binding DNS queries: the literal IP, or the address a hostname resolved to, or nil
+//     when the source is empty or does not resolve.
+func resolveSource(source string) (net.Addr, net.Addr, net.IP) {
+	if len(source) == 0 {
+		return nil, nil, nil
+	}
+
+	_, address := parseAddr(source)
+
+	var tcpSource, icmpSource net.Addr
+
+	tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("[%s]:0", address))
+	if err == nil {
+		tcpSource = tcpAddr
+	} else {
+		dbg.Printf("Warning: skipping parse the source address. err: %s\n", err.Error())
+	}
+
+	ipAddr, err := net.ResolveIPAddr("ip", address)
+	if err == nil {
+		icmpSource = ipAddr
+	} else {
+		dbg.Printf("Warning: skipping parse the source address. err: %s\n", err.Error())
+	}
+
+	sourceIP := net.ParseIP(address)
+	if sourceIP == nil && tcpAddr != nil {
+		sourceIP = tcpAddr.IP
+	}
+
+	return tcpSource, icmpSource, sourceIP
+}
+
+// sourceBoundResolver returns a DNS resolver whose queries leave from the source IP.
+//
+// It uses the pure Go resolver, because the cgo resolver ignores a custom Dial function.
+//
+// Parameters:
+//   - sourceIP: the local IP to send DNS queries from.
+//
+// Returns:
+//   - *net.Resolver: the resolver for the client's dialers.
+func sourceBoundResolver(sourceIP net.IP) *net.Resolver {
+	return &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, dnsServer string) (net.Conn, error) {
+			dialer := &net.Dialer{
+				Timeout:   dnsDialTimeout,
+				LocalAddr: localAddrFor(network, sourceIP),
+			}
+
+			return dialer.DialContext(ctx, network, dnsServer)
+		},
+	}
+}
+
+// localAddrFor returns a local address of the right type for a DNS dial on network.
+//
+// Parameters:
+//   - network: the network the resolver dials, such as "udp" or "tcp4".
+//   - ip: the local IP.
+//
+// Returns:
+//   - net.Addr: a UDP or TCP address for ip, or nil for other networks.
+func localAddrFor(network string, ip net.IP) net.Addr {
+	switch network {
+	case "udp", "udp4", "udp6":
+		return &net.UDPAddr{IP: ip}
+	case "tcp", "tcp4", "tcp6":
+		return &net.TCPAddr{IP: ip}
+	default:
+		return nil
+	}
+}
+
+// proxyFunc returns the proxy selector for the HTTP transport.
+//
+// Parameters:
+//   - proxy: the configured proxy URL, possibly empty.
+//
+// Returns:
+//   - func(*http.Request) (*url.URL, error): a selector that always uses the configured proxy, or
+//     [http.ProxyFromEnvironment] when none is set or it does not parse.
+func proxyFunc(proxy string) func(*http.Request) (*url.URL, error) {
+	if len(proxy) == 0 {
+		return http.ProxyFromEnvironment
+	}
+
+	proxyURL, err := url.Parse(proxy)
+	if err != nil {
+		dbg.Printf("Warning: skipping parse the proxy host. err: %s\n", err.Error())
+
+		return http.ProxyFromEnvironment
+	}
+
+	return http.ProxyURL(proxyURL)
 }
 
 // DefaultUserAgent returns the default user agent string for speedtest requests.
