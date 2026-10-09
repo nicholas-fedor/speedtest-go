@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Move the module path to github.com/nicholas-fedor/speedtest-go/v2 by @nicholas-fedor in [#409](https://github.com/nicholas-fedor/speedtest-go/pull/409)
 - Maintain commitlint through bun.lock only by @nicholas-fedor in [#408](https://github.com/nicholas-fedor/speedtest-go/pull/408)
 - Run tests with the race detector by @nicholas-fedor in [#405](https://github.com/nicholas-fedor/speedtest-go/pull/405)
 - Use the commit date for archive mtime by @nicholas-fedor in [#383](https://github.com/nicholas-fedor/speedtest-go/pull/383)
