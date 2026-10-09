@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Lock file maintenance by @renovate[bot] in [#378](https://github.com/nicholas-fedor/speedtest-go/pull/378)
 - Update go toolchain directive to v1.27.2 by @renovate[bot] in [#400](https://github.com/nicholas-fedor/speedtest-go/pull/400)
 - Update github/codeql-action action to v4.38.3 by @renovate[bot] in [#399](https://github.com/nicholas-fedor/speedtest-go/pull/399)
 - Update step-security/harden-runner action to v2.22.1 by @renovate[bot] in [#397](https://github.com/nicholas-fedor/speedtest-go/pull/397)
