@@ -45,6 +45,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update codecov/codecov-action action to v7.1.1 by @renovate[bot] in [#368](https://github.com/nicholas-fedor/speedtest-go/pull/368)
 - Update docker/setup-buildx-action action to v4.4.1 by @renovate[bot] in [#366](https://github.com/nicholas-fedor/speedtest-go/pull/366)
 
+### Tests
+
+- Replace speedtest.net calls with a local fake API by @nicholas-fedor in [#417](https://github.com/nicholas-fedor/speedtest-go/pull/417)
+
 ## [1.8.4] - 2026-09-15
 
 ### Chores
