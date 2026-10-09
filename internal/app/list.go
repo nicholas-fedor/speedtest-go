@@ -29,7 +29,8 @@ func RunList(cfg config.Config) error {
 			LocationFlag:   cfg.Location,
 			Keyword:        cfg.Search,
 			BaseURL:        cfg.BaseURL,
-		}))
+		},
+	))
 
 	// retrieving servers
 	servers, err := speedtestClient.FetchServers()

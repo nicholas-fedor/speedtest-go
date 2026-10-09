@@ -355,7 +355,7 @@ func (td *TestDirection) rateCapture(stopCapture chan bool) {
 					td.RateSequence = append(td.RateSequence, deltaDataVolume)
 				}
 
-				globalAvg := (float64(td.GetTotalDataVolume())) / float64(
+				globalAvg := float64(td.GetTotalDataVolume()) / float64(
 					time.Since(sTime).Milliseconds(),
 				) * conversionFactor
 				shouldStop := td.welford.Update(globalAvg, float64(deltaDataVolume))

@@ -2,6 +2,8 @@ package speedtest
 
 import (
 	"context"
+	"encoding/json"
+	"encoding/xml"
 	"testing"
 	"time"
 
@@ -507,6 +509,31 @@ func TestServers_FindServer(t *testing.T) {
 			assert.NotNil(t, got)
 		})
 	}
+}
+
+// TestServerList_Encoding checks that the XML root name is used only for XML, so JSON output has no XMLName key.
+func TestServerList_Encoding(t *testing.T) {
+	t.Parallel()
+
+	var list ServerList
+
+	doc := `<settings><client ip="203.0.113.7"/><servers><server id="1001"/></servers></settings>`
+	require.NoError(t, xml.Unmarshal([]byte(doc), &list))
+
+	require.Len(t, list.Servers, 1)
+	assert.Equal(t, "1001", list.Servers[0].ID)
+	require.Len(t, list.Users, 1)
+	assert.Equal(t, "203.0.113.7", list.Users[0].IP)
+
+	data, err := json.Marshal(list)
+	require.NoError(t, err)
+
+	var fields map[string]any
+	require.NoError(t, json.Unmarshal(data, &fields))
+
+	assert.NotContains(t, fields, "XMLName")
+	assert.Contains(t, fields, "servers")
+	assert.Contains(t, fields, "users")
 }
 
 func TestServerList_String(t *testing.T) {

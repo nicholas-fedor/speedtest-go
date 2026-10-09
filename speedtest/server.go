@@ -105,9 +105,9 @@ func (s *Speedtest) CustomServer(host string) (*Server, error) {
 // ServerList list of Server
 // Users(Client) is also present in the serversAdvancedPath response.
 type ServerList struct {
-	XMLName xml.Name  `xml:"settings"`
-	Servers []*Server `xml:"servers>server" json:"servers"`
-	Users   []User    `xml:"client"         json:"users"`
+	XMLName xml.Name  `json:"-"       xml:"settings"`
+	Servers []*Server `json:"servers" xml:"servers>server"`
+	Users   []User    `json:"users"   xml:"client"`
 }
 
 // Servers for sorting servers.
