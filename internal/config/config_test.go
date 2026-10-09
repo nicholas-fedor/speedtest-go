@@ -10,6 +10,8 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
 
 // snapshotLogger restores the standard logger writer and flags after the test.
@@ -105,6 +107,7 @@ func TestLoadReadsViperState(t *testing.T) {
 	viper.Set("ping-mode", "icmp")
 	viper.Set("unit", "binary-bytes")
 	viper.Set("debug", true)
+	viper.Set("base-url", "http://127.0.0.1:8080/mirror")
 
 	cfg, err := Load()
 	require.NoError(t, err)
@@ -129,6 +132,7 @@ func TestLoadReadsViperState(t *testing.T) {
 	assert.Equal(t, "icmp", cfg.PingMode)
 	assert.Equal(t, "binary-bytes", cfg.Unit)
 	assert.True(t, cfg.Debug)
+	assert.Equal(t, "http://127.0.0.1:8080/mirror", cfg.BaseURL)
 }
 
 //nolint:paralleltest // mutates global viper
@@ -159,6 +163,7 @@ func TestLoadReturnsDefaultsWhenViperEmpty(t *testing.T) {
 	assert.Empty(t, cfg.PingMode)
 	assert.Empty(t, cfg.Unit)
 	assert.False(t, cfg.Debug)
+	assert.Empty(t, cfg.BaseURL)
 }
 
 //nolint:paralleltest // mutates global viper
@@ -337,4 +342,21 @@ func TestSetupSuppressesLogWhenSavingModeEnablesUnixOutput(t *testing.T) {
 	assert.Empty(t, buf.String(),
 		"Setup should suppress the standard logger when SavingMode converts to UnixOutput",
 	)
+}
+
+// TestLoadRejectsInvalidBaseURL checks that Load fails on a base URL the library cannot use, before any request is made.
+//
+//nolint:paralleltest // mutates global viper
+func TestLoadRejectsInvalidBaseURL(t *testing.T) {
+	for _, raw := range []string{"ftp://mirror.example", "mirror.example", "https://mirror.example?key=value"} {
+		t.Run(raw, func(t *testing.T) {
+			viper.Reset()
+			t.Cleanup(viper.Reset)
+
+			viper.Set("base-url", raw)
+
+			_, err := Load()
+			require.ErrorIs(t, err, speedtest.ErrInvalidBaseURL)
+		})
+	}
 }

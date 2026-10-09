@@ -18,12 +18,6 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/transport"
 )
 
-const (
-	speedTestServersURL            = "https://www.speedtest.net/api/js/servers"
-	speedTestServersAlternativeURL = "https://www.speedtest.net/speedtest-servers-static.php"
-	speedTestServersAdvanced       = "https://www.speedtest.net/api/ios-config.php"
-)
-
 type payloadType int
 
 const (
@@ -109,7 +103,7 @@ func (s *Speedtest) CustomServer(host string) (*Server, error) {
 }
 
 // ServerList list of Server
-// Users(Client) also exists with @param speedTestServersAdvanced.
+// Users(Client) is also present in the serversAdvancedPath response.
 type ServerList struct {
 	XMLName xml.Name  `xml:"settings"`
 	Servers []*Server `xml:"servers>server" json:"servers"`
@@ -190,9 +184,9 @@ func (s *Speedtest) FetchServerByIDContext(ctx context.Context, serverID string)
 		return nil, errSpeedtestClientNil
 	}
 
-	parsedURL, err := url.Parse(speedTestServersAdvanced)
+	parsedURL, err := s.endpoint(serversAdvancedPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse speed test servers advanced URL: %w", err)
+		return nil, fmt.Errorf("failed to build server lookup URL: %w", err)
 	}
 
 	query := parsedURL.Query()
@@ -292,9 +286,9 @@ func FetchServers() (Servers, error) {
 
 // buildServerListURL constructs the URL for fetching server list.
 func (s *Speedtest) buildServerListURL() (*url.URL, error) {
-	parsedURL, err := url.Parse(speedTestServersURL)
+	parsedURL, err := s.endpoint(serversPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse speed test servers URL: %w", err)
+		return nil, fmt.Errorf("failed to build server list URL: %w", err)
 	}
 
 	query := parsedURL.Query()
@@ -333,10 +327,15 @@ func (s *Speedtest) fetchServerListResponse(
 	if resp.ContentLength == 0 {
 		_ = resp.Body.Close()
 
+		alternativeURL, err := s.endpoint(serversAlternativePath)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to build alternative server list URL: %w", err)
+		}
+
 		req, err = http.NewRequestWithContext(
 			ctx,
 			http.MethodGet,
-			speedTestServersAlternativeURL,
+			alternativeURL.String(),
 			nil,
 		)
 		if err != nil {

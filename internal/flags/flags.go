@@ -18,6 +18,8 @@ func RegisterRootFlags(rootCmd *cobra.Command, cfgFile *string) {
 		Bool("dns-bind-source", false, "DNS request binding source (experimental).")
 	rootCmd.PersistentFlags().String("ua", "", "Set the user-agent header for the speedtest.")
 	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode.")
+	rootCmd.PersistentFlags().
+		String("base-url", "", "Set the speedtest API base URL (default https://www.speedtest.net).")
 
 	rootCmd.Flags().IntSliceP("server", "s", []int{}, "Select server id to run speedtest.")
 	rootCmd.Flags().
@@ -42,6 +44,7 @@ func RegisterRootFlags(rootCmd *cobra.Command, cfgFile *string) {
 	_ = viper.BindPFlag("dns-bind-source", rootCmd.PersistentFlags().Lookup("dns-bind-source"))
 	_ = viper.BindPFlag("ua", rootCmd.PersistentFlags().Lookup("ua"))
 	_ = viper.BindPFlag("debug", rootCmd.PersistentFlags().Lookup("debug"))
+	_ = viper.BindPFlag("base-url", rootCmd.PersistentFlags().Lookup("base-url"))
 
 	_ = viper.BindPFlag("server", rootCmd.Flags().Lookup("server"))
 	_ = viper.BindPFlag("custom-url", rootCmd.Flags().Lookup("custom-url"))

@@ -35,6 +35,7 @@ type Config struct {
 	PingMode      string
 	Unit          string
 	Debug         bool
+	BaseURL       string
 }
 
 // Setup applies global side effects based on the configuration and returns
@@ -111,6 +112,14 @@ func Load() (Config, error) {
 		PingMode:      viper.GetString("ping-mode"),
 		Unit:          viper.GetString("unit"),
 		Debug:         viper.GetBool("debug"),
+		BaseURL:       viper.GetString("base-url"),
+	}
+
+	if cfg.BaseURL != "" {
+		_, err := speedtest.ParseBaseURL(cfg.BaseURL)
+		if err != nil {
+			return Config{}, fmt.Errorf("invalid --base-url: %w", err)
+		}
 	}
 
 	return cfg, nil

@@ -28,6 +28,7 @@ func RunList(cfg config.Config) error {
 			CityFlag:       cfg.City,
 			LocationFlag:   cfg.Location,
 			Keyword:        cfg.Search,
+			BaseURL:        cfg.BaseURL,
 		}))
 
 	// retrieving servers

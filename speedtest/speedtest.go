@@ -72,6 +72,9 @@ type UserConfig struct {
 	Location     *Location
 
 	Keyword string // Fuzzy search
+
+	// BaseURL is the speedtest API base URL. Empty means [DefaultBaseURL].
+	BaseURL string
 }
 
 func parseAddr(addr string) (string, string) {
@@ -126,6 +129,10 @@ func (s *Speedtest) NewUserConfig(userConfig *UserConfig) {
 	s.config = userConfig
 	if len(s.config.UserAgent) == 0 {
 		s.config.UserAgent = DefaultUserAgent()
+	}
+
+	if len(s.config.BaseURL) == 0 {
+		s.config.BaseURL = DefaultBaseURL
 	}
 
 	if len(userConfig.Source) == 0 {
@@ -247,6 +254,7 @@ func WithUserConfig(userConfig *UserConfig) Option {
 		s.NewUserConfig(userConfig)
 		dbg.Printf("Source: %s\n", s.config.Source)
 		dbg.Printf("Proxy: %s\n", s.config.Proxy)
+		dbg.Printf("BaseURL: %s\n", s.config.BaseURL)
 		dbg.Printf("SavingMode: %v\n", s.config.SavingMode)
 		dbg.Printf("Keyword: %v\n", s.config.Keyword)
 		dbg.Printf("PingType: %v\n", s.config.PingMode)
