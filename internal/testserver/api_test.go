@@ -394,6 +394,27 @@ func TestAPI_Options(t *testing.T) {
 	assert.Equal(t, "GB", doc.Servers[0].CC)
 }
 
+// TestAPI_WithServerHost checks that listed servers report the configured host while their URLs stay on the HTTP fake.
+func TestAPI_WithServerHost(t *testing.T) {
+	t.Parallel()
+
+	tcp := NewTCPServer(t)
+	api := NewAPI(t, WithServerHost(tcp.Addr()))
+
+	got := do(t, http.MethodGet, api.URL()+PathServers, "")
+
+	var list []wireServer
+	require.NoError(t, json.Unmarshal(got.body, &list))
+	require.NotEmpty(t, list)
+
+	for _, server := range list {
+		assert.Equal(t, tcp.Addr(), server.Host)
+		assert.Equal(t, api.ServerUploadURL(server.ID), server.URL)
+	}
+
+	assert.Equal(t, tcp.Addr(), api.Host())
+}
+
 // TestAPI_RecordsHeaders checks that request headers are recorded, so tests can assert on the User-Agent.
 func TestAPI_RecordsHeaders(t *testing.T) {
 	t.Parallel()

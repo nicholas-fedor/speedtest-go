@@ -28,6 +28,8 @@ type API struct {
 	responses map[string]Response
 	// prefix is the path prefix of the speedtest.net endpoints.
 	prefix string
+	// serverHost overrides the host:port that listed servers report, or is empty to report the HTTP server.
+	serverHost string
 	// user is the caller identity reported by the user info and server lookup endpoints.
 	user User
 	// servers is the server list.
@@ -160,6 +162,20 @@ func WithPathPrefix(prefix string) Option {
 	}
 }
 
+// WithServerHost makes every listed server report hostPort as its host, such as the address of a [TCPServer], so
+// that TCP pings and packet-loss tests reach it. Server URLs still point at the HTTP fake.
+//
+// Parameters:
+//   - hostPort: the host:port that listed servers report.
+//
+// Returns:
+//   - Option: the option.
+func WithServerHost(hostPort string) Option {
+	return func(api *API) {
+		api.serverHost = hostPort
+	}
+}
+
 // WithUser replaces the caller identity.
 //
 // Parameters:
@@ -230,11 +246,16 @@ func (api *API) ServerUploadURL(id string) string {
 	return api.server.URL + serverPathPrefix + id + "/" + uploadFile
 }
 
-// Host returns the host and port that every listed server reports.
+// Host returns the host and port that every listed server reports: the [WithServerHost] address when set,
+// otherwise the HTTP fake's own address.
 //
 // Returns:
 //   - string: the server's host:port.
 func (api *API) Host() string {
+	if api.serverHost != "" {
+		return api.serverHost
+	}
+
 	return api.server.Listener.Addr().String()
 }
 
