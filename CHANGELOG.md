@@ -56,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- Use fixed timestamps in the chunk rate test by @nicholas-fedor in [#432](https://github.com/nicholas-fedor/speedtest-go/pull/432)
 - Accept zero latency from loopback probes by @nicholas-fedor in [#427](https://github.com/nicholas-fedor/speedtest-go/pull/427)
 - Replace speedtest.net calls with a local fake API by @nicholas-fedor in [#417](https://github.com/nicholas-fedor/speedtest-go/pull/417)
 
