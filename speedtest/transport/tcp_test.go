@@ -628,6 +628,11 @@ func TestClient_PingContext_ContextEnds(t *testing.T) {
 			_, err := client.PingContext(ctx)
 
 			require.ErrorIs(t, err, tt.wantErr)
+			require.NoError(
+				t,
+				client.Disconnect(),
+				"a connection closed by the context must not linger",
+			)
 			assert.Less(
 				t,
 				time.Since(start),
@@ -652,6 +657,162 @@ func TestClient_PingContext_ConnectionDropped(t *testing.T) {
 
 	require.ErrorIs(t, err, io.EOF)
 	require.NotErrorIs(t, err, context.Canceled)
+}
+
+// TestClient_DeadlineCleared checks that an operation's deadline does not outlive it: a later call that sets no
+// deadline of its own still works after the earlier deadline has passed.
+func TestClient_DeadlineCleared(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		operation func(*Client, context.Context) error
+		name      string
+	}{
+		{
+			name: "ping",
+			operation: func(client *Client, ctx context.Context) error {
+				_, err := client.PingContext(ctx)
+
+				return err
+			},
+		},
+		{
+			name: "handshake",
+			operation: func(client *Client, ctx context.Context) error {
+				_, err := client.VersionContext(ctx)
+
+				return err
+			},
+		},
+		{
+			name: "cached handshake",
+			operation: func(client *Client, ctx context.Context) error {
+				client.version = "cached"
+
+				// A deadline left by an earlier operation must not survive a cached handshake either.
+				require.NoError(t, client.conn.SetDeadline(time.Now().Add(50*time.Millisecond)))
+
+				_, err := client.VersionContext(ctx)
+
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := testserver.NewTCPServer(t)
+			client := connectFake(t, srv)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+			defer cancel()
+
+			require.NoError(t, tt.operation(client, ctx))
+
+			time.Sleep(100 * time.Millisecond)
+
+			loss, err := client.PacketLoss()
+			require.NoError(t, err, "the earlier deadline must not cut off later calls")
+			assert.Equal(t, &PLoss{Sent: 0, Dup: 0, Max: 0}, loss)
+		})
+	}
+}
+
+// Test_watchContext checks who owns the outcome when an operation ends and its context is cancelled: completion
+// keeps the connection, cancellation closes it and drops it from the client, and a replaced connection is kept.
+func Test_watchContext(t *testing.T) {
+	t.Parallel()
+
+	// pipeClient returns a client on one end of an in-memory connection.
+	pipeClient := func(t *testing.T) (*Client, net.Conn) {
+		t.Helper()
+
+		local, remote := net.Pipe()
+
+		t.Cleanup(func() {
+			_ = local.Close()
+			_ = remote.Close()
+		})
+
+		return &Client{conn: local, reader: bufio.NewReader(local), version: "cached"}, local
+	}
+
+	// isClosed reports whether the connection has been closed.
+	isClosed := func(conn net.Conn) bool {
+		return conn.SetDeadline(time.Time{}) != nil
+	}
+
+	t.Run("completion keeps the connection", func(t *testing.T) {
+		t.Parallel()
+
+		client, conn := pipeClient(t)
+		ctx, cancel := context.WithCancel(context.Background())
+
+		stop := client.watchContext(ctx)
+		stop()
+
+		cancel()
+
+		assert.Never(
+			t,
+			func() bool { return isClosed(conn) },
+			100*time.Millisecond,
+			10*time.Millisecond,
+		)
+		assert.Same(t, conn, client.conn)
+		assert.Equal(t, "cached", client.version)
+	})
+
+	t.Run("cancellation closes and drops the connection", func(t *testing.T) {
+		t.Parallel()
+
+		client, conn := pipeClient(t)
+		ctx, cancel := context.WithCancel(context.Background())
+
+		stop := client.watchContext(ctx)
+
+		cancel()
+
+		require.Eventually(
+			t,
+			func() bool { return isClosed(conn) },
+			5*time.Second,
+			10*time.Millisecond,
+		)
+
+		stop()
+
+		assert.Nil(t, client.conn)
+		assert.Nil(t, client.reader)
+		assert.Empty(t, client.version)
+	})
+
+	t.Run("a replaced connection is kept", func(t *testing.T) {
+		t.Parallel()
+
+		client, conn := pipeClient(t)
+		replacement, _ := pipeClient(t)
+		ctx, cancel := context.WithCancel(context.Background())
+
+		stop := client.watchContext(ctx)
+
+		cancel()
+
+		require.Eventually(
+			t,
+			func() bool { return isClosed(conn) },
+			5*time.Second,
+			10*time.Millisecond,
+		)
+
+		client.conn = replacement.conn
+
+		stop()
+
+		assert.Same(t, replacement.conn, client.conn, "only the watched connection may be dropped")
+	})
 }
 
 // expiredDeadline is a context whose deadline has passed while Err still reports nil, the window in which the

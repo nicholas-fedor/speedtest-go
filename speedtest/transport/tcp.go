@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"sync/atomic"
 	"time"
 )
 
@@ -187,6 +188,8 @@ func (client *Client) VersionContext(ctx context.Context) (string, error) {
 		return "", ErrEmptyConn
 	}
 
+	defer client.clearDeadline()
+
 	if client.version != "" {
 		return client.version, nil
 	}
@@ -226,8 +229,9 @@ func (client *Client) VersionContext(ctx context.Context) (string, error) {
 //
 //	latency = 0.4 * (t2 - t0) + 0.4 * (t4 - t2) + 0.2 * (t3 - t1)
 //
-// The exchange runs on the calling goroutine. The context's deadline is applied to the connection, and cancelling
-// the context closes the connection, so a blocked read returns instead of leaking.
+// The exchange runs on the calling goroutine. The context's deadline is applied to the connection for the exchange
+// only, and cancelling the context closes the connection, so a blocked read returns instead of leaking. A
+// connection closed by cancellation is dropped from the client.
 //
 // Parameters:
 //   - ctx: cancellation and deadline for the exchange.
@@ -240,6 +244,8 @@ func (client *Client) PingContext(ctx context.Context) (int64, error) {
 	if client.conn == nil {
 		return 0, ErrEmptyConn
 	}
+
+	defer client.clearDeadline()
 
 	stop := client.watchContext(ctx)
 	defer stop()
@@ -442,30 +448,66 @@ func (client *Client) setDeadline(ctx context.Context) error {
 	return nil
 }
 
-// watchContext closes the connection when ctx ends, which unblocks any read or write in progress.
+// clearDeadline removes any deadline an operation set, so later calls that set none are not cut off by it.
+func (client *Client) clearDeadline() {
+	if client.conn != nil {
+		_ = client.conn.SetDeadline(time.Time{})
+	}
+}
+
+// watchContext closes the connection when ctx ends before the operation finishes, which unblocks any read or write
+// in progress.
+//
+// Completion and cancellation race to claim the outcome. When stop claims it first, the watcher never closes the
+// connection, so a finished operation is never cut off late. When the watcher claims it first, it closes the
+// connection, and stop drops that connection from the client. stop waits for the watcher to exit, and clears the
+// client's fields on the caller's goroutine, so nothing races with the operation.
 //
 // Parameters:
 //   - ctx: the context to watch.
 //
 // Returns:
-//   - func(): stops watching. Call it when the operation finishes.
+//   - func(): ends the watch. Call it when the operation finishes, and use the client only after it returns.
 func (client *Client) watchContext(ctx context.Context) func() {
 	if ctx.Done() == nil {
 		return func() {}
 	}
 
+	const (
+		running = iota
+		completed
+		cancelled
+	)
+
+	var state atomic.Int32
+
 	conn := client.conn
 	done := make(chan struct{})
+	exited := make(chan struct{})
 
 	go func() {
+		defer close(exited)
+
 		select {
 		case <-ctx.Done():
-			_ = conn.Close()
+			if state.CompareAndSwap(running, cancelled) {
+				_ = conn.Close()
+			}
 		case <-done:
 		}
 	}()
 
-	return func() { close(done) }
+	return func() {
+		state.CompareAndSwap(running, completed)
+		close(done)
+		<-exited
+
+		if state.Load() == cancelled && client.conn == conn {
+			client.conn = nil
+			client.reader = nil
+			client.version = ""
+		}
+	}
 }
 
 // contextError reports the context's error when the context ended the operation, and err otherwise.
