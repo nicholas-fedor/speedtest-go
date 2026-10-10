@@ -865,6 +865,30 @@ func TestServer_TCPPing_FakeServer(t *testing.T) {
 	assert.Equal(t, 6, pings, "each echo sends two PING commands")
 }
 
+// TestServer_TCPPing_ClosesConnection checks that TCP ping ends its session with QUIT and closes the socket, so
+// pinging every listed server does not leave one connection open per server.
+func TestServer_TCPPing_ClosesConnection(t *testing.T) {
+	t.Parallel()
+
+	tcp := testserver.NewTCPServer(t)
+	server := &Server{Host: tcp.Addr(), Context: New()}
+
+	_, err := server.TCPPing(context.Background(), 1, time.Millisecond, nil)
+	require.NoError(t, err)
+
+	// The server closes its side only after reading everything sent before the client closed, including QUIT.
+	require.Eventually(
+		t,
+		func() bool { return tcp.OpenConns() == 0 },
+		5*time.Second,
+		10*time.Millisecond,
+	)
+
+	commands := tcp.Commands()
+	require.NotEmpty(t, commands)
+	assert.Equal(t, "QUIT", commands[len(commands)-1].Line)
+}
+
 // TestServer_TCPPing_Refused checks that pinging a closed port reports an error instead of panicking.
 func TestServer_TCPPing_Refused(t *testing.T) {
 	t.Parallel()

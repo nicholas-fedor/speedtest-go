@@ -60,8 +60,31 @@ func (ps *PacketLossSender) Connect(ctx context.Context, host string) error {
 	return nil
 }
 
+// Close closes the UDP connection. It is safe to call before Connect and more than once.
+//
+// Returns:
+//   - error: the error from closing the connection, if any.
+func (ps *PacketLossSender) Close() error {
+	if ps.conn == nil {
+		return nil
+	}
+
+	err := ps.conn.Close()
+	ps.conn = nil
+
+	if err != nil {
+		return fmt.Errorf("failed to close UDP connection: %w", err)
+	}
+
+	return nil
+}
+
 // Send sends a packet with the specified order value.
 func (ps *PacketLossSender) Send(order int) error {
+	if ps.conn == nil {
+		return ErrEmptyConn
+	}
+
 	payload := bytes.Replace(ps.raw, []byte{0x23}, []byte(strconv.Itoa(order)), 1)
 
 	_, err := ps.conn.Write(payload)

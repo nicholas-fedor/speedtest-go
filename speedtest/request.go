@@ -450,6 +450,8 @@ func (s *Server) TCPPing(
 		return nil, fmt.Errorf("failed to connect for TCP ping: %w", err)
 	}
 
+	defer func() { _ = client.Disconnect() }()
+
 	for range echoTimes {
 		latency, err := client.PingContext(ctx)
 		if err != nil {
