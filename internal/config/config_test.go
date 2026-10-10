@@ -132,6 +132,7 @@ func TestLoadReadsViperState(t *testing.T) {
 	assert.False(t, cfg.NoUpload)
 	assert.Equal(t, speedtest.ICMP, cfg.PingMode)
 	assert.Equal(t, speedtest.UnitTypeBinaryBytes, cfg.Unit)
+	assert.True(t, cfg.UnitSet)
 	assert.True(t, cfg.Debug)
 	assert.Equal(t, "http://127.0.0.1:8080/mirror", cfg.BaseURL)
 }
@@ -525,4 +526,40 @@ func TestInitViperRejectsInvalidEnv(t *testing.T) {
 	_, err := Load()
 	require.ErrorIs(t, err, ErrInvalidSetting)
 	assert.Contains(t, err.Error(), `--thread: "many" is not a whole number`)
+}
+
+// TestSetupUnit checks that Setup keeps an explicit decimal-bits unit, which is the zero UnitType, and uses the
+// default Mbps output only when no unit was resolved.
+//
+//nolint:paralleltest // Setup mutates the global unit and logger
+func TestSetupUnit(t *testing.T) {
+	const rate = speedtest.ByteRate(125)
+
+	tests := []struct {
+		name string
+		want string
+		cfg  Config
+	}{
+		{name: "unset", cfg: Config{}, want: "0.00 Mbps"},
+		{
+			name: "explicit decimal bits",
+			cfg:  Config{Unit: speedtest.UnitTypeDecimalBits, UnitSet: true},
+			want: rate.Byte(speedtest.UnitTypeDecimalBits),
+		},
+		{
+			name: "explicit default",
+			cfg:  Config{Unit: speedtest.UnitTypeDefaultMbps, UnitSet: true},
+			want: "0.00 Mbps",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			snapshotLogger(t)
+			t.Cleanup(func() { speedtest.SetUnit(speedtest.UnitTypeDefaultMbps) })
+
+			Setup(tt.cfg)
+
+			assert.Equal(t, tt.want, rate.String())
+		})
+	}
 }

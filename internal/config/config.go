@@ -36,8 +36,11 @@ type Config struct {
 	NoUpload      bool
 	PingMode      speedtest.Proto
 	Unit          speedtest.UnitType
-	Debug         bool
-	BaseURL       string
+	// UnitSet reports that Unit holds a resolved unit. The zero value of [speedtest.UnitType] is decimal bits,
+	// so a Config without it uses the default Mbps output.
+	UnitSet bool
+	Debug   bool
+	BaseURL string
 }
 
 // EnvPrefix is the prefix of the environment variables that supply settings. A setting's variable is the prefix,
@@ -57,7 +60,12 @@ var (
 // Setup applies global side effects based on the configuration and returns
 // the resulting Config so callers receive any defaults applied here.
 func Setup(cfg Config) Config {
-	speedtest.SetUnit(cfg.Unit)
+	unit := speedtest.UnitTypeDefaultMbps
+	if cfg.UnitSet {
+		unit = cfg.Unit
+	}
+
+	speedtest.SetUnit(unit)
 
 	if cfg.SavingMode && !cfg.JSONOutput && !cfg.JSONLOutput && !cfg.UnixOutput {
 		cfg.UnixOutput = true
@@ -155,6 +163,7 @@ func Load() (Config, error) {
 		NoUpload:      viper.GetBool("no-upload"),
 		PingMode:      pingMode,
 		Unit:          unit,
+		UnitSet:       true,
 		Debug:         viper.GetBool("debug"),
 		BaseURL:       viper.GetString("base-url"),
 	}
