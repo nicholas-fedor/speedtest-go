@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"net/http"
 	"testing"
 	"time"
 
@@ -536,6 +537,73 @@ func TestFetchServerListContext_TCPPingMode(t *testing.T) {
 
 	assert.GreaterOrEqual(t, tcp.Accepted(), len(servers), "each server should be pinged over TCP")
 	assert.False(t, api.Requested(testserver.PathLatency), "TCP mode must not use HTTP probes")
+}
+
+// TestFetchServerListContext_ErrorStatus checks how the server list handles error statuses: a failing JSON list
+// falls back to the XML list, a failing XML list is an error, and servers whose latency probe fails are marked as
+// timed out so that they cannot be selected.
+func TestFetchServerListContext_ErrorStatus(t *testing.T) {
+	t.Parallel()
+
+	failure := testserver.Response{Status: http.StatusServiceUnavailable, Body: "unavailable"}
+
+	t.Run("JSON list fails", func(t *testing.T) {
+		t.Parallel()
+
+		api := testserver.NewAPI(t)
+		api.SetResponse(testserver.PathServers, failure)
+
+		servers, err := newBaseURLClient(api.URL()).FetchServerListContext(context.Background())
+		require.NoError(t, err)
+
+		assert.Len(t, servers, 2)
+		assert.True(t, api.Requested(testserver.PathServersStatic))
+	})
+
+	t.Run("both lists fail", func(t *testing.T) {
+		t.Parallel()
+
+		api := testserver.NewAPI(t)
+		api.SetResponse(testserver.PathServers, failure)
+		api.SetResponse(testserver.PathServersStatic, failure)
+
+		_, err := newBaseURLClient(api.URL()).FetchServerListContext(context.Background())
+		require.ErrorIs(t, err, ErrUnexpectedStatus)
+	})
+
+	t.Run("latency probes fail", func(t *testing.T) {
+		t.Parallel()
+
+		api := testserver.NewAPI(t)
+		api.SetResponse(testserver.PathLatency, failure)
+
+		servers, err := newBaseURLClient(api.URL()).FetchServerListContext(context.Background())
+		require.NoError(t, err)
+		require.Len(t, servers, 2)
+
+		for _, server := range servers {
+			assert.Equal(
+				t,
+				time.Duration(PingTimeout),
+				server.Latency,
+				"server %s should be unreachable",
+				server.ID,
+			)
+		}
+
+		assert.Empty(t, *servers.Available(), "no failing server may be selected")
+	})
+}
+
+// TestFetchServerByIDContext_ErrorStatus checks that a failing server lookup is reported as a status error.
+func TestFetchServerByIDContext_ErrorStatus(t *testing.T) {
+	t.Parallel()
+
+	api := testserver.NewAPI(t)
+	api.SetResponse(testserver.PathServerLookup, testserver.Response{Status: http.StatusNotFound})
+
+	_, err := newBaseURLClient(api.URL()).FetchServerByIDContext(context.Background(), "1001")
+	require.ErrorIs(t, err, ErrUnexpectedStatus)
 }
 
 // TestServerList_Encoding checks that the XML root name is used only for XML, so JSON output has no XMLName key.

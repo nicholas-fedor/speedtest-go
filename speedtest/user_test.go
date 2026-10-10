@@ -2,6 +2,7 @@ package speedtest
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -51,6 +52,14 @@ func TestSpeedtest_FetchUserInfoContext(t *testing.T) {
 			name:     "malformed XML",
 			override: &testserver.Response{Body: "<settings><client"},
 			anyErr:   true,
+		},
+		{
+			name: "error status",
+			override: &testserver.Response{
+				Status: http.StatusServiceUnavailable,
+				Body:   "unavailable",
+			},
+			wantErr: ErrUnexpectedStatus,
 		},
 		{
 			name:      "cancelled context",
