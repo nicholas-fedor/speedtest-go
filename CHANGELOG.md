@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Skip changelog-only pull requests by @nicholas-fedor in [#436](https://github.com/nicholas-fedor/speedtest-go/pull/436)
 - Resolve golangci-lint formatting and tag findings by @nicholas-fedor in [#421](https://github.com/nicholas-fedor/speedtest-go/pull/421)
 - Raise the minimum go version to 1.27 by @nicholas-fedor in [#411](https://github.com/nicholas-fedor/speedtest-go/pull/411)
 - Move the module path to github.com/nicholas-fedor/speedtest-go/v2 by @nicholas-fedor in [#409](https://github.com/nicholas-fedor/speedtest-go/pull/409)
