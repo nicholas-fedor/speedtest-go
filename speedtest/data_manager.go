@@ -227,7 +227,29 @@ func (td *TestDirection) AddTotalDataVolume(delta int64) int64 {
 }
 
 // Start begins the test direction execution with the given cancel function and main request handler index.
+//
+// It runs until the capture time ends or the rate settles. See [TestDirection.StartContext] to also stop when a
+// context ends.
+//
+// Parameters:
+//   - cancel: cancels the requests' context when the test stops.
+//   - mainRequestHandlerIndex: the handler that gets the main share of the workers.
 func (td *TestDirection) Start(cancel context.CancelFunc, mainRequestHandlerIndex int) {
+	td.StartContext(context.Background(), cancel, mainRequestHandlerIndex)
+}
+
+// StartContext runs like [TestDirection.Start], and also stops when ctx ends, so the request workers do not keep
+// retrying failed requests until the capture time runs out.
+//
+// Parameters:
+//   - ctx: stops the test when it ends.
+//   - cancel: cancels the requests' context when the test stops.
+//   - mainRequestHandlerIndex: the handler that gets the main share of the workers.
+func (td *TestDirection) StartContext(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	mainRequestHandlerIndex int,
+) {
 	fns := td.snapshotFns()
 	if len(fns) == 0 {
 		panic("empty task stack")
@@ -274,6 +296,9 @@ func (td *TestDirection) Start(cancel context.CancelFunc, mainRequestHandlerInde
 			dbg.Println("FuncGroup: Stop")
 		})
 	}
+
+	stopWatching := context.AfterFunc(ctx, td.closeFunc)
+	defer stopWatching()
 
 	td.rateCapture(stopCapture)
 

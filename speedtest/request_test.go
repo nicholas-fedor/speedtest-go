@@ -819,6 +819,197 @@ func TestServer_HTTPPing_Success(t *testing.T) {
 	assert.Len(t, latencies, 3)
 }
 
+// Test_sleepContext checks that the wait runs its full length, or ends promptly with the context's error.
+func Test_sleepContext(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, sleepContext(context.Background(), time.Millisecond))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(10*time.Millisecond, cancel)
+
+	start := time.Now()
+	err := sleepContext(ctx, time.Minute)
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Less(t, time.Since(start), time.Second)
+
+	// With a context that already ended and a timer that is ready at once, both select cases are ready.
+	for range 100 {
+		require.ErrorIs(t, sleepContext(ctx, 0), context.Canceled)
+	}
+}
+
+// TestServer_Ping_CancelBetweenEchoes checks that cancelling a ping between echoes ends it at once with the
+// context's error and the latencies measured so far, instead of finishing the wait and the remaining echoes.
+func TestServer_Ping_CancelBetweenEchoes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		ping func(*Server, context.Context, func(time.Duration)) ([]int64, error)
+		name string
+	}{
+		{
+			name: "TCP",
+			ping: func(s *Server, ctx context.Context, callback func(time.Duration)) ([]int64, error) {
+				return s.TCPPing(ctx, 10, 200*time.Millisecond, callback)
+			},
+		},
+		{
+			name: "HTTP",
+			ping: func(s *Server, ctx context.Context, callback func(time.Duration)) ([]int64, error) {
+				return s.HTTPPing(ctx, 10, 200*time.Millisecond, callback)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tcp := testserver.NewTCPServer(t)
+			api := testserver.NewAPI(t)
+			server := &Server{URL: api.ServerUploadURL("1001"), Host: tcp.Addr(), Context: New()}
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			// Measure from the cancel, since the HTTP ping waits once after its unmeasured warm-up request.
+			var cancelledAt time.Time
+
+			latencies, err := tt.ping(server, ctx, func(time.Duration) {
+				cancelledAt = time.Now()
+
+				cancel()
+			})
+
+			require.ErrorIs(t, err, context.Canceled)
+			assert.Len(t, latencies, 1, "the echo measured before cancelling is kept")
+			assert.Less(
+				t,
+				time.Since(cancelledAt),
+				100*time.Millisecond,
+				"the ping must not finish its wait",
+			)
+		})
+	}
+}
+
+// TestServer_PingTestContext_Cancelled checks that a cancelled ping keeps the server's earlier latency results.
+func TestServer_PingTestContext_Cancelled(t *testing.T) {
+	t.Parallel()
+
+	api := testserver.NewAPI(t)
+	server := &Server{
+		URL:     api.ServerUploadURL("1001"),
+		Latency: 42 * time.Millisecond,
+		Context: New(),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	require.ErrorIs(t, server.PingTestContext(ctx, nil), context.Canceled)
+
+	assert.Equal(t, 42*time.Millisecond, server.Latency)
+	assert.Nil(t, server.TestDuration.Ping)
+}
+
+// TestServer_ICMPPing_CancelDuringRead checks that cancelling a ping whose echo is never answered ends the pending
+// read at once, instead of after readTimeout. It needs raw ICMP sockets and an unanswered echo, so it skips unless
+// run privileged with echo replies disabled, such as in a network namespace with net.ipv4.icmp_echo_ignore_all=1.
+func TestServer_ICMPPing_CancelDuringRead(t *testing.T) {
+	t.Parallel()
+
+	server := &Server{URL: "http://127.0.0.1/speedtest/upload.php", Context: New()}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	time.AfterFunc(100*time.Millisecond, cancel)
+
+	start := time.Now()
+	_, err := server.ICMPPing(ctx, 5*time.Second, 1, time.Millisecond, nil)
+
+	switch {
+	case err != nil && strings.Contains(err.Error(), "failed to dial ICMP"):
+		t.Skipf("raw ICMP sockets need privileges: %v", err)
+	case err == nil:
+		t.Skip("loopback answered the echo, so no read was pending when the context ended")
+	}
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Less(t, time.Since(start), time.Second, "the read must not wait for its 5s timeout")
+}
+
+// TestServer_SpeedTests_Cancel checks that cancelling a download or upload ends it well before the capture time
+// with the context's error, and leaves the server's earlier results untouched.
+func TestServer_SpeedTests_Cancel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		run  func(*Server, context.Context) error
+		name string
+	}{
+		{name: "download", run: (*Server).DownloadTestContext},
+		{name: "upload", run: (*Server).UploadTestContext},
+		{
+			name: "multi download",
+			run: func(s *Server, ctx context.Context) error {
+				return s.MultiDownloadTestContext(ctx, Servers{s})
+			},
+		},
+		{
+			name: "multi upload",
+			run: func(s *Server, ctx context.Context) error {
+				return s.MultiUploadTestContext(ctx, Servers{s})
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			api := testserver.NewAPI(t)
+			client := New(WithUserConfig(&UserConfig{MaxConnections: 2}))
+			server := &Server{
+				ID:      "1001",
+				URL:     api.ServerUploadURL("1001"),
+				Latency: time.Millisecond,
+				DLSpeed: 42,
+				ULSpeed: 42,
+				Context: client,
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
+
+			start := time.Now()
+			err := tt.run(server, ctx)
+
+			require.ErrorIs(t, err, context.DeadlineExceeded)
+			assert.Less(t, time.Since(start), 2*time.Second, "the default capture time is 15s")
+			assert.InDelta(
+				t,
+				42,
+				float64(server.DLSpeed),
+				0,
+				"a cancelled test must not change the result",
+			)
+			assert.InDelta(
+				t,
+				42,
+				float64(server.ULSpeed),
+				0,
+				"a cancelled test must not change the result",
+			)
+			assert.Nil(t, server.TestDuration.Download)
+			assert.Nil(t, server.TestDuration.Upload)
+		})
+	}
+}
+
 // Test_checkSum_Verifies checks the property receivers rely on: a message carrying its checksum sums to zero.
 func Test_checkSum_Verifies(t *testing.T) {
 	t.Parallel()
