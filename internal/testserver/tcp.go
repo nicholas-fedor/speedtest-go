@@ -37,11 +37,15 @@ type TCPServer struct {
 	commands []Command
 	// faults are the failures to inject.
 	faults Faults
+	// syncWaiters maps a pending SyncPackets token to the channel closed when its marker is handled.
+	syncWaiters map[int]chan struct{}
 	// accepted counts every accepted connection.
 	accepted int
+	// syncSeq is the last token issued by SyncPackets.
+	syncSeq int
 	// wg tracks the accept, UDP, and connection goroutines.
 	wg sync.WaitGroup
-	// mu guards conns, loss, commands, faults, accepted, and closed.
+	// mu guards conns, loss, commands, faults, accepted, closed, syncWaiters, and syncSeq.
 	mu sync.Mutex
 	// closed is set when close starts, so connections accepted afterwards are closed instead of served.
 	closed bool
@@ -91,7 +95,12 @@ const (
 	cmdQuit = "QUIT"
 	// lossDatagram starts every UDP packet-loss datagram.
 	lossDatagram = "LOSS"
+	// syncDatagram starts the marker datagrams sent by SyncPackets.
+	syncDatagram = "SYNC"
 )
+
+// syncTimeout bounds how long SyncPackets waits for its marker.
+const syncTimeout = 5 * time.Second
 
 // errListen reports that no port was free for both TCP and UDP.
 var errListen = errors.New("no loopback port free for both TCP and UDP")
@@ -113,10 +122,11 @@ func NewTCPServer(tb testing.TB) *TCPServer {
 	}
 
 	srv := &TCPServer{
-		listener: listener,
-		packets:  packets,
-		conns:    map[net.Conn]struct{}{},
-		loss:     map[string]map[int]int{},
+		listener:    listener,
+		packets:     packets,
+		conns:       map[net.Conn]struct{}{},
+		loss:        map[string]map[int]int{},
+		syncWaiters: map[int]chan struct{}{},
 	}
 
 	srv.wg.Add(2)
@@ -201,6 +211,51 @@ func (srv *TCPServer) LossPackets(uuid string) int {
 	}
 
 	return total
+}
+
+// SyncPackets waits until the packet loop has handled every datagram that reached the UDP port before the call.
+//
+// It sends a marker datagram and waits for the packet loop to handle it. On loopback a datagram is queued at the
+// receiver when its send returns, so the marker queues behind every datagram already sent, and handling it means
+// those have been counted. Call it after the senders have returned and before reading [TCPServer.LossPackets].
+// Markers are not counted and do not advance [Faults.LossDropEvery].
+//
+// Parameters:
+//   - tb: the test or benchmark, failed when the marker cannot be sent or is not handled in time.
+func (srv *TCPServer) SyncPackets(tb testing.TB) {
+	tb.Helper()
+
+	handled := make(chan struct{})
+
+	srv.mu.Lock()
+	srv.syncSeq++
+	token := srv.syncSeq
+	srv.syncWaiters[token] = handled
+	srv.mu.Unlock()
+
+	var dialer net.Dialer
+
+	conn, err := dialer.DialContext(context.Background(), "udp", srv.Addr())
+	if err != nil {
+		tb.Fatalf("dial fake UDP port: %v", err)
+	}
+
+	defer func() { _ = conn.Close() }()
+
+	_, err = fmt.Fprintf(conn, "%s %d", syncDatagram, token)
+	if err != nil {
+		tb.Fatalf("send sync marker: %v", err)
+	}
+
+	select {
+	case <-handled:
+	case <-time.After(syncTimeout):
+		tb.Fatalf(
+			"fake UDP packet loop did not handle sync marker %d within %s",
+			token,
+			syncTimeout,
+		)
+	}
 }
 
 // acceptLoop accepts control connections until the listener closes.
@@ -374,6 +429,13 @@ func (srv *TCPServer) packetLoop() {
 		}
 
 		fields := strings.Fields(string(buf[:n]))
+
+		if len(fields) == 2 && fields[0] == syncDatagram {
+			srv.handleSync(fields[1])
+
+			continue
+		}
+
 		if len(fields) != 4 || fields[0] != lossDatagram {
 			continue
 		}
@@ -401,6 +463,25 @@ func (srv *TCPServer) packetLoop() {
 
 		counts[order]++
 		srv.mu.Unlock()
+	}
+}
+
+// handleSync releases the SyncPackets call waiting for a marker token.
+//
+// Parameters:
+//   - token: the marker's token, as sent.
+func (srv *TCPServer) handleSync(token string) {
+	value, err := strconv.Atoi(token)
+	if err != nil {
+		return
+	}
+
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+
+	if handled, ok := srv.syncWaiters[value]; ok {
+		close(handled)
+		delete(srv.syncWaiters, value)
 	}
 }
 

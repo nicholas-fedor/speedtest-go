@@ -438,10 +438,15 @@ func TestPacketLossAnalyzer_RunWithContext_FakeServer(t *testing.T) {
 		10*time.Millisecond,
 	)
 
+	// Count everything the run sent before it returned, then check that nothing more arrives afterwards.
 	uuid := registeredUUID(t, srv)
+
+	srv.SyncPackets(t)
 	sent := srv.LossPackets(uuid)
 
 	time.Sleep(50 * time.Millisecond)
+	srv.SyncPackets(t)
+
 	assert.Equal(t, sent, srv.LossPackets(uuid), "the send loop must stop when the run ends")
 }
 
