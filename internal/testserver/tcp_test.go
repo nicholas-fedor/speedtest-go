@@ -187,6 +187,28 @@ func TestTCPServer_PacketLossIgnoresOtherSessions(t *testing.T) {
 	assert.Equal(t, "PLOSS 0 0 0", client.ask(t, "PLOSS"), "another UUID's datagram must not count")
 }
 
+// TestTCPServer_SyncPackets checks that after a sync every datagram sent before it is counted, without polling,
+// and that markers are neither counted nor dropped by the loss fault.
+func TestTCPServer_SyncPackets(t *testing.T) {
+	t.Parallel()
+
+	srv := NewTCPServer(t)
+	srv.SetFaults(Faults{LossDropEvery: 3})
+
+	for round := 1; round <= 3; round++ {
+		sendLoss(t, srv, round*10, round*10+1, round*10+2)
+		srv.SyncPackets(t)
+
+		assert.Equal(
+			t,
+			round*2,
+			srv.LossPackets(testUUID),
+			"round %d: two of every three are kept",
+			round,
+		)
+	}
+}
+
 // TestTCPServer_LossDropEvery checks that the drop fault discards every Nth datagram.
 func TestTCPServer_LossDropEvery(t *testing.T) {
 	t.Parallel()

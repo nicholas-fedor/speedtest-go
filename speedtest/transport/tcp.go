@@ -43,8 +43,13 @@ var (
 	ErrNilDialer = errors.New("transport client has no dialer")
 )
 
-// helloPrefix starts the server's reply to HI.
-var helloPrefix = []byte("HELLO ")
+// Server replies checked during the handshake and packet-loss setup.
+var (
+	// helloPrefix starts the server's reply to HI and to "HI <uuid>".
+	helloPrefix = []byte("HELLO ")
+	// okReply is the server's reply to INITPLOSS.
+	okReply = []byte("OK")
+)
 
 // pingFormat builds a PING command for a local timestamp, copying the shared prefix so callers never alias it.
 func pingFormat(locTime int64) []byte {
@@ -212,12 +217,12 @@ func (client *Client) VersionContext(ctx context.Context) (string, error) {
 		return "", contextError(ctx, err)
 	}
 
-	version, found := bytes.CutPrefix(bytes.TrimRight(message, "\r\n"), helloPrefix)
-	if !found || len(version) == 0 {
-		return "", fmt.Errorf("%w: %q", ErrInvalidResponse, message)
+	version, err := parseHello(message)
+	if err != nil {
+		return "", err
 	}
 
-	client.version = string(version)
+	client.version = version
 
 	return client.version, nil
 }
@@ -294,19 +299,62 @@ func (client *Client) PingContext(ctx context.Context) (int64, error) {
 	return accumulatedLatency, nil
 }
 
-// InitPacketLoss initializes packet loss testing for the client.
+// InitPacketLoss registers the client's UUID for packet-loss counting. See [Client.InitPacketLossContext].
+//
+// Returns:
+//   - error: the error from [Client.InitPacketLossContext].
 func (client *Client) InitPacketLoss() error {
-	id := client.id
+	return client.InitPacketLossContext(context.Background())
+}
 
-	payload := append(append([]byte{}, hiFormat...), 0x20)
-	payload = append(payload, []byte(id)...)
+// InitPacketLossContext registers the client's UUID for packet-loss counting, observing ctx.
+//
+// It sends "HI <uuid>" and INITPLOSS and reads both replies, HELLO and OK. Reading them keeps later PLOSS replies
+// aligned with their requests. The HELLO reply also records the server version.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the setup.
+//
+// Returns:
+//   - error: [ErrEmptyConn] when not connected, [ErrInvalidResponse] for an unexpected reply, the context's error
+//     when it ends the setup, or the I/O error.
+func (client *Client) InitPacketLossContext(ctx context.Context) error {
+	if client.conn == nil {
+		return ErrEmptyConn
+	}
 
-	err := client.Write(payload)
+	defer client.clearDeadline()
+
+	stop := client.watchContext(ctx)
+	defer stop()
+
+	err := client.setDeadline(ctx)
 	if err != nil {
 		return err
 	}
 
-	return client.Write(initPacket)
+	hello, err := client.exchange(ctx, append(append(bytes.Clone(hiFormat), ' '), client.id...))
+	if err != nil {
+		return err
+	}
+
+	version, err := parseHello(hello)
+	if err != nil {
+		return err
+	}
+
+	client.version = version
+
+	reply, err := client.exchange(ctx, initPacket)
+	if err != nil {
+		return err
+	}
+
+	if !bytes.Equal(bytes.TrimRight(reply, "\r\n"), okReply) {
+		return fmt.Errorf("%w: %q", ErrInvalidResponse, reply)
+	}
+
+	return nil
 }
 
 // PLoss Packet loss statistics
@@ -353,43 +401,45 @@ func (p PLoss) LossPercent() float64 {
 	return p.Loss() * 100
 }
 
-// PacketLoss retrieves the packet loss statistics from the server.
+// PacketLoss retrieves the packet-loss counts from the server. See [Client.PacketLossContext].
+//
+// Returns:
+//   - *PLoss: the counts.
+//   - error: the error from [Client.PacketLossContext].
 func (client *Client) PacketLoss() (*PLoss, error) {
-	err := client.Write(packetLoss)
+	return client.PacketLossContext(context.Background())
+}
+
+// PacketLossContext retrieves the packet-loss counts for the client's UUID, observing ctx.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//
+// Returns:
+//   - *PLoss: the counts.
+//   - error: [ErrEmptyConn] when not connected, [ErrInvalidPacketLossResponse] for a malformed reply, the
+//     context's error when it ends the request, or the I/O error.
+func (client *Client) PacketLossContext(ctx context.Context) (*PLoss, error) {
+	if client.conn == nil {
+		return nil, ErrEmptyConn
+	}
+
+	defer client.clearDeadline()
+
+	stop := client.watchContext(ctx)
+	defer stop()
+
+	err := client.setDeadline(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	result, err := client.Read()
+	result, err := client.exchange(ctx, packetLoss)
 	if err != nil {
 		return nil, err
 	}
 
-	splitResult := bytes.Split(result, []byte{0x20})
-	if len(splitResult) < 4 || !bytes.Equal(splitResult[0], packetLoss) {
-		return nil, ErrInvalidPacketLossResponse
-	}
-
-	x0, err := strconv.Atoi(string(splitResult[1]))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse sent packets: %w", err)
-	}
-
-	x1, err := strconv.Atoi(string(splitResult[2]))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse duplicate packets: %w", err)
-	}
-
-	x2, err := strconv.Atoi(string(bytes.TrimRight(splitResult[3], "\n")))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse max packet index: %w", err)
-	}
-
-	return &PLoss{
-		Sent: x0,
-		Dup:  x1,
-		Max:  x2,
-	}, nil
+	return parsePLoss(result)
 }
 
 // Download performs a download test. Currently unimplemented.
@@ -400,6 +450,29 @@ func (client *Client) Download() {
 // Upload performs an upload test. Currently unimplemented.
 func (client *Client) Upload() {
 	panic("Unimplemented method: Client.Upload()")
+}
+
+// exchange sends one command and reads its reply, reporting the context's error when it ended the exchange.
+//
+// Parameters:
+//   - ctx: the operation's context.
+//   - command: the command without its newline.
+//
+// Returns:
+//   - []byte: the reply line, including its newline.
+//   - error: the context's error or the I/O error.
+func (client *Client) exchange(ctx context.Context, command []byte) ([]byte, error) {
+	err := client.Write(command)
+	if err != nil {
+		return nil, contextError(ctx, err)
+	}
+
+	reply, err := client.Read()
+	if err != nil {
+		return nil, contextError(ctx, err)
+	}
+
+	return reply, nil
 }
 
 // writeAll writes data in full, looping over short writes.
@@ -534,4 +607,53 @@ func contextError(ctx context.Context, err error) error {
 	}
 
 	return err
+}
+
+// parseHello extracts the server version from a HELLO reply.
+//
+// Parameters:
+//   - message: the reply line, including its newline.
+//
+// Returns:
+//   - string: the version text after "HELLO ".
+//   - error: [ErrInvalidResponse] when the reply is not HELLO or carries no version.
+func parseHello(message []byte) (string, error) {
+	version, found := bytes.CutPrefix(bytes.TrimRight(message, "\r\n"), helloPrefix)
+	if !found || len(version) == 0 {
+		return "", fmt.Errorf("%w: %q", ErrInvalidResponse, message)
+	}
+
+	return string(version), nil
+}
+
+// parsePLoss parses a "PLOSS <sent> <dup> <max>" reply.
+//
+// Parameters:
+//   - result: the reply line, including its newline.
+//
+// Returns:
+//   - *PLoss: the counts.
+//   - error: [ErrInvalidPacketLossResponse] when the reply is not PLOSS, or a parse error for a count.
+func parsePLoss(result []byte) (*PLoss, error) {
+	splitResult := bytes.Split(bytes.TrimRight(result, "\r\n"), []byte{0x20})
+	if len(splitResult) < 4 || !bytes.Equal(splitResult[0], packetLoss) {
+		return nil, ErrInvalidPacketLossResponse
+	}
+
+	sent, err := strconv.Atoi(string(splitResult[1]))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse sent packets: %w", err)
+	}
+
+	dup, err := strconv.Atoi(string(splitResult[2]))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse duplicate packets: %w", err)
+	}
+
+	highest, err := strconv.Atoi(string(splitResult[3]))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse max packet index: %w", err)
+	}
+
+	return &PLoss{Sent: sent, Dup: dup, Max: highest}, nil
 }
