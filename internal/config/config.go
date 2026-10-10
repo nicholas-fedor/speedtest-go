@@ -6,6 +6,8 @@ import (
 	"io"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/spf13/viper"
 
@@ -32,16 +34,38 @@ type Config struct {
 	UserAgent     string
 	NoDownload    bool
 	NoUpload      bool
-	PingMode      string
-	Unit          string
-	Debug         bool
-	BaseURL       string
+	PingMode      speedtest.Proto
+	Unit          speedtest.UnitType
+	// UnitSet reports that Unit holds a resolved unit. The zero value of [speedtest.UnitType] is decimal bits,
+	// so a Config without it uses the default Mbps output.
+	UnitSet bool
+	Debug   bool
+	BaseURL string
 }
+
+// EnvPrefix is the prefix of the environment variables that supply settings. A setting's variable is the prefix,
+// an underscore, and the setting name in upper case with hyphens as underscores, such as SPEEDTEST_GO_PING_MODE.
+const EnvPrefix = "SPEEDTEST_GO"
+
+// Errors for setting values.
+var (
+	// ErrInvalidSetting is wrapped by every error that rejects a setting value. The CLI exits with code 2 for it.
+	ErrInvalidSetting = errors.New("invalid setting")
+	// errNotWholeNumber rejects a count that does not parse as an integer.
+	errNotWholeNumber = errors.New("not a whole number")
+	// errNegative rejects a count below zero.
+	errNegative = errors.New("negative")
+)
 
 // Setup applies global side effects based on the configuration and returns
 // the resulting Config so callers receive any defaults applied here.
 func Setup(cfg Config) Config {
-	speedtest.SetUnit(parser.ParseUnit(cfg.Unit))
+	unit := speedtest.UnitTypeDefaultMbps
+	if cfg.UnitSet {
+		unit = cfg.Unit
+	}
+
+	speedtest.SetUnit(unit)
 
 	if cfg.SavingMode && !cfg.JSONOutput && !cfg.JSONLOutput && !cfg.UnixOutput {
 		cfg.UnixOutput = true
@@ -57,6 +81,7 @@ func Setup(cfg Config) Config {
 
 // InitViper configures viper for config file and environment variable loading.
 // An empty cfgFile means the default $HOME/.speedtest-go.yaml is used.
+// Environment variables are read with [EnvPrefix].
 func InitViper(cfgFile string) error {
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
@@ -71,6 +96,8 @@ func InitViper(cfgFile string) error {
 		viper.SetConfigName(".speedtest-go")
 	}
 
+	viper.SetEnvPrefix(EnvPrefix)
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
 
 	err := viper.ReadInConfig()
@@ -89,8 +116,33 @@ func InitViper(cfgFile string) error {
 	return fmt.Errorf("failed to read config file: %w", err)
 }
 
-// Load reads the current viper state and returns a Config.
+// Load reads the current viper state and returns a validated Config.
+//
+// Returns:
+//   - Config: the settings.
+//   - error: every invalid setting joined, each wrapping [ErrInvalidSetting].
 func Load() (Config, error) {
+	var errs []error
+
+	invalid := func(flag string, err error) {
+		errs = append(errs, fmt.Errorf("%w --%s: %w", ErrInvalidSetting, flag, err))
+	}
+
+	pingMode, err := parser.ParseProto(viper.GetString("ping-mode"))
+	if err != nil {
+		invalid("ping-mode", err)
+	}
+
+	unit, err := parser.ParseUnit(viper.GetString("unit"))
+	if err != nil {
+		invalid("unit", err)
+	}
+
+	thread, err := parseThread(viper.GetString("thread"))
+	if err != nil {
+		invalid("thread", err)
+	}
+
 	cfg := Config{
 		ServerIDs:     viper.GetIntSlice("server"),
 		CustomURL:     viper.GetString("custom-url"),
@@ -104,23 +156,94 @@ func Load() (Config, error) {
 		Source:        viper.GetString("source"),
 		DNSBindSource: viper.GetBool("dns-bind-source"),
 		Multi:         viper.GetBool("multi"),
-		Thread:        viper.GetInt("thread"),
+		Thread:        thread,
 		Search:        viper.GetString("search"),
 		UserAgent:     viper.GetString("ua"),
 		NoDownload:    viper.GetBool("no-download"),
 		NoUpload:      viper.GetBool("no-upload"),
-		PingMode:      viper.GetString("ping-mode"),
-		Unit:          viper.GetString("unit"),
+		PingMode:      pingMode,
+		Unit:          unit,
+		UnitSet:       true,
 		Debug:         viper.GetBool("debug"),
 		BaseURL:       viper.GetString("base-url"),
 	}
 
 	if cfg.BaseURL != "" {
-		_, err := speedtest.ParseBaseURL(cfg.BaseURL)
+		_, err = speedtest.ParseBaseURL(cfg.BaseURL)
 		if err != nil {
-			return Config{}, fmt.Errorf("invalid --base-url: %w", err)
+			invalid("base-url", err)
 		}
 	}
 
+	err = checkOutputFormats(cfg)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return Config{}, errors.Join(errs...)
+	}
+
 	return cfg, nil
+}
+
+// parseThread parses the connection count.
+//
+// Parameters:
+//   - raw: the setting value. Empty means zero, which lets the library pick.
+//
+// Returns:
+//   - int: the connection count.
+//   - error: the parse error, or an error for a negative count.
+func parseThread(raw string) (int, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, nil
+	}
+
+	thread, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("%q is %w", raw, errNotWholeNumber)
+	}
+
+	if thread < 0 {
+		return 0, fmt.Errorf(
+			"%d is %w: use 0 for the default or a positive count",
+			thread,
+			errNegative,
+		)
+	}
+
+	return thread, nil
+}
+
+// checkOutputFormats rejects more than one of the json, jsonl, and unix output formats.
+//
+// Parameters:
+//   - cfg: the settings to check.
+//
+// Returns:
+//   - error: an error wrapping [ErrInvalidSetting] that names the chosen formats.
+func checkOutputFormats(cfg Config) error {
+	var chosen []string
+
+	for _, format := range []struct {
+		name string
+		set  bool
+	}{
+		{name: "--json", set: cfg.JSONOutput},
+		{name: "--jsonl", set: cfg.JSONLOutput},
+		{name: "--unix", set: cfg.UnixOutput},
+	} {
+		if format.set {
+			chosen = append(chosen, format.name)
+		}
+	}
+
+	if len(chosen) > 1 {
+		return fmt.Errorf("%w: %s cannot be combined, choose one output format",
+			ErrInvalidSetting, strings.Join(chosen, ", "))
+	}
+
+	return nil
 }

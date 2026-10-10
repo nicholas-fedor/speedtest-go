@@ -13,7 +13,6 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/config"
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/echo"
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/output"
-	"github.com/nicholas-fedor/speedtest-go/v2/internal/parser"
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/task"
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/transport"
@@ -36,7 +35,7 @@ func setupSpeedtestClient(cfg config.Config) *speedtest.Speedtest {
 			Source:         cfg.Source,
 			DNSBindSource:  cfg.DNSBindSource,
 			Debug:          cfg.Debug,
-			PingMode:       parser.ParseProto(cfg.PingMode),
+			PingMode:       cfg.PingMode,
 			SavingMode:     cfg.SavingMode,
 			MaxConnections: cfg.Thread,
 			CityFlag:       cfg.City,

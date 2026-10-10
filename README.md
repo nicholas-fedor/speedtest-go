@@ -193,6 +193,22 @@ Flags:
 Use "speedtest-go [command] --help" for more information about a command.
 ```
 
+#### Environment variables
+
+Every flag except `--config` can also be set with an environment variable named `SPEEDTEST_GO_` followed by the flag name in upper case, with hyphens as underscores. A flag on the command line takes precedence over the variable, and the variable over the config file.
+
+```bash
+SPEEDTEST_GO_PING_MODE=tcp SPEEDTEST_GO_DNS_BIND_SOURCE=true speedtest-go
+```
+
+#### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | The command succeeded. |
+| `1` | The command failed. |
+| `2` | A setting is invalid, such as an unknown `--ping-mode` or `--unit`, a negative `--thread`, or more than one of `--json`, `--jsonl` and `--unix`. |
+
 #### Version
 
 ```bash
