@@ -45,6 +45,11 @@ func Init() {
 		cobra.CheckErr(config.InitViper(cfgFile))
 	})
 
+	// Flag values cobra cannot parse, such as a non-numeric --thread, are invalid settings.
+	rootCmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
+		return fmt.Errorf("%w: %w", config.ErrInvalidSetting, err)
+	})
+
 	flags.RegisterRootFlags(rootCmd, &cfgFile)
 
 	rootCmd.AddCommand(listCmd)

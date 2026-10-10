@@ -1,21 +1,45 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/config"
 )
 
-func Test_main(t *testing.T) {
+// TestExitCode checks that invalid settings exit with 2, even when wrapped or joined, and other failures with 1.
+func TestExitCode(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		err  error
 		name string
+		want int
 	}{
-		{"test_main_execution"},
+		{name: "success", err: nil, want: 0},
+		{name: "failure", err: errors.New("network down"), want: 1},
+		{
+			name: "invalid setting",
+			err:  fmt.Errorf("failed to load config: %w", config.ErrInvalidSetting),
+			want: 2,
+		},
+		{
+			name: "joined invalid setting",
+			err: errors.Join(
+				errors.New("other"),
+				fmt.Errorf("%w --unit", config.ErrInvalidSetting),
+			),
+			want: 2,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			t.Skip("main function testing skipped due to flag parsing complexity")
+
+			assert.Equal(t, tt.want, exitCode(tt.err))
 		})
 	}
 }

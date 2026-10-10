@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/parser"
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
 
@@ -129,8 +130,8 @@ func TestLoadReadsViperState(t *testing.T) {
 	assert.Equal(t, "test-agent", cfg.UserAgent)
 	assert.True(t, cfg.NoDownload)
 	assert.False(t, cfg.NoUpload)
-	assert.Equal(t, "icmp", cfg.PingMode)
-	assert.Equal(t, "binary-bytes", cfg.Unit)
+	assert.Equal(t, speedtest.ICMP, cfg.PingMode)
+	assert.Equal(t, speedtest.UnitTypeBinaryBytes, cfg.Unit)
 	assert.True(t, cfg.Debug)
 	assert.Equal(t, "http://127.0.0.1:8080/mirror", cfg.BaseURL)
 }
@@ -160,8 +161,8 @@ func TestLoadReturnsDefaultsWhenViperEmpty(t *testing.T) {
 	assert.Empty(t, cfg.UserAgent)
 	assert.False(t, cfg.NoDownload)
 	assert.False(t, cfg.NoUpload)
-	assert.Empty(t, cfg.PingMode)
-	assert.Empty(t, cfg.Unit)
+	assert.Equal(t, speedtest.HTTP, cfg.PingMode)
+	assert.Equal(t, speedtest.UnitTypeDefaultMbps, cfg.Unit)
 	assert.False(t, cfg.Debug)
 	assert.Empty(t, cfg.BaseURL)
 }
@@ -357,6 +358,171 @@ func TestLoadRejectsInvalidBaseURL(t *testing.T) {
 
 			_, err := Load()
 			require.ErrorIs(t, err, speedtest.ErrInvalidBaseURL)
+			require.ErrorIs(t, err, ErrInvalidSetting)
 		})
 	}
+}
+
+// TestLoadRejectsInvalidSettings checks that each invalid value fails Load with an error wrapping ErrInvalidSetting
+// that names the setting.
+//
+//nolint:paralleltest // mutates global viper
+func TestLoadRejectsInvalidSettings(t *testing.T) {
+	tests := []struct {
+		settings map[string]any
+		wantErr  error
+		name     string
+		want     string
+	}{
+		{
+			name:     "ping mode",
+			settings: map[string]any{"ping-mode": "udp"},
+			wantErr:  parser.ErrUnknownPingMode,
+			want:     "--ping-mode",
+		},
+		{
+			name:     "unit",
+			settings: map[string]any{"unit": "kilobits"},
+			wantErr:  parser.ErrUnknownUnit,
+			want:     "--unit",
+		},
+		{
+			name:     "negative thread",
+			settings: map[string]any{"thread": -1},
+			wantErr:  ErrInvalidSetting,
+			want:     "--thread",
+		},
+		{
+			name:     "non-numeric thread",
+			settings: map[string]any{"thread": "four"},
+			wantErr:  ErrInvalidSetting,
+			want:     "--thread",
+		},
+		{
+			name:     "json and jsonl",
+			settings: map[string]any{"json": true, "jsonl": true},
+			wantErr:  ErrInvalidSetting,
+			want:     "--json, --jsonl cannot be combined",
+		},
+		{
+			name:     "jsonl and unix",
+			settings: map[string]any{"jsonl": true, "unix": true},
+			wantErr:  ErrInvalidSetting,
+			want:     "--jsonl, --unix cannot be combined",
+		},
+		{
+			name:     "all output formats",
+			settings: map[string]any{"json": true, "jsonl": true, "unix": true},
+			wantErr:  ErrInvalidSetting,
+			want:     "--json, --jsonl, --unix cannot be combined",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			viper.Reset()
+			t.Cleanup(viper.Reset)
+
+			for key, value := range tt.settings {
+				viper.Set(key, value)
+			}
+
+			cfg, err := Load()
+			require.ErrorIs(t, err, ErrInvalidSetting)
+			require.ErrorIs(t, err, tt.wantErr)
+			assert.Contains(t, err.Error(), tt.want)
+			assert.Equal(t, Config{}, cfg)
+		})
+	}
+}
+
+// TestLoadReportsEveryInvalidSetting checks that Load reports all invalid settings at once, so a user can fix them
+// in one pass.
+//
+//nolint:paralleltest // mutates global viper
+func TestLoadReportsEveryInvalidSetting(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	viper.Set("ping-mode", "udp")
+	viper.Set("unit", "kilobits")
+	viper.Set("thread", -1)
+	viper.Set("base-url", "ftp://mirror.example")
+	viper.Set("json", true)
+	viper.Set("unix", true)
+
+	_, err := Load()
+	require.ErrorIs(t, err, parser.ErrUnknownPingMode)
+	require.ErrorIs(t, err, parser.ErrUnknownUnit)
+	require.ErrorIs(t, err, speedtest.ErrInvalidBaseURL)
+
+	var joined interface{ Unwrap() []error }
+
+	require.ErrorAs(t, err, &joined)
+	assert.Len(t, joined.Unwrap(), 5)
+
+	for _, each := range joined.Unwrap() {
+		assert.ErrorIs(t, each, ErrInvalidSetting)
+	}
+}
+
+// TestLoadAcceptsSingleOutputFormat checks that each output format alone, and zero connections, are valid.
+//
+//nolint:paralleltest // mutates global viper
+func TestLoadAcceptsSingleOutputFormat(t *testing.T) {
+	for _, key := range []string{"json", "jsonl", "unix"} {
+		t.Run(key, func(t *testing.T) {
+			viper.Reset()
+			t.Cleanup(viper.Reset)
+
+			viper.Set(key, true)
+			viper.Set("thread", 0)
+
+			_, err := Load()
+			require.NoError(t, err)
+		})
+	}
+}
+
+// TestInitViperReadsPrefixedEnv checks that settings come from SPEEDTEST_GO_ variables, with hyphens in a setting
+// name read as underscores, and that unprefixed variables such as DEBUG are ignored.
+func TestInitViperReadsPrefixedEnv(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("SPEEDTEST_GO_PING_MODE", "tcp")
+	t.Setenv("SPEEDTEST_GO_DNS_BIND_SOURCE", "true")
+	t.Setenv("SPEEDTEST_GO_THREAD", "3")
+	t.Setenv("DEBUG", "1")
+	t.Setenv("UNIT", "binary-bits")
+
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	require.NoError(t, InitViper(""))
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	assert.Equal(t, speedtest.TCP, cfg.PingMode)
+	assert.True(t, cfg.DNSBindSource)
+	assert.Equal(t, 3, cfg.Thread)
+	assert.False(t, cfg.Debug)
+	assert.Equal(t, speedtest.UnitTypeDefaultMbps, cfg.Unit)
+}
+
+// TestInitViperRejectsInvalidEnv checks that a bad value from the environment is validated like a flag value.
+func TestInitViperRejectsInvalidEnv(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("SPEEDTEST_GO_THREAD", "many")
+
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	require.NoError(t, InitViper(""))
+
+	_, err := Load()
+	require.ErrorIs(t, err, ErrInvalidSetting)
+	assert.Contains(t, err.Error(), `--thread: "many" is not a whole number`)
 }

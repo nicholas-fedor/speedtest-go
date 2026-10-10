@@ -2,37 +2,67 @@
 package parser
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
 
-// ParseUnit parses the unit string to a UnitType.
-func ParseUnit(str string) speedtest.UnitType {
-	str = strings.ToLower(str)
-	switch str {
+// Parse errors for setting values.
+var (
+	// ErrUnknownUnit is returned for a unit name that is not one of the supported units.
+	ErrUnknownUnit = errors.New("unknown unit")
+	// ErrUnknownPingMode is returned for a ping mode that is not http, tcp, or icmp.
+	ErrUnknownPingMode = errors.New("unknown ping mode")
+)
+
+// ParseUnit parses a unit name, case-insensitively.
+//
+// Parameters:
+//   - str: the unit name. Empty means the default Mbps output.
+//
+// Returns:
+//   - speedtest.UnitType: the unit.
+//   - error: an error wrapping [ErrUnknownUnit] that lists the accepted names.
+func ParseUnit(str string) (speedtest.UnitType, error) {
+	switch strings.ToLower(str) {
+	case "":
+		return speedtest.UnitTypeDefaultMbps, nil
 	case "decimal-bits":
-		return speedtest.UnitTypeDecimalBits
+		return speedtest.UnitTypeDecimalBits, nil
 	case "decimal-bytes":
-		return speedtest.UnitTypeDecimalBytes
+		return speedtest.UnitTypeDecimalBytes, nil
 	case "binary-bits":
-		return speedtest.UnitTypeBinaryBits
+		return speedtest.UnitTypeBinaryBits, nil
 	case "binary-bytes":
-		return speedtest.UnitTypeBinaryBytes
+		return speedtest.UnitTypeBinaryBytes, nil
 	default:
-		return speedtest.UnitTypeDefaultMbps
+		return speedtest.UnitTypeDefaultMbps, fmt.Errorf(
+			"%w %q: use decimal-bits, decimal-bytes, binary-bits, or binary-bytes",
+			ErrUnknownUnit,
+			str,
+		)
 	}
 }
 
-// ParseProto parses the protocol string to a Proto.
-func ParseProto(str string) speedtest.Proto {
-	str = strings.ToLower(str)
-	switch str {
-	case "icmp":
-		return speedtest.ICMP
+// ParseProto parses a ping mode, case-insensitively.
+//
+// Parameters:
+//   - str: the ping mode. Empty means HTTP.
+//
+// Returns:
+//   - speedtest.Proto: the ping protocol.
+//   - error: an error wrapping [ErrUnknownPingMode] that lists the accepted modes.
+func ParseProto(str string) (speedtest.Proto, error) {
+	switch strings.ToLower(str) {
+	case "", "http":
+		return speedtest.HTTP, nil
 	case "tcp":
-		return speedtest.TCP
+		return speedtest.TCP, nil
+	case "icmp":
+		return speedtest.ICMP, nil
 	default:
-		return speedtest.HTTP
+		return speedtest.HTTP, fmt.Errorf("%w %q: use http, tcp, or icmp", ErrUnknownPingMode, str)
 	}
 }

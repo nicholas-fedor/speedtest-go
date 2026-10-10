@@ -6,31 +6,13 @@ import (
 
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/config"
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/output"
-	"github.com/nicholas-fedor/speedtest-go/v2/internal/parser"
-	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
 
 // RunList lists available speedtest servers.
 func RunList(cfg config.Config) error {
 	cfg = config.Setup(cfg)
 
-	// 0. speed test setting
-	speedtestClient := speedtest.New(speedtest.WithUserConfig(
-		&speedtest.UserConfig{
-			UserAgent:      cfg.UserAgent,
-			Proxy:          cfg.Proxy,
-			Source:         cfg.Source,
-			DNSBindSource:  cfg.DNSBindSource,
-			Debug:          cfg.Debug,
-			PingMode:       parser.ParseProto(cfg.PingMode),
-			SavingMode:     cfg.SavingMode,
-			MaxConnections: cfg.Thread,
-			CityFlag:       cfg.City,
-			LocationFlag:   cfg.Location,
-			Keyword:        cfg.Search,
-			BaseURL:        cfg.BaseURL,
-		},
-	))
+	speedtestClient := setupSpeedtestClient(cfg)
 
 	// retrieving servers
 	servers, err := speedtestClient.FetchServers()

@@ -4,100 +4,80 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
 
-const (
-	strDecimalBits  = "decimal-bits"
-	strDecimalBytes = "decimal-bytes"
-	strBinaryBits   = "binary-bits"
-	strBinaryBytes  = "binary-bytes"
-	strICMP         = "icmp"
-	strTCP          = "tcp"
-)
-
+// TestParseUnit checks every unit name, case-insensitivity, the empty default, and that unknown names are rejected.
 func TestParseUnit(t *testing.T) {
 	t.Parallel()
 
-	type args struct {
-		str string
-	}
-
 	tests := []struct {
-		name string
-		args args
-		want speedtest.UnitType
+		wantErr error
+		name    string
+		str     string
+		want    speedtest.UnitType
 	}{
+		{name: "empty", str: "", want: speedtest.UnitTypeDefaultMbps},
+		{name: "decimal-bits", str: "decimal-bits", want: speedtest.UnitTypeDecimalBits},
+		{name: "decimal-bytes", str: "decimal-bytes", want: speedtest.UnitTypeDecimalBytes},
+		{name: "binary-bits", str: "binary-bits", want: speedtest.UnitTypeBinaryBits},
+		{name: "binary-bytes", str: "binary-bytes", want: speedtest.UnitTypeBinaryBytes},
+		{name: "upper case", str: "Binary-Bytes", want: speedtest.UnitTypeBinaryBytes},
 		{
-			name: strDecimalBits,
-			args: args{str: strDecimalBits},
-			want: speedtest.UnitTypeDecimalBits,
-		},
-		{
-			name: strDecimalBytes,
-			args: args{str: strDecimalBytes},
-			want: speedtest.UnitTypeDecimalBytes,
-		},
-		{
-			name: strBinaryBits,
-			args: args{str: strBinaryBits},
-			want: speedtest.UnitTypeBinaryBits,
-		},
-		{
-			name: strBinaryBytes,
-			args: args{str: strBinaryBytes},
-			want: speedtest.UnitTypeBinaryBytes,
-		},
-		{
-			name: "default",
-			args: args{str: "unknown"},
-			want: speedtest.UnitTypeDefaultMbps,
+			name:    "unknown",
+			str:     "unknown",
+			want:    speedtest.UnitTypeDefaultMbps,
+			wantErr: ErrUnknownUnit,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := ParseUnit(tt.args.str)
+			got, err := ParseUnit(tt.str)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				assert.Contains(t, err.Error(), tt.str)
+			} else {
+				require.NoError(t, err)
+			}
+
 			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
+// TestParseProto checks every ping mode, case-insensitivity, the empty default, and that unknown modes are rejected.
 func TestParseProto(t *testing.T) {
 	t.Parallel()
 
-	type args struct {
-		str string
-	}
-
 	tests := []struct {
-		name string
-		args args
-		want speedtest.Proto
+		wantErr error
+		name    string
+		str     string
+		want    speedtest.Proto
 	}{
-		{
-			name: strICMP,
-			args: args{str: strICMP},
-			want: speedtest.ICMP,
-		},
-		{
-			name: strTCP,
-			args: args{str: strTCP},
-			want: speedtest.TCP,
-		},
-		{
-			name: "default http",
-			args: args{str: "unknown"},
-			want: speedtest.HTTP,
-		},
+		{name: "empty", str: "", want: speedtest.HTTP},
+		{name: "http", str: "http", want: speedtest.HTTP},
+		{name: "tcp", str: "tcp", want: speedtest.TCP},
+		{name: "icmp", str: "icmp", want: speedtest.ICMP},
+		{name: "upper case", str: "ICMP", want: speedtest.ICMP},
+		{name: "unknown", str: "udp", want: speedtest.HTTP, wantErr: ErrUnknownPingMode},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := ParseProto(tt.args.str)
+			got, err := ParseProto(tt.str)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				assert.Contains(t, err.Error(), tt.str)
+			} else {
+				require.NoError(t, err)
+			}
+
 			assert.Equal(t, tt.want, got)
 		})
 	}
