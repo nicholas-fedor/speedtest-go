@@ -53,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Stop pings and speed tests when their context ends by @nicholas-fedor in [#442](https://github.com/nicholas-fedor/speedtest-go/pull/442)
 - Sample packet loss in step and close its connections by @nicholas-fedor in [#440](https://github.com/nicholas-fedor/speedtest-go/pull/440)
 - Close connections and end pings with their context by @nicholas-fedor in [#438](https://github.com/nicholas-fedor/speedtest-go/pull/438)
 - Reject HTTP error responses by @nicholas-fedor in [#434](https://github.com/nicholas-fedor/speedtest-go/pull/434)
