@@ -815,6 +815,123 @@ func Test_watchContext(t *testing.T) {
 	})
 }
 
+// sendLossDatagrams sends packet-loss datagrams for a client UUID to the fake server's UDP port.
+func sendLossDatagrams(t *testing.T, srv *testserver.TCPServer, uuid string, orders ...int) {
+	t.Helper()
+
+	sender, err := NewPacketLossSender(uuid, &net.Dialer{})
+	require.NoError(t, err)
+	require.NoError(t, sender.Connect(context.Background(), srv.Addr()))
+
+	defer func() { _ = sender.Close() }()
+
+	for _, order := range orders {
+		require.NoError(t, sender.Send(order))
+	}
+}
+
+// TestClient_InitPacketLossContext_FakeServer checks that setup consumes the HELLO and OK replies, so the very
+// first PLOSS request returns the current counts instead of a stale setup reply.
+func TestClient_InitPacketLossContext_FakeServer(t *testing.T) {
+	t.Parallel()
+
+	srv := testserver.NewTCPServer(t)
+	client := connectFake(t, srv)
+
+	require.NoError(t, client.InitPacketLossContext(context.Background()))
+	assert.Equal(t, "2.11 (2.11.0) testserver", client.version, "setup records the server version")
+
+	sendLossDatagrams(t, srv, client.ID(), 0, 1, 1, 3)
+
+	require.Eventually(
+		t,
+		func() bool { return srv.LossPackets(client.ID()) == 4 },
+		5*time.Second,
+		10*time.Millisecond,
+	)
+
+	loss, err := client.PacketLossContext(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, &PLoss{Sent: 4, Dup: 1, Max: 3}, loss)
+}
+
+// TestClient_InitPacketLossContext_Replies checks that setup rejects replies other than HELLO and OK.
+func TestClient_InitPacketLossContext_Replies(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		replies []string
+	}{
+		{name: "HI answered with something else", replies: []string{"ERROR\n"}},
+		{
+			name:    "INITPLOSS answered with something else",
+			replies: []string{"HELLO 2.11\n", "ERROR\n"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			local, remote := net.Pipe()
+
+			t.Cleanup(func() {
+				_ = local.Close()
+				_ = remote.Close()
+			})
+
+			go func() {
+				reader := bufio.NewReader(remote)
+				for _, reply := range tt.replies {
+					_, err := reader.ReadString('\n')
+					if err != nil {
+						return
+					}
+
+					_, _ = io.WriteString(remote, reply)
+				}
+			}()
+
+			client := &Client{id: "test-id", conn: local, reader: bufio.NewReader(local)}
+
+			require.ErrorIs(
+				t,
+				client.InitPacketLossContext(context.Background()),
+				ErrInvalidResponse,
+			)
+		})
+	}
+
+	t.Run("not connected", func(t *testing.T) {
+		t.Parallel()
+
+		require.ErrorIs(t, (&Client{}).InitPacketLossContext(context.Background()), ErrEmptyConn)
+	})
+}
+
+// TestClient_PacketLossContext_Deadline checks that a stalled server cannot hold a sample past its deadline.
+func TestClient_PacketLossContext_Deadline(t *testing.T) {
+	t.Parallel()
+
+	srv := testserver.NewTCPServer(t)
+	srv.SetFaults(testserver.Faults{Delay: time.Second})
+
+	client := connectFake(t, srv)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	_, err := client.PacketLossContext(ctx)
+
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Less(t, time.Since(start), 500*time.Millisecond)
+
+	_, err = (&Client{}).PacketLossContext(context.Background())
+	require.ErrorIs(t, err, ErrEmptyConn)
+}
+
 // expiredDeadline is a context whose deadline has passed while Err still reports nil, the window in which the
 // socket's own timeout can fire first.
 //

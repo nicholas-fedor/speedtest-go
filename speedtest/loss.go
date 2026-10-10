@@ -2,6 +2,8 @@ package speedtest
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -26,6 +28,9 @@ type PacketLossAnalyzer struct {
 }
 
 // NewPacketLossAnalyzer creates a new packet loss analyzer with the given options.
+//
+// When SourceInterface is an IP address, optionally with a network prefix such as "udp://", the default TCP and
+// UDP dialers bind to it. Other values leave the dialers unbound. Dialers set in the options are used as given.
 func NewPacketLossAnalyzer(options *PacketLossAnalyzerOptions) *PacketLossAnalyzer {
 	if options == nil {
 		options = &PacketLossAnalyzerOptions{}
@@ -47,22 +52,19 @@ func NewPacketLossAnalyzer(options *PacketLossAnalyzerOptions) *PacketLossAnalyz
 		options.PacketSendingTimeout = 5 * time.Second
 	}
 
+	sourceIP := packetLossSourceIP(options.SourceInterface)
+
 	if options.TCPDialer == nil {
-		options.TCPDialer = &net.Dialer{
-			Timeout: options.PacketSendingTimeout,
+		options.TCPDialer = &net.Dialer{Timeout: options.PacketSendingTimeout}
+		if sourceIP != nil {
+			options.TCPDialer.LocalAddr = &net.TCPAddr{IP: sourceIP}
 		}
 	}
 
 	if options.UDPDialer == nil {
-		var addr net.Addr
-		if len(options.SourceInterface) > 0 {
-			// skip error and using auto-select
-			addr, _ = net.ResolveUDPAddr("udp", options.SourceInterface)
-		}
-
-		options.UDPDialer = &net.Dialer{
-			Timeout:   options.PacketSendingTimeout,
-			LocalAddr: addr,
+		options.UDPDialer = &net.Dialer{Timeout: options.PacketSendingTimeout}
+		if sourceIP != nil {
+			options.UDPDialer.LocalAddr = &net.UDPAddr{IP: sourceIP}
 		}
 	}
 
@@ -135,6 +137,19 @@ func (pla *PacketLossAnalyzer) Run(host string, callback func(packetLoss *transp
 }
 
 // RunWithContext performs packet loss analysis on a single host with context.
+//
+// It connects a TCP sampler and a UDP sender, registers the sampler's UUID, sends datagrams, and reports the
+// server's counts to callback at each sampling interval until ctx ends. Both connections are closed before it
+// returns, after the send loop has stopped.
+//
+// Parameters:
+//   - ctx: ends the analysis. Its end is the normal way to finish.
+//   - host: the server's host:port.
+//   - callback: receives each sample.
+//
+// Returns:
+//   - error: [transport.ErrUnsupported] wrapping the cause when setup fails, the sampling error when the
+//     connection fails during the run, or nil when ctx ends the run.
 func (pla *PacketLossAnalyzer) RunWithContext(
 	ctx context.Context,
 	host string,
@@ -142,58 +157,89 @@ func (pla *PacketLossAnalyzer) RunWithContext(
 ) error {
 	samplerClient, err := transport.NewClient(pla.options.TCPDialer)
 	if err != nil {
-		return transport.ErrUnsupported
+		return fmt.Errorf("%w: %w", transport.ErrUnsupported, err)
 	}
 
 	senderClient, err := transport.NewPacketLossSender(samplerClient.ID(), pla.options.UDPDialer)
 	if err != nil {
-		return transport.ErrUnsupported
+		return fmt.Errorf("%w: %w", transport.ErrUnsupported, err)
 	}
 
 	err = samplerClient.Connect(ctx, host)
 	if err != nil {
-		return transport.ErrUnsupported
+		return fmt.Errorf("%w: %w", transport.ErrUnsupported, err)
 	}
+
+	defer func() { _ = samplerClient.Disconnect() }()
 
 	err = senderClient.Connect(ctx, host)
 	if err != nil {
-		return transport.ErrUnsupported
+		return fmt.Errorf("%w: %w", transport.ErrUnsupported, err)
 	}
 
-	err = samplerClient.InitPacketLoss()
+	defer func() { _ = senderClient.Close() }()
+
+	err = samplerClient.InitPacketLossContext(ctx)
 	if err != nil {
-		return transport.ErrUnsupported
+		return fmt.Errorf("%w: %w", transport.ErrUnsupported, err)
 	}
 
-	go pla.loopSender(ctx, senderClient)
+	// The send loop must stop before the sender is closed, so stop it and wait for it before the deferred Close.
+	sendCtx, stopSending := context.WithCancel(ctx)
 
-	pla.loopSampler(ctx, samplerClient, callback)
+	var sending sync.WaitGroup
 
-	return nil
+	sending.Go(func() { pla.loopSender(sendCtx, senderClient) })
+
+	defer func() {
+		stopSending()
+		sending.Wait()
+	}()
+
+	return pla.loopSampler(ctx, samplerClient, callback)
 }
 
-func (pla *PacketLossAnalyzer) loopSampler(ctx context.Context, client *transport.Client,
+// loopSampler reports the server's counts to callback at each sampling interval until ctx ends.
+//
+// Parameters:
+//   - ctx: ends the sampling.
+//   - client: the connected and registered sampler.
+//   - callback: receives each sample.
+//
+// Returns:
+//   - error: the first sampling error, or nil when ctx ends the sampling.
+func (pla *PacketLossAnalyzer) loopSampler(
+	ctx context.Context,
+	client *transport.Client,
 	callback func(packetLoss *transport.PLoss),
-) {
+) error {
 	ticker := time.NewTicker(pla.options.RemoteSamplingInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			// PacketLoss errors are intentionally suppressed to allow sampling to continue
-			// despite transient network errors; the loop continues on failure.
-			packetLoss, _ := client.PacketLoss()
+			packetLoss, err := client.PacketLossContext(ctx)
+			if err != nil {
+				if endedByContext(ctx, err) {
+					return nil
+				}
 
-			if packetLoss != nil {
-				callback(packetLoss)
+				return fmt.Errorf("packet loss sampling failed: %w", err)
 			}
+
+			callback(packetLoss)
 		case <-ctx.Done():
-			return
+			return nil
 		}
 	}
 }
 
+// loopSender sends one numbered datagram per sending interval until ctx ends.
+//
+// Parameters:
+//   - ctx: ends the sending.
+//   - senderClient: the connected sender.
 func (pla *PacketLossAnalyzer) loopSender(
 	ctx context.Context,
 	senderClient *transport.PacketLossSender,
@@ -212,4 +258,40 @@ func (pla *PacketLossAnalyzer) loopSender(
 			return
 		}
 	}
+}
+
+// endedByContext reports whether a sampling error means the run's context ended rather than the connection failing.
+//
+// The sampler's connection deadline equals the context deadline, so the request can fail with a deadline error a
+// moment before ctx.Err reports it. The transport attributes such errors to the context, so they count as well.
+//
+// Parameters:
+//   - ctx: the run's context.
+//   - err: the sampling error.
+//
+// Returns:
+//   - bool: true when the error marks the normal end of the run.
+func endedByContext(ctx context.Context, err error) bool {
+	if ctx.Err() != nil {
+		return true
+	}
+
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
+// packetLossSourceIP parses the analyzer's source as an IP address.
+//
+// Parameters:
+//   - source: the configured source, possibly with a network prefix such as "udp://".
+//
+// Returns:
+//   - net.IP: the source IP, or nil when the source is empty or not an IP address.
+func packetLossSourceIP(source string) net.IP {
+	if len(source) == 0 {
+		return nil
+	}
+
+	_, address := parseAddr(source)
+
+	return net.ParseIP(address)
 }
