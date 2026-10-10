@@ -1,6 +1,7 @@
 package speedtest
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,6 +24,12 @@ func TestNewDebug(t *testing.T) {
 			got := NewDebug()
 			assert.NotNil(t, got)
 			assert.False(t, got.flag)
+			assert.Same(
+				t,
+				os.Stderr,
+				got.dbg.Writer(),
+				"debug output must not mix into results on stdout",
+			)
 			assert.NotNil(t, got.dbg)
 		})
 	}

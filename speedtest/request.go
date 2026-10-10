@@ -94,7 +94,13 @@ func (s *Server) multiTestContext(
 		return ErrUninitializedManager
 	}
 
-	testDirection.Start(cancel, mainIDIndex) // block here
+	testDirection.StartContext(ctx, cancel, mainIDIndex) // block here
+
+	// A cancelled test measured nothing useful, so leave the server's earlier results as they were.
+	err := ctx.Err()
+	if err != nil {
+		return fmt.Errorf("speed test ended by context: %w", err)
+	}
 
 	rate := ByteRate(getRate())
 	setSpeed(rate)
@@ -182,6 +188,9 @@ func (s *Server) testContext(
 
 	start := time.Now()
 	_context, cancel := context.WithCancel(ctx)
+
+	defer cancel()
+
 	register(func() {
 		atomic.AddInt64(&requestTimes, 1)
 
@@ -189,7 +198,13 @@ func (s *Server) testContext(
 		if err != nil {
 			atomic.AddInt64(&errorTimes, 1)
 		}
-	}).Start(cancel, 0)
+	}).StartContext(ctx, cancel, 0)
+
+	// A cancelled test measured nothing useful, so leave the server's earlier results as they were.
+	err := ctx.Err()
+	if err != nil {
+		return fmt.Errorf("speed test ended by context: %w", err)
+	}
 
 	duration := time.Since(start)
 
@@ -372,6 +387,12 @@ func (s *Server) PingTestContext(ctx context.Context, callback func(latency time
 		return err
 	}
 
+	// A ping cut short by its context measured too little, so keep the server's earlier latency results.
+	err = ctx.Err()
+	if err != nil {
+		return fmt.Errorf("ping ended by context: %w", err)
+	}
+
 	dbg.Printf("Before StandardDeviation: %v\n", vectorPingResult)
 	mean, _, std, minLatency, maxLatency := StandardDeviation(vectorPingResult)
 	duration := time.Since(start)
@@ -455,6 +476,10 @@ func (s *Server) TCPPing(
 	for range echoTimes {
 		latency, err := client.PingContext(ctx)
 		if err != nil {
+			if isContextError(err) {
+				return latencies, fmt.Errorf("TCP ping ended by context: %w", err)
+			}
+
 			failTimes++
 
 			continue
@@ -465,7 +490,10 @@ func (s *Server) TCPPing(
 			callback(time.Duration(latency))
 		}
 
-		time.Sleep(echoFreq)
+		err = sleepContext(ctx, echoFreq)
+		if err != nil {
+			return latencies, err
+		}
 	}
 
 	if failTimes == echoTimes {
@@ -556,7 +584,12 @@ func (s *Server) HTTPPing(
 			}
 		}
 
-		time.Sleep(echoFreq)
+		err = sleepContext(ctx, echoFreq)
+		if err != nil {
+			contextErr = err
+
+			break
+		}
 	}
 
 	if contextErr != nil {
@@ -620,13 +653,29 @@ func (s *Server) ICMPPing(
 
 	defer func() { _ = dialContext.Close() }()
 
+	// Each echo's read has its own deadline, so close the socket when ctx ends to unblock a pending read. Closing
+	// cannot be undone by the next echo's deadline, unlike moving the deadline.
+	stopClosing := context.AfterFunc(ctx, func() { _ = dialContext.Close() })
+	defer stopClosing()
+
 	icmpData := prepareICMPPacket()
 
 	failTimes := 0
 
 	for i := range echoTimes {
+		err := ctx.Err()
+		if err != nil {
+			return latencies, fmt.Errorf("ICMP ping ended by context: %w", err)
+		}
+
 		latency, err := s.sendOneICMPPing(dialContext, icmpData, i, readTimeout)
 		if err != nil {
+			// A read cut off by the closed socket is the context ending, not a lost echo.
+			ctxErr := ctx.Err()
+			if ctxErr != nil {
+				return latencies, fmt.Errorf("ICMP ping ended by context: %w", ctxErr)
+			}
+
 			failTimes++
 
 			continue
@@ -639,7 +688,10 @@ func (s *Server) ICMPPing(
 			callback(latency)
 		}
 
-		time.Sleep(echoFreq)
+		err = sleepContext(ctx, echoFreq)
+		if err != nil {
+			return latencies, err
+		}
 	}
 
 	if failTimes == echoTimes {
@@ -756,6 +808,48 @@ func checkSum(data []byte) uint16 {
 	}
 
 	return ^uint16(sum)
+}
+
+// sleepContext waits for wait, returning early when ctx ends.
+//
+// Parameters:
+//   - ctx: ends the wait early.
+//   - wait: how long to wait.
+//
+// Returns:
+//   - error: a wrapped context error when ctx ended first, or nil.
+func sleepContext(ctx context.Context, wait time.Duration) error {
+	err := ctx.Err()
+	if err != nil {
+		return fmt.Errorf("ping ended by context: %w", err)
+	}
+
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("ping ended by context: %w", ctx.Err())
+	case <-timer.C:
+		// When both cases are ready, select picks either one, so a context that ended meanwhile still wins.
+		err := ctx.Err()
+		if err != nil {
+			return fmt.Errorf("ping ended by context: %w", err)
+		}
+
+		return nil
+	}
+}
+
+// isContextError reports whether err comes from a cancelled or expired context.
+//
+// Parameters:
+//   - err: the error to check.
+//
+// Returns:
+//   - bool: true when err wraps [context.Canceled] or [context.DeadlineExceeded].
+func isContextError(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 // StandardDeviation calculates the mean, variance, standard deviation, min, and max of a vector.

@@ -12,8 +12,13 @@ type Debug struct {
 }
 
 // NewDebug creates a new debug logger.
+//
+// It writes to standard error, so debug output never mixes into results written to standard output, such as JSON.
+//
+// Returns:
+//   - *Debug: the logger, disabled until [Debug.Enable] is called.
 func NewDebug() *Debug {
-	return &Debug{dbg: log.New(os.Stdout, "[DBG]", log.Ldate|log.Ltime)}
+	return &Debug{dbg: log.New(os.Stderr, "[DBG]", log.Ldate|log.Ltime)}
 }
 
 // Enable enables debug logging.
