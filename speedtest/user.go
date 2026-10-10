@@ -63,6 +63,11 @@ func (s *Speedtest) FetchUserInfoContext(ctx context.Context) (*User, error) {
 
 	defer func() { _ = resp.Body.Close() }()
 
+	err = checkStatus(resp)
+	if err != nil {
+		return nil, fmt.Errorf("user info request failed: %w", err)
+	}
+
 	// Decode xml
 	decoder := xml.NewDecoder(resp.Body)
 

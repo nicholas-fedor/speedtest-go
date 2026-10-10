@@ -32,6 +32,9 @@ var (
 // ErrConnectTimeout is returned when server connection times out.
 var ErrConnectTimeout = errors.New("server connect timeout")
 
+// errNoHost reports a server URL that parses but names no host, such as a relative path.
+var errNoHost = errors.New("server URL has no host")
+
 var (
 	// ErrServerNil is returned when the server is nil.
 	ErrServerNil = errors.New("server is nil")
@@ -284,10 +287,18 @@ func downloadRequest(ctx context.Context, server *Server, writer int) error {
 
 	defer func() { _ = resp.Body.Close() }()
 
-	return fmt.Errorf(
-		"failed to download data: %w",
-		server.Context.NewChunk().DownloadHandler(resp.Body),
-	)
+	// An error page must not count as downloaded data, so check before handing the body to a chunk.
+	err = checkStatus(resp)
+	if err != nil {
+		return fmt.Errorf("download request failed: %w", err)
+	}
+
+	err = server.Context.NewChunk().DownloadHandler(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to download data: %w", err)
+	}
+
+	return nil
 }
 
 func uploadRequest(ctx context.Context, server *Server, writer int) error {
@@ -412,8 +423,12 @@ func (s *Server) TCPPing(
 
 	if len(s.Host) == 0 {
 		u, err := url.Parse(s.URL)
-		if err != nil || len(u.Host) == 0 {
+		if err != nil {
 			return nil, fmt.Errorf("failed to parse server URL for TCP ping: %w", err)
+		}
+
+		if len(u.Host) == 0 {
+			return nil, fmt.Errorf("invalid server URL %q for TCP ping: %w", s.URL, errNoHost)
 		}
 
 		pingDst = u.Host
@@ -473,11 +488,15 @@ func (s *Server) HTTPPing(
 		return nil, ErrUninitializedManager
 	}
 
-	var contextErr error
+	var contextErr, lastErr error
 
 	u, err := url.Parse(s.URL)
-	if err != nil || len(u.Host) == 0 {
-		return nil, fmt.Errorf("failed to parse server URL for TCP ping: %w", err)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse server URL for HTTP ping: %w", err)
+	}
+
+	if len(u.Host) == 0 {
+		return nil, fmt.Errorf("invalid server URL %q for HTTP ping: %w", s.URL, errNoHost)
 	}
 
 	u.Path = path.Dir(u.Path)
@@ -506,13 +525,24 @@ func (s *Server) HTTPPing(
 				break
 			}
 
+			lastErr = err
 			failTimes++
 
 			continue
 		}
 
+		// A server that answers with an error status must not look reachable, or it could win server selection.
+		statusErr := checkStatus(resp)
+
 		_, _ = io.Copy(io.Discard, resp.Body)
 		_ = resp.Body.Close()
+
+		if statusErr != nil {
+			lastErr = statusErr
+			failTimes++
+
+			continue
+		}
 
 		if i > 0 {
 			latency := endTime.Nanoseconds()
@@ -532,7 +562,7 @@ func (s *Server) HTTPPing(
 	}
 
 	if failTimes == echoTimes {
-		return nil, ErrConnectTimeout
+		return nil, fmt.Errorf("%w: %w", ErrConnectTimeout, lastErr)
 	}
 
 	return latencies, nil
@@ -567,8 +597,12 @@ func (s *Server) ICMPPing(
 	latencies := make([]int64, 0, echoTimes)
 
 	u, err := url.ParseRequestURI(s.URL)
-	if err != nil || len(u.Host) == 0 {
+	if err != nil {
 		return nil, fmt.Errorf("failed to parse ICMP URL: %w", err)
+	}
+
+	if len(u.Host) == 0 {
+		return nil, fmt.Errorf("invalid server URL %q for ICMP ping: %w", s.URL, errNoHost)
 	}
 
 	dbg.Printf("Echo: %s\n", strings.Split(u.Host, ":")[0])

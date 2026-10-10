@@ -3,6 +3,7 @@ package speedtest
 import (
 	"context"
 	"net"
+	"net/http"
 	"runtime"
 	"slices"
 	"strings"
@@ -642,6 +643,180 @@ func Test_checkSum(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// runningClient returns a client whose data manager accepts transferred bytes, as it does during a test.
+func runningClient(t *testing.T) (*Speedtest, *DataManager) {
+	t.Helper()
+
+	client := New()
+
+	manager, ok := client.Manager.(*DataManager)
+	require.True(t, ok)
+
+	manager.runningRW.Lock()
+	manager.running = true
+	manager.runningRW.Unlock()
+
+	return client, manager
+}
+
+// Test_downloadRequest_FakeServer checks that a successful download returns no error and counts its bytes, and that
+// an error status returns a status error without counting the error page or creating a chunk.
+func Test_downloadRequest_FakeServer(t *testing.T) {
+	t.Parallel()
+
+	t.Run("success", func(t *testing.T) {
+		t.Parallel()
+
+		api := testserver.NewAPI(t)
+		client, manager := runningClient(t)
+		server := &Server{URL: api.ServerUploadURL("1001"), Context: client}
+
+		require.NoError(t, downloadRequest(context.Background(), server, 0))
+
+		assert.Equal(t, int64(testserver.DefaultDownloadSize), manager.GetTotalDownload())
+	})
+
+	t.Run("error status", func(t *testing.T) {
+		t.Parallel()
+
+		api := testserver.NewAPI(t)
+		api.SetResponse(
+			testserver.PathDownload,
+			testserver.Response{Status: http.StatusInternalServerError, Body: "error page"},
+		)
+
+		client, manager := runningClient(t)
+		server := &Server{URL: api.ServerUploadURL("1001"), Context: client}
+
+		err := downloadRequest(context.Background(), server, 0)
+		require.ErrorIs(t, err, ErrUnexpectedStatus)
+
+		assert.Zero(
+			t,
+			manager.GetTotalDownload(),
+			"the error page must not count as downloaded data",
+		)
+		assert.Empty(t, *manager.Snapshot, "no chunk should be created for an error page")
+	})
+}
+
+// TestServer_DownloadTestContext_ErrorStatus checks that a server answering downloads with an error status ends with
+// a download speed of N/A instead of a rate measured from error pages.
+func TestServer_DownloadTestContext_ErrorStatus(t *testing.T) {
+	t.Parallel()
+
+	api := testserver.NewAPI(t)
+	api.SetResponse(
+		testserver.PathDownload,
+		testserver.Response{Status: http.StatusInternalServerError, Body: "error page"},
+	)
+
+	client := New(WithUserConfig(&UserConfig{MaxConnections: 2}))
+	client.SetCaptureTime(300 * time.Millisecond)
+
+	server := &Server{URL: api.ServerUploadURL("1001"), Context: client}
+
+	require.NoError(t, server.DownloadTestContext(context.Background()))
+
+	assert.InDelta(
+		t,
+		-1,
+		float64(server.DLSpeed),
+		1e-9,
+		"a test of only failed requests reports N/A",
+	)
+	assert.Zero(t, client.GetTotalDownload())
+}
+
+// TestServer_HTTPPing_ErrorStatus checks that error statuses fail the probe, and that the error names both the
+// timeout and the status.
+func TestServer_HTTPPing_ErrorStatus(t *testing.T) {
+	t.Parallel()
+
+	api := testserver.NewAPI(t)
+	api.SetResponse(
+		testserver.PathLatency,
+		testserver.Response{Status: http.StatusInternalServerError},
+	)
+
+	server := &Server{URL: api.ServerUploadURL("1001"), Context: New()}
+
+	latencies, err := server.HTTPPing(context.Background(), 2, time.Millisecond, nil)
+
+	require.ErrorIs(t, err, ErrConnectTimeout)
+	require.ErrorIs(t, err, ErrUnexpectedStatus)
+	assert.Nil(t, latencies)
+}
+
+// TestServer_Ping_NoHost checks that each ping reports a server URL without a host as errNoHost, instead of
+// wrapping a nil parse error.
+func TestServer_Ping_NoHost(t *testing.T) {
+	t.Parallel()
+
+	server := &Server{URL: "/speedtest/upload.php", Context: New()}
+
+	tests := []struct {
+		ping func() error
+		name string
+	}{
+		{
+			name: "TCP",
+			ping: func() error {
+				_, err := server.TCPPing(context.Background(), 1, time.Millisecond, nil)
+
+				return err
+			},
+		},
+		{
+			name: "HTTP",
+			ping: func() error {
+				_, err := server.HTTPPing(context.Background(), 1, time.Millisecond, nil)
+
+				return err
+			},
+		},
+		{
+			name: "ICMP",
+			ping: func() error {
+				_, err := server.ICMPPing(
+					context.Background(),
+					time.Second,
+					1,
+					time.Millisecond,
+					nil,
+				)
+
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.ping()
+
+			require.ErrorIs(t, err, errNoHost)
+			assert.NotContains(t, err.Error(), "%!w", "the error must not wrap a nil cause")
+			assert.Contains(t, err.Error(), server.URL)
+		})
+	}
+}
+
+// TestServer_HTTPPing_Success checks that each requested echo after the warm-up yields a latency.
+func TestServer_HTTPPing_Success(t *testing.T) {
+	t.Parallel()
+
+	api := testserver.NewAPI(t)
+	server := &Server{URL: api.ServerUploadURL("1001"), Context: New()}
+
+	latencies, err := server.HTTPPing(context.Background(), 3, time.Millisecond, nil)
+	require.NoError(t, err)
+
+	assert.Len(t, latencies, 3)
 }
 
 // Test_checkSum_Verifies checks the property receivers rely on: a message carrying its checksum sums to zero.

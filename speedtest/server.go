@@ -205,6 +205,11 @@ func (s *Speedtest) FetchServerByIDContext(ctx context.Context, serverID string)
 
 	defer func() { _ = resp.Body.Close() }()
 
+	err = checkStatus(resp)
+	if err != nil {
+		return nil, fmt.Errorf("server lookup request failed: %w", err)
+	}
+
 	var list ServerList
 
 	decoder := xml.NewDecoder(resp.Body)
@@ -308,6 +313,9 @@ func (s *Speedtest) buildServerListURL() (*url.URL, error) {
 }
 
 // fetchServerListResponse performs the HTTP request for server list, handling fallback to alternative URL.
+//
+// The XML list is used when the JSON list comes back empty or with a status outside 2xx. An error status from the
+// XML list is returned as a *StatusError.
 func (s *Speedtest) fetchServerListResponse(
 	ctx context.Context,
 	reqURL *url.URL,
@@ -324,8 +332,13 @@ func (s *Speedtest) fetchServerListResponse(
 
 	payloadType := typeJSONPayload
 
-	if resp.ContentLength == 0 {
+	statusErr := checkStatus(resp)
+	if statusErr != nil || resp.ContentLength == 0 {
 		_ = resp.Body.Close()
+
+		if statusErr != nil {
+			dbg.Printf("Server list failed, trying the alternative list: %v\n", statusErr)
+		}
 
 		alternativeURL, err := s.endpoint(serversAlternativePath)
 		if err != nil {
@@ -345,6 +358,13 @@ func (s *Speedtest) fetchServerListResponse(
 		resp, err = s.doer.Do(req)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to perform alternative HTTP request: %w", err)
+		}
+
+		err = checkStatus(resp)
+		if err != nil {
+			_ = resp.Body.Close()
+
+			return nil, 0, fmt.Errorf("alternative server list request failed: %w", err)
 		}
 
 		payloadType = typeXMLPayload
