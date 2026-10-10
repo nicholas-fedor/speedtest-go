@@ -692,6 +692,8 @@ func TestDataChunk_GetDuration(t *testing.T) {
 	}
 }
 
+// TestDataChunk_GetRate checks the download rate of a chunk. Fixed timestamps keep the span exactly one second, where
+// two calls to time.Now drift apart under load.
 func TestDataChunk_GetRate(t *testing.T) {
 	t.Parallel()
 
@@ -710,8 +712,8 @@ func TestDataChunk_GetRate(t *testing.T) {
 
 			dataChunk := &DataChunk{
 				dateType:            typeDownload,
-				startTime:           time.Now().Add(-time.Second),
-				endTime:             time.Now(),
+				startTime:           time.Unix(0, 0),
+				endTime:             time.Unix(1, 0),
 				remainOrDiscardSize: 1000,
 			}
 			got := dataChunk.GetRate()
