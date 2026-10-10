@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/testserver"
 )
 
 func TestNewPacketLossSender(t *testing.T) {
@@ -117,4 +119,23 @@ func Test_generateUUID(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, got)
 	assert.Len(t, got, 36) // UUID format
+}
+
+// TestPacketLossSender_Close checks that Close releases the socket, is safe before Connect and when repeated, and
+// that sending afterwards reports no connection instead of panicking.
+func TestPacketLossSender_Close(t *testing.T) {
+	t.Parallel()
+
+	srv := testserver.NewTCPServer(t)
+
+	sender, err := NewPacketLossSender("0f8fad5b-d9cb-469f-a165-70867728950e", &net.Dialer{})
+	require.NoError(t, err)
+
+	require.NoError(t, sender.Close(), "closing before Connect is a no-op")
+	require.NoError(t, sender.Connect(context.Background(), srv.Addr()))
+	require.NoError(t, sender.Send(0))
+	require.NoError(t, sender.Close())
+	require.NoError(t, sender.Close(), "a second Close is a no-op")
+
+	require.ErrorIs(t, sender.Send(1), ErrEmptyConn)
 }

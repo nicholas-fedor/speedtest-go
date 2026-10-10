@@ -6,7 +6,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"os"
 	"strconv"
 	"time"
 )
@@ -34,10 +36,18 @@ var (
 	ErrUninitializedPacketLossInst = errors.New("uninitialized packet loss inst")
 	// ErrInvalidPacketLossResponse is returned when the packet loss response is invalid.
 	ErrInvalidPacketLossResponse = errors.New("invalid packet loss response")
+	// ErrInvalidResponse is returned when the server's reply does not follow the protocol.
+	ErrInvalidResponse = errors.New("invalid TCP speedtest response")
+	// ErrNilDialer is returned when a client is created without a dialer and asked to connect.
+	ErrNilDialer = errors.New("transport client has no dialer")
 )
 
+// helloPrefix starts the server's reply to HI.
+var helloPrefix = []byte("HELLO ")
+
+// pingFormat builds a PING command for a local timestamp, copying the shared prefix so callers never alias it.
 func pingFormat(locTime int64) []byte {
-	return strconv.AppendInt(pingPrefix, locTime, 10)
+	return strconv.AppendInt(bytes.Clone(pingPrefix), locTime, 10)
 }
 
 // Client represents a TCP client for speedtest operations.
@@ -71,7 +81,18 @@ func (client *Client) ID() string {
 }
 
 // Connect establishes a connection to the specified host.
+//
+// Parameters:
+//   - ctx: cancellation for the dial.
+//   - host: the server's host:port.
+//
+// Returns:
+//   - error: [ErrNilDialer] when the client has no dialer, or the dial error.
 func (client *Client) Connect(ctx context.Context, host string) error {
+	if client.dialer == nil {
+		return ErrNilDialer
+	}
+
 	client.host = host
 
 	conn, err := client.dialer.DialContext(ctx, "tcp", client.host)
@@ -85,27 +106,46 @@ func (client *Client) Connect(ctx context.Context, host string) error {
 	return nil
 }
 
-// Disconnect closes the client connection.
+// Disconnect ends the session with QUIT and closes the connection.
+//
+// It is safe to call on a client that never connected or already disconnected. QUIT is sent on a best-effort
+// basis, because the server may already have closed its side.
+//
+// Returns:
+//   - error: the error from closing the connection, if any.
 func (client *Client) Disconnect() error {
-	_, _ = client.conn.Write(quitFormat)
+	if client.conn == nil {
+		return nil
+	}
+
+	_ = client.writeAll(append(bytes.Clone(quitFormat), '\n'))
+
+	err := client.conn.Close()
+
 	client.conn = nil
 	client.reader = nil
 	client.version = ""
 
+	if err != nil {
+		return fmt.Errorf("failed to close connection: %w", err)
+	}
+
 	return nil
 }
 
+// Write sends one command line, adding its newline.
+//
+// Parameters:
+//   - data: the command without its newline.
+//
+// Returns:
+//   - error: [ErrEmptyConn] when not connected, or the write error.
 func (client *Client) Write(data []byte) error {
 	if client.conn == nil {
 		return ErrEmptyConn
 	}
 
-	_, err := fmt.Fprintf(client.conn, "%s\n", data)
-	if err != nil {
-		return fmt.Errorf("failed to write to connection: %w", err)
-	}
-
-	return nil
+	return client.writeAll(append(bytes.Clone(data), '\n'))
 }
 
 func (client *Client) Read() ([]byte, error) {
@@ -121,91 +161,131 @@ func (client *Client) Read() ([]byte, error) {
 	return data, nil
 }
 
-// Version returns the client's version string.
+// Version returns the server's version string, or "unknown" when the handshake fails.
+//
+// Returns:
+//   - string: the version from the server's HELLO reply.
 func (client *Client) Version() string {
-	if len(client.version) == 0 {
-		err := client.Write(hiFormat)
-		if err == nil {
-			message, err := client.Read()
-			if err != nil || len(message) < 8 {
-				return "unknown"
-			}
-
-			client.version = string(message[6 : len(message)-1])
-		}
+	version, err := client.VersionContext(context.Background())
+	if err != nil {
+		return "unknown"
 	}
 
-	return client.version
+	return version
 }
 
-// PingContext Measure latency(RTT) between client and server.
-// We use the 2RTT method to obtain three RTT result in
-// order to get more data in less time (t2-t0, t4-t2, t3-t1).
-// And give lower weight to the delay measured by the server.
-// local factor = 0.4 * 2 and remote factor = 0.2
-// latency = 0.4 * (t2 - t0) + 0.4 * (t4 - t2) + 0.2 * (t3 - t1)
-// @return cumulative delay in nanoseconds.
+// VersionContext performs the HI handshake, observing ctx, and caches the server's version.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the handshake.
+//
+// Returns:
+//   - string: the version from the server's HELLO reply.
+//   - error: [ErrEmptyConn] when not connected, [ErrInvalidResponse] when the reply is not HELLO, or the I/O error.
+func (client *Client) VersionContext(ctx context.Context) (string, error) {
+	if client.conn == nil {
+		return "", ErrEmptyConn
+	}
+
+	if client.version != "" {
+		return client.version, nil
+	}
+
+	stop := client.watchContext(ctx)
+	defer stop()
+
+	err := client.setDeadline(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	err = client.Write(hiFormat)
+	if err != nil {
+		return "", contextError(ctx, err)
+	}
+
+	message, err := client.Read()
+	if err != nil {
+		return "", contextError(ctx, err)
+	}
+
+	version, found := bytes.CutPrefix(bytes.TrimRight(message, "\r\n"), helloPrefix)
+	if !found || len(version) == 0 {
+		return "", fmt.Errorf("%w: %q", ErrInvalidResponse, message)
+	}
+
+	client.version = string(version)
+
+	return client.version, nil
+}
+
+// PingContext measures the latency (RTT) between client and server, observing ctx.
+//
+// It uses the 2RTT method to obtain three RTT results in less time (t2-t0, t4-t2, t3-t1), and gives the delay
+// measured by the server a lower weight:
+//
+//	latency = 0.4 * (t2 - t0) + 0.4 * (t4 - t2) + 0.2 * (t3 - t1)
+//
+// The exchange runs on the calling goroutine. The context's deadline is applied to the connection, and cancelling
+// the context closes the connection, so a blocked read returns instead of leaking.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the exchange.
+//
+// Returns:
+//   - int64: the weighted latency in nanoseconds.
+//   - error: [ErrEmptyConn] when not connected, [ErrEchoData] for a malformed reply, the context's error when it
+//     ends the exchange, or the I/O error.
 func (client *Client) PingContext(ctx context.Context) (int64, error) {
-	resultChan := make(chan error, 1)
+	if client.conn == nil {
+		return 0, ErrEmptyConn
+	}
 
-	var accumulatedLatency int64
+	stop := client.watchContext(ctx)
+	defer stop()
 
-	var firstReceivedByServer int64 // t1
+	err := client.setDeadline(ctx)
+	if err != nil {
+		return 0, err
+	}
 
-	go func() {
-		for i := range 2 {
-			t0 := time.Now().UnixNano()
+	var accumulatedLatency, firstReceivedByServer int64 // firstReceivedByServer is t1
 
-			err := client.Write(pingFormat(t0))
-			if err != nil {
-				resultChan <- err
+	for i := range 2 {
+		t0 := time.Now().UnixNano()
 
-				return
-			}
-
-			data, err := client.Read()
-			t2 := time.Now().UnixNano()
-
-			if err != nil {
-				resultChan <- err
-
-				return
-			}
-
-			if len(data) != 19 {
-				resultChan <- ErrEchoData
-
-				return
-			}
-
-			tx, err := strconv.ParseInt(string(data[5:18]), 10, 64)
-			if err != nil {
-				resultChan <- err
-
-				return
-			}
-
-			accumulatedLatency += (t2 - t0) * 4 / 10 // 0.4
-
-			if i == 0 {
-				firstReceivedByServer = tx
-			} else {
-				// append server-side latency result
-				accumulatedLatency += (tx - firstReceivedByServer) * 1000 * 1000 * 2 / 10 // 0.2
-			}
+		err := client.Write(pingFormat(t0))
+		if err != nil {
+			return 0, contextError(ctx, err)
 		}
 
-		resultChan <- nil
+		data, err := client.Read()
+		t2 := time.Now().UnixNano()
 
-		close(resultChan)
-	}()
+		if err != nil {
+			return 0, contextError(ctx, err)
+		}
 
-	select {
-	case err := <-resultChan:
-		return accumulatedLatency, err
-	case <-ctx.Done():
-		return 0, fmt.Errorf("ping context canceled: %w", ctx.Err())
+		if len(data) != 19 {
+			return 0, ErrEchoData
+		}
+
+		tx, err := strconv.ParseInt(string(data[5:18]), 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("%w: %w", ErrEchoData, err)
+		}
+
+		accumulatedLatency += (t2 - t0) * 4 / 10 // 0.4
+
+		if i == 0 {
+			firstReceivedByServer = tx
+		} else {
+			// append server-side latency result
+			accumulatedLatency += (tx - firstReceivedByServer) * 1000 * 1000 * 2 / 10 // 0.2
+		}
 	}
+
+	return accumulatedLatency, nil
 }
 
 // InitPacketLoss initializes packet loss testing for the client.
@@ -314,4 +394,102 @@ func (client *Client) Download() {
 // Upload performs an upload test. Currently unimplemented.
 func (client *Client) Upload() {
 	panic("Unimplemented method: Client.Upload()")
+}
+
+// writeAll writes data in full, looping over short writes.
+//
+// Parameters:
+//   - data: the bytes to write.
+//
+// Returns:
+//   - error: the write error, or [io.ErrShortWrite] when a write makes no progress.
+func (client *Client) writeAll(data []byte) error {
+	for len(data) > 0 {
+		written, err := client.conn.Write(data)
+		if err != nil {
+			return fmt.Errorf("failed to write to connection: %w", err)
+		}
+
+		if written == 0 {
+			return io.ErrShortWrite
+		}
+
+		data = data[written:]
+	}
+
+	return nil
+}
+
+// setDeadline applies the context's deadline to the connection, or clears any earlier deadline.
+//
+// Parameters:
+//   - ctx: the context whose deadline to apply.
+//
+// Returns:
+//   - error: [ErrEmptyConn] when not connected, or the error from setting the deadline.
+func (client *Client) setDeadline(ctx context.Context) error {
+	if client.conn == nil {
+		return ErrEmptyConn
+	}
+
+	deadline, _ := ctx.Deadline()
+
+	err := client.conn.SetDeadline(deadline)
+	if err != nil {
+		return fmt.Errorf("failed to set connection deadline: %w", err)
+	}
+
+	return nil
+}
+
+// watchContext closes the connection when ctx ends, which unblocks any read or write in progress.
+//
+// Parameters:
+//   - ctx: the context to watch.
+//
+// Returns:
+//   - func(): stops watching. Call it when the operation finishes.
+func (client *Client) watchContext(ctx context.Context) func() {
+	if ctx.Done() == nil {
+		return func() {}
+	}
+
+	conn := client.conn
+	done := make(chan struct{})
+
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = conn.Close()
+		case <-done:
+		}
+	}()
+
+	return func() { close(done) }
+}
+
+// contextError reports the context's error when the context ended the operation, and err otherwise.
+//
+// The connection deadline equals the context deadline, so the socket can time out a moment before the context
+// reports that its deadline passed. A socket timeout at or after the context deadline is therefore reported as
+// [context.DeadlineExceeded] too.
+//
+// Parameters:
+//   - ctx: the operation's context.
+//   - err: the I/O error the operation returned.
+//
+// Returns:
+//   - error: a wrapped context error when ctx is done or its deadline has passed, or err.
+func contextError(ctx context.Context, err error) error {
+	ctxErr := ctx.Err()
+	if ctxErr != nil {
+		return fmt.Errorf("operation ended by context: %w", ctxErr)
+	}
+
+	deadline, hasDeadline := ctx.Deadline()
+	if hasDeadline && errors.Is(err, os.ErrDeadlineExceeded) && !time.Now().Before(deadline) {
+		return fmt.Errorf("operation ended by context: %w: %w", context.DeadlineExceeded, err)
+	}
+
+	return err
 }

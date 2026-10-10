@@ -3,11 +3,16 @@ package transport
 import (
 	"bufio"
 	"context"
+	"io"
 	"net"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/testserver"
 )
 
 func Test_pingFormat(t *testing.T) {
@@ -277,14 +282,21 @@ func TestClient_Version(t *testing.T) {
 			name:     "fetch version",
 			version:  "",
 			writeHI:  true,
-			response: "HI 1.2.3\n",
-			want:     ".3",
+			response: "HELLO 2.11 (2.11.5) 2026-06-04.1737.7d0993d\n",
+			want:     "2.11 (2.11.5) 2026-06-04.1737.7d0993d",
 		},
 		{
-			name:     "unknown version",
+			name:     "reply that is not HELLO",
 			version:  "",
 			writeHI:  true,
-			response: "HI\n",
+			response: "HI 1.2.3\n",
+			want:     "unknown",
+		},
+		{
+			name:     "HELLO without a version",
+			version:  "",
+			writeHI:  true,
+			response: "HELLO \n",
 			want:     "unknown",
 		},
 	}
@@ -471,4 +483,265 @@ func TestClient_Upload(t *testing.T) {
 	client := &Client{}
 
 	assert.Panics(t, func() { client.Upload() })
+}
+
+// connectFake connects a new client to the fake TCP server and disconnects it when the test ends.
+func connectFake(t *testing.T, srv *testserver.TCPServer) *Client {
+	t.Helper()
+
+	client, err := NewClient(&net.Dialer{Timeout: 5 * time.Second})
+	require.NoError(t, err)
+	require.NoError(t, client.Connect(context.Background(), srv.Addr()))
+
+	t.Cleanup(func() { _ = client.Disconnect() })
+
+	return client
+}
+
+// lastCommand returns the last command line the fake TCP server received, or an empty string.
+func lastCommand(srv *testserver.TCPServer) string {
+	commands := srv.Commands()
+	if len(commands) == 0 {
+		return ""
+	}
+
+	return commands[len(commands)-1].Line
+}
+
+// TestClient_Connect_NilDialer checks that a client without a dialer reports it instead of panicking.
+func TestClient_Connect_NilDialer(t *testing.T) {
+	t.Parallel()
+
+	client, err := NewClient(nil)
+	require.NoError(t, err)
+
+	require.ErrorIs(t, client.Connect(context.Background(), "127.0.0.1:8080"), ErrNilDialer)
+}
+
+// TestClient_Disconnect_ClosesConnection checks that Disconnect sends QUIT and closes the socket, so the server
+// sees the connection end, and that repeated or early calls are harmless.
+func TestClient_Disconnect_ClosesConnection(t *testing.T) {
+	t.Parallel()
+
+	srv := testserver.NewTCPServer(t)
+	client := connectFake(t, srv)
+
+	assert.Equal(t, "2.11 (2.11.0) testserver", client.Version())
+
+	require.NoError(t, client.Disconnect())
+
+	assert.Nil(t, client.conn)
+	assert.Empty(t, client.version, "a new connection must repeat the handshake")
+
+	// The server closes its side only after reading everything sent before the client closed, including QUIT.
+	require.Eventually(
+		t,
+		func() bool { return srv.OpenConns() == 0 },
+		5*time.Second,
+		10*time.Millisecond,
+	)
+	assert.Equal(t, "QUIT", lastCommand(srv))
+
+	require.NoError(t, client.Disconnect(), "a second Disconnect is a no-op")
+
+	neverConnected, err := NewClient(&net.Dialer{})
+	require.NoError(t, err)
+	require.NoError(t, neverConnected.Disconnect())
+}
+
+// TestClient_VersionContext checks the handshake against the fake server, its caching, and the no-connection error.
+func TestClient_VersionContext(t *testing.T) {
+	t.Parallel()
+
+	srv := testserver.NewTCPServer(t)
+	client := connectFake(t, srv)
+
+	version, err := client.VersionContext(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "2.11 (2.11.0) testserver", version)
+
+	cached, err := client.VersionContext(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, version, cached)
+	assert.Len(t, srv.Commands(), 1, "a cached version must not repeat HI")
+
+	_, err = (&Client{}).VersionContext(context.Background())
+	require.ErrorIs(t, err, ErrEmptyConn)
+}
+
+// TestClient_PingContext_FakeServer checks a ping against the fake server, which sends two PING commands.
+func TestClient_PingContext_FakeServer(t *testing.T) {
+	t.Parallel()
+
+	srv := testserver.NewTCPServer(t)
+	client := connectFake(t, srv)
+
+	latency, err := client.PingContext(context.Background())
+	require.NoError(t, err)
+
+	assert.GreaterOrEqual(t, latency, int64(0))
+	assert.Len(t, srv.Commands(), 2)
+}
+
+// TestClient_PingContext_ContextEnds checks that cancellation and deadlines end a ping that the server never
+// answers in time, promptly and with the context's error, instead of leaving a read blocked.
+func TestClient_PingContext_ContextEnds(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		context func() (context.Context, context.CancelFunc)
+		wantErr error
+		name    string
+	}{
+		{
+			name: "cancelled",
+			context: func() (context.Context, context.CancelFunc) {
+				ctx, cancel := context.WithCancel(context.Background())
+				time.AfterFunc(50*time.Millisecond, cancel)
+
+				return ctx, cancel
+			},
+			wantErr: context.Canceled,
+		},
+		{
+			name: "deadline",
+			context: func() (context.Context, context.CancelFunc) {
+				return context.WithTimeout(context.Background(), 50*time.Millisecond)
+			},
+			wantErr: context.DeadlineExceeded,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := testserver.NewTCPServer(t)
+			srv.SetFaults(testserver.Faults{Delay: time.Second})
+
+			client := connectFake(t, srv)
+
+			ctx, cancel := tt.context()
+			defer cancel()
+
+			start := time.Now()
+			_, err := client.PingContext(ctx)
+
+			require.ErrorIs(t, err, tt.wantErr)
+			assert.Less(
+				t,
+				time.Since(start),
+				500*time.Millisecond,
+				"the ping must not wait for the server",
+			)
+		})
+	}
+}
+
+// TestClient_PingContext_ConnectionDropped checks that a server closing the connection mid-ping is reported as an
+// I/O error rather than a context error.
+func TestClient_PingContext_ConnectionDropped(t *testing.T) {
+	t.Parallel()
+
+	srv := testserver.NewTCPServer(t)
+	srv.SetFaults(testserver.Faults{DropAfter: 2})
+
+	client := connectFake(t, srv)
+
+	_, err := client.PingContext(context.Background())
+
+	require.ErrorIs(t, err, io.EOF)
+	require.NotErrorIs(t, err, context.Canceled)
+}
+
+// expiredDeadline is a context whose deadline has passed while Err still reports nil, the window in which the
+// socket's own timeout can fire first.
+//
+//nolint:containedctx // It wraps a context to override only its deadline.
+type expiredDeadline struct {
+	context.Context
+}
+
+// Deadline reports a deadline one second in the past.
+func (expiredDeadline) Deadline() (time.Time, bool) {
+	return time.Now().Add(-time.Second), true
+}
+
+// Test_contextError checks which errors are attributed to the context, including a socket timeout that arrives
+// before the context reports its own deadline.
+func Test_contextError(t *testing.T) {
+	t.Parallel()
+
+	timeout := &net.OpError{Op: "read", Net: "tcp", Err: os.ErrDeadlineExceeded}
+
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// Parallel subtests run after this function returns, so cancel in cleanup rather than with defer.
+	future, stop := context.WithTimeout(context.Background(), time.Hour)
+	t.Cleanup(stop)
+
+	tests := []struct {
+		ctx     context.Context //nolint:containedctx // Each case needs its own context state.
+		err     error
+		wantErr []error
+		name    string
+	}{
+		{
+			name:    "cancelled context",
+			ctx:     cancelled,
+			err:     io.EOF,
+			wantErr: []error{context.Canceled},
+		},
+		{
+			name:    "socket timeout after the deadline",
+			ctx:     expiredDeadline{context.Background()},
+			err:     timeout,
+			wantErr: []error{context.DeadlineExceeded, os.ErrDeadlineExceeded},
+		},
+		{
+			name:    "socket timeout before the deadline",
+			ctx:     future,
+			err:     timeout,
+			wantErr: []error{os.ErrDeadlineExceeded},
+		},
+		{
+			name:    "other error without a deadline",
+			ctx:     context.Background(),
+			err:     io.EOF,
+			wantErr: []error{io.EOF},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := contextError(tt.ctx, tt.err)
+
+			for _, want := range tt.wantErr {
+				require.ErrorIs(t, got, want)
+			}
+
+			if len(tt.wantErr) == 1 && tt.wantErr[0] == tt.err {
+				assert.Same(t, tt.err, got, "unrelated errors pass through unchanged")
+			}
+		})
+	}
+}
+
+// Test_watchContext_NoDone checks that watching a context that can never end starts nothing and stops cleanly.
+func Test_watchContext_NoDone(t *testing.T) {
+	t.Parallel()
+
+	client1, client2 := net.Pipe()
+
+	defer func() { _ = client2.Close() }()
+
+	client := &Client{conn: client1}
+
+	stop := client.watchContext(context.Background())
+	stop()
+
+	require.NoError(t, client1.Close(), "the connection must still be open")
 }
