@@ -53,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Close connections and end pings with their context by @nicholas-fedor in [#438](https://github.com/nicholas-fedor/speedtest-go/pull/438)
 - Reject HTTP error responses by @nicholas-fedor in [#434](https://github.com/nicholas-fedor/speedtest-go/pull/434)
 - Always build the client network setup and fix ICMP ping by @nicholas-fedor in [#430](https://github.com/nicholas-fedor/speedtest-go/pull/430)
 
