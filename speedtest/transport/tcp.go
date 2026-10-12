@@ -16,8 +16,6 @@ import (
 
 var (
 	pingPrefix = []byte{0x50, 0x49, 0x4e, 0x47, 0x20}
-	// downloadPrefix = []byte{0x44, 0x4F, 0x57, 0x4E, 0x4C, 0x4F, 0x41, 0x44, 0x20}
-	// uploadPrefix   = []byte{0x55, 0x50, 0x4C, 0x4F, 0x41, 0x44, 0x20}.
 	initPacket = []byte{0x49, 0x4e, 0x49, 0x54, 0x50, 0x4c, 0x4f, 0x53, 0x53}
 	packetLoss = []byte{0x50, 0x4c, 0x4f, 0x53, 0x53}
 	hiFormat   = []byte{0x48, 0x49}
@@ -41,19 +39,67 @@ var (
 	ErrInvalidResponse = errors.New("invalid TCP speedtest response")
 	// ErrNilDialer is returned when a client is created without a dialer and asked to connect.
 	ErrNilDialer = errors.New("transport client has no dialer")
+	// ErrInvalidTransfer is returned for a download or upload with a size, handler, or source it cannot use.
+	ErrInvalidTransfer = errors.New("invalid transfer request")
 )
 
 // Server replies checked during the handshake and packet-loss setup.
 var (
 	// helloPrefix starts the server's reply to HI and to "HI <uuid>".
 	helloPrefix = []byte("HELLO ")
-	// okReply is the server's reply to INITPLOSS.
+	// okReply is the server's reply to INITPLOSS, and the first field of its reply to an upload.
 	okReply = []byte("OK")
+)
+
+// Transfer command prefixes.
+var (
+	// downloadPrefix asks the server for a number of bytes.
+	downloadPrefix = []byte("DOWNLOAD ")
+	// uploadPrefix announces the total size of an upload.
+	uploadPrefix = []byte("UPLOAD ")
 )
 
 // pingFormat builds a PING command for a local timestamp, copying the shared prefix so callers never alias it.
 func pingFormat(locTime int64) []byte {
 	return strconv.AppendInt(bytes.Clone(pingPrefix), locTime, 10)
+}
+
+// downloadFormat builds a "DOWNLOAD <bytes>" command.
+func downloadFormat(size int64) []byte {
+	return strconv.AppendInt(bytes.Clone(downloadPrefix), size, 10)
+}
+
+// uploadFormat builds an "UPLOAD <total> 0" command.
+func uploadFormat(size int64) []byte {
+	return append(strconv.AppendInt(bytes.Clone(uploadPrefix), size, 10), ' ', '0')
+}
+
+// UploadPayloadSize returns how many data bytes an upload of a declared total size carries.
+//
+// The total counts the command line and its newline, the payload, and the newline that ends the payload, so the
+// payload is the total less those three parts.
+//
+// Parameters:
+//   - size: the declared total size.
+//
+// Returns:
+//   - int64: the payload size.
+//   - error: an error wrapping [ErrInvalidTransfer] when size cannot hold the command and the final newline.
+func UploadPayloadSize(size int64) (int64, error) {
+	if size <= 0 {
+		return 0, fmt.Errorf("%w: upload size %d", ErrInvalidTransfer, size)
+	}
+
+	payload := size - int64(len(uploadFormat(size))+1) - 1
+	if payload < 0 {
+		return 0, fmt.Errorf(
+			"%w: upload size %d is smaller than its command",
+			ErrInvalidTransfer,
+			size,
+		)
+	}
+
+	return payload, nil
 }
 
 // Client represents a TCP client for speedtest operations.
@@ -442,14 +488,161 @@ func (client *Client) PacketLossContext(ctx context.Context) (*PLoss, error) {
 	return parsePLoss(result)
 }
 
-// Download performs a download test. Currently unimplemented.
-func (client *Client) Download() {
-	panic("Unimplemented method: Client.Download()")
+// Download asks the server for size bytes and passes them to handler as a stream, observing ctx.
+//
+// The handler may stop reading early. The rest of the bytes are then read and discarded, so the next command on the
+// connection gets its own reply. A transfer that fails after its command is sent closes the connection, since the
+// stream is left at an unknown point. The context's deadline applies to the whole transfer, and cancelling the
+// context closes the connection.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the transfer.
+//   - size: the number of bytes to request.
+//   - handler: reads the downloaded bytes. The reader ends after size bytes.
+//
+// Returns:
+//   - error: an error wrapping [ErrInvalidTransfer] for a non-positive size or nil handler, [ErrEmptyConn] when not
+//     connected, the context's error when it ended the transfer, the handler's error, or [io.ErrUnexpectedEOF] when
+//     the server sends fewer bytes.
+func (client *Client) Download(
+	ctx context.Context,
+	size int64,
+	handler func(io.Reader) error,
+) error {
+	if size <= 0 || handler == nil {
+		return fmt.Errorf("%w: download of %d bytes", ErrInvalidTransfer, size)
+	}
+
+	if client.conn == nil {
+		return ErrEmptyConn
+	}
+
+	defer client.clearDeadline()
+
+	stop := client.watchContext(ctx)
+	defer stop()
+
+	err := client.setDeadline(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = client.Write(downloadFormat(size))
+	if err != nil {
+		return client.abandon(ctx, err)
+	}
+
+	stream := &io.LimitedReader{R: client.reader, N: size}
+
+	err = handler(stream)
+	if err != nil {
+		return client.abandon(ctx, fmt.Errorf("download handler failed: %w", err))
+	}
+
+	_, err = io.Copy(io.Discard, stream)
+	if err != nil {
+		return client.abandon(ctx, fmt.Errorf("failed to read download: %w", err))
+	}
+
+	if stream.N > 0 {
+		return client.abandon(ctx, fmt.Errorf("download ended after %d of %d bytes: %w",
+			size-stream.N, size, io.ErrUnexpectedEOF))
+	}
+
+	return nil
 }
 
-// Upload performs an upload test. Currently unimplemented.
-func (client *Client) Upload() {
-	panic("Unimplemented method: Client.Upload()")
+// Upload sends an upload of a declared total size with its payload read from src, observing ctx.
+//
+// It sends "UPLOAD <size> 0", then the payload of [UploadPayloadSize] bytes and a final newline, and reads the
+// server's "OK <bytes> <timestamp>" confirmation. A transfer that fails before the confirmation is read closes the
+// connection, since the stream is left at an unknown point. The context's deadline applies to the whole transfer,
+// and cancelling the context closes the connection.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the transfer.
+//   - size: the declared total size, including the command line and the final newline.
+//   - src: supplies the payload.
+//
+// Returns:
+//   - int64: the byte count the server confirmed.
+//   - error: an error wrapping [ErrInvalidTransfer] for an unusable size or nil source, [ErrEmptyConn] when not
+//     connected, the context's error when it ended the transfer, [io.ErrUnexpectedEOF] when src runs out early, or
+//     an error wrapping [ErrInvalidResponse] for a malformed confirmation.
+func (client *Client) Upload(ctx context.Context, size int64, src io.Reader) (int64, error) {
+	if src == nil {
+		return 0, fmt.Errorf("%w: upload without a source", ErrInvalidTransfer)
+	}
+
+	payload, err := UploadPayloadSize(size)
+	if err != nil {
+		return 0, err
+	}
+
+	if client.conn == nil {
+		return 0, ErrEmptyConn
+	}
+
+	defer client.clearDeadline()
+
+	stop := client.watchContext(ctx)
+	defer stop()
+
+	err = client.setDeadline(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	err = client.Write(uploadFormat(size))
+	if err != nil {
+		return 0, client.abandon(ctx, err)
+	}
+
+	_, err = io.CopyN(client.conn, src, payload)
+	if errors.Is(err, io.EOF) {
+		return 0, client.abandon(ctx, fmt.Errorf(
+			"upload source ended before %d bytes: %w",
+			payload,
+			io.ErrUnexpectedEOF,
+		))
+	}
+
+	if err != nil {
+		return 0, client.abandon(ctx, fmt.Errorf("failed to send upload: %w", err))
+	}
+
+	err = client.writeAll([]byte{'\n'})
+	if err != nil {
+		return 0, client.abandon(ctx, err)
+	}
+
+	reply, err := client.Read()
+	if err != nil {
+		return 0, client.abandon(ctx, err)
+	}
+
+	// A malformed confirmation was still read as a whole line, so the connection stays usable.
+	return parseUploadReply(reply, size)
+}
+
+// abandon closes and forgets the connection after a transfer failed partway, and reports the failure.
+//
+// Parameters:
+//   - ctx: the transfer's context.
+//   - err: the failure.
+//
+// Returns:
+//   - error: the context's error when it ended the transfer, and err otherwise.
+func (client *Client) abandon(ctx context.Context, err error) error {
+	if client.conn != nil {
+		_ = client.conn.Close()
+	}
+
+	client.conn = nil
+	client.reader = nil
+	client.version = ""
+
+	return contextError(ctx, err)
 }
 
 // exchange sends one command and reads its reply, reporting the context's error when it ended the exchange.
@@ -656,4 +849,27 @@ func parsePLoss(result []byte) (*PLoss, error) {
 	}
 
 	return &PLoss{Sent: sent, Dup: dup, Max: highest}, nil
+}
+
+// parseUploadReply parses the server's "OK <bytes> <timestamp>" confirmation of an upload.
+//
+// Parameters:
+//   - reply: the reply line, including its newline.
+//   - size: the declared total size of the upload.
+//
+// Returns:
+//   - int64: the confirmed byte count.
+//   - error: an error wrapping [ErrInvalidResponse] when the reply is not OK or its count is outside 0 to size.
+func parseUploadReply(reply []byte, size int64) (int64, error) {
+	fields := bytes.Fields(reply)
+	if len(fields) != 3 || !bytes.Equal(fields[0], okReply) {
+		return 0, fmt.Errorf("%w: %q", ErrInvalidResponse, reply)
+	}
+
+	confirmed, err := strconv.ParseInt(string(fields[1]), 10, 64)
+	if err != nil || confirmed < 0 || confirmed > size {
+		return 0, fmt.Errorf("%w: %q", ErrInvalidResponse, reply)
+	}
+
+	return confirmed, nil
 }
