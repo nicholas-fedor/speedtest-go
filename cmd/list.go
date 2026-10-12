@@ -7,19 +7,29 @@ import (
 
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/app"
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/config"
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/flags"
 )
 
-// listCmd represents the list command.
-var listCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List available speedtest servers",
-	Long:  "Display a list of available speedtest.net servers with their details.",
-	RunE: func(_ *cobra.Command, _ []string) error {
-		cfg, err := config.Load()
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
+// newListCommand builds the list command with its flags.
+//
+// Returns:
+//   - *cobra.Command: the command that lists available speedtest servers.
+func newListCommand() *cobra.Command {
+	listCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List available speedtest servers",
+		Long:  "Display a list of available speedtest.net servers with their details.",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			cfg, err := config.Load()
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
 
-		return app.RunList(cfg)
-	},
+			return app.RunList(cfg)
+		},
+	}
+
+	flags.RegisterListFlags(listCmd)
+
+	return listCmd
 }

@@ -20,9 +20,7 @@ const (
 )
 
 func main() {
-	cmd.Init()
-
-	os.Exit(exitCode(cmd.Execute()))
+	os.Exit(exitCode(cmd.NewRootCommand().Execute()))
 }
 
 // exitCode maps the result of a run to the process exit code.
