@@ -49,6 +49,8 @@ func (s *Speedtest) FetchUserInfoContext(ctx context.Context) (*User, error) {
 		return nil, fmt.Errorf("failed to build user info URL: %w", err)
 	}
 
+	cacheBust(configURL)
+
 	dbg.Printf("Retrieving user info: %s\n", configURL)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, configURL.String(), nil)

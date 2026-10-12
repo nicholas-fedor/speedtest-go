@@ -193,6 +193,9 @@ func (s *Speedtest) FetchServerByIDContext(ctx context.Context, serverID string)
 	query.Set(strings.ToLower("serverID"), serverID)
 	parsedURL.RawQuery = query.Encode()
 
+	// The response also describes the caller, whose coordinates set the server's distance.
+	cacheBust(parsedURL)
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsedURL.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)

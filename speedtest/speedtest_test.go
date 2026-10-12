@@ -286,7 +286,10 @@ func TestSpeedtest_Proxy(t *testing.T) {
 	}
 
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		record(r.URL.String())
+		// The query is left out because it carries a random cache-busting value.
+		target := *r.URL
+		target.RawQuery = ""
+		record(target.String())
 
 		_, _ = io.WriteString(
 			w,

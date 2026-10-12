@@ -3,6 +3,7 @@ package speedtest
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -261,6 +262,7 @@ func TestFetchServerByIDContext_BaseURL(t *testing.T) {
 	lookup := requestFor(t, api, testserver.PathServerLookup)
 	assert.Equal(t, mirrorPrefix+testserver.PathServerLookup, lookup.Path)
 	assert.Equal(t, "1001", lookup.Query.Get("serverid"))
+	assert.NotEmpty(t, lookup.Query.Get(cacheBustParam))
 }
 
 // TestFetchers_InvalidBaseURL checks that every fetcher reports an invalid base URL instead of sending a request.
@@ -307,6 +309,88 @@ func TestFetchers_InvalidBaseURL(t *testing.T) {
 			t.Parallel()
 
 			require.ErrorIs(t, tt.fetch(), ErrInvalidBaseURL)
+		})
+	}
+}
+
+// TestCacheBust checks that cacheBust sets a fresh random value on each call and keeps the URL's other parameters
+// and path.
+func TestCacheBust(t *testing.T) {
+	t.Parallel()
+
+	values := map[string]bool{}
+
+	for range 3 {
+		endpoint, err := url.Parse(
+			"https://mirror.example/speedtest/api/ios-config.php?serverid=1001",
+		)
+		require.NoError(t, err)
+
+		cacheBust(endpoint)
+
+		assert.Equal(t, "/speedtest/api/ios-config.php", endpoint.Path)
+		assert.Equal(t, "1001", endpoint.Query().Get("serverid"))
+
+		value := endpoint.Query().Get(cacheBustParam)
+		require.NotEmpty(t, value)
+
+		values[value] = true
+	}
+
+	assert.Len(t, values, 3, "each call should set a different value")
+}
+
+// TestFetchers_CacheBust checks that every request for caller-specific data has a unique URL, so a shared cache
+// cannot answer it with another caller's details. Requests made twice must carry different values.
+func TestFetchers_CacheBust(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		fetch    func(client *Speedtest) error
+		name     string
+		endpoint string
+	}{
+		{
+			name:     "user info",
+			endpoint: testserver.PathUserConfig,
+			fetch: func(client *Speedtest) error {
+				_, err := client.FetchUserInfoContext(context.Background())
+
+				return err
+			},
+		},
+		{
+			name:     "server by ID",
+			endpoint: testserver.PathServerLookup,
+			fetch: func(client *Speedtest) error {
+				_, err := client.FetchServerByIDContext(context.Background(), "1001")
+
+				return err
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			api := newMirrorAPI(t)
+			client := newBaseURLClient(api.URL())
+
+			require.NoError(t, tt.fetch(client))
+			require.NoError(t, tt.fetch(client))
+
+			var values []string
+
+			for _, req := range api.Requests() {
+				if req.Endpoint == tt.endpoint {
+					values = append(values, req.Query.Get(cacheBustParam))
+				}
+			}
+
+			require.Len(t, values, 2)
+			assert.NotEmpty(t, values[0])
+			assert.NotEmpty(t, values[1])
+			assert.NotEqual(t, values[0], values[1])
 		})
 	}
 }
