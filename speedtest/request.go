@@ -365,7 +365,12 @@ func uploadRequest(ctx context.Context, server *Server, writer int) error {
 	dbg.Printf("Len=%d, XulURL: %s\n", req.ContentLength, server.URL)
 	req.Header.Set("Content-Type", "application/octet-stream")
 
-	resp, err := server.Context.doer.Do(req)
+	// Following a redirect would replace the POST with a bodyless GET, whose success confirms nothing. A redirect
+	// is returned as is, and its status fails the check below.
+	client := *server.Context.doer
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to perform upload HTTP request: %w", err)
 	}

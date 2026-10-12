@@ -6,9 +6,11 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"runtime"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -720,8 +722,8 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
 
 // Test_uploadRequest_FakeServer checks that an upload counts its bytes only once the server confirms the request
-// with a successful response after taking the whole body, and that an error status, a response before the body was
-// read, or an unreadable response counts nothing.
+// with a successful response after taking the whole body, and that an error status, a redirect, a response before
+// the body was read, or an unreadable response counts nothing.
 func Test_uploadRequest_FakeServer(t *testing.T) {
 	t.Parallel()
 
@@ -788,6 +790,32 @@ func Test_uploadRequest_FakeServer(t *testing.T) {
 				"an upload the server did not take must not count",
 			)
 		}
+	})
+
+	t.Run("redirect", func(t *testing.T) {
+		t.Parallel()
+
+		var followed atomic.Bool
+
+		target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/moved" {
+				followed.Store(true)
+
+				return
+			}
+
+			_, _ = io.Copy(io.Discard, r.Body)
+			http.Redirect(w, r, "/moved", http.StatusFound)
+		}))
+		t.Cleanup(target.Close)
+
+		client, manager := runningClient(t)
+		server := &Server{URL: target.URL + "/speedtest/upload.php", Context: client}
+
+		err := uploadRequest(context.Background(), server, 0)
+		require.ErrorIs(t, err, ErrUnexpectedStatus)
+		assert.False(t, followed.Load(), "the redirect must not be followed with a GET")
+		assert.Zero(t, manager.GetTotalUpload(), "a redirected upload must not count")
 	})
 
 	t.Run("unreadable response", func(t *testing.T) {
