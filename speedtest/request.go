@@ -160,7 +160,7 @@ func (s *Server) MultiDownloadTestContext(ctx context.Context, servers Servers) 
 		ctx,
 		servers,
 		s.Context.RegisterDownloadHandler,
-		downloadRequest,
+		s.downloadRequestFor(),
 		"Download",
 		func(rate ByteRate) { s.DLSpeed = rate },
 	)
@@ -172,14 +172,17 @@ func (s *Server) MultiUploadTestContext(ctx context.Context, servers Servers) er
 		return ErrServerNil
 	}
 
-	// Resolve before the handlers are registered, so no upload worker reads a URL while it changes.
-	resolveUploadURLs(ctx, *servers.Available(), maxConcurrentUploadResolves)
+	// Resolve before the handlers are registered, so no upload worker reads a URL while it changes. TCP tests use no
+	// HTTP upload URL.
+	if !s.usesTCP() {
+		resolveUploadURLs(ctx, *servers.Available(), maxConcurrentUploadResolves)
+	}
 
 	return s.multiTestContext(
 		ctx,
 		servers,
 		s.Context.RegisterUploadHandler,
-		uploadRequest,
+		s.uploadRequestFor(),
 		"Upload",
 		func(rate ByteRate) { s.ULSpeed = rate },
 	)
@@ -191,7 +194,7 @@ func (s *Server) DownloadTest() error {
 		return ErrServerNil
 	}
 
-	return s.downloadTestContext(context.Background(), downloadRequest)
+	return s.downloadTestContext(context.Background(), s.downloadRequestFor())
 }
 
 // DownloadTestContext executes the test to measure download speed, observing the given context.
@@ -200,7 +203,7 @@ func (s *Server) DownloadTestContext(ctx context.Context) error {
 		return ErrServerNil
 	}
 
-	return s.downloadTestContext(ctx, downloadRequest)
+	return s.downloadTestContext(ctx, s.downloadRequestFor())
 }
 
 func (s *Server) testContext(
@@ -282,7 +285,7 @@ func (s *Server) UploadTest() error {
 		return ErrServerNil
 	}
 
-	return s.uploadTestContext(context.Background(), uploadRequest)
+	return s.uploadTestContext(context.Background(), s.uploadRequestFor())
 }
 
 // UploadTestContext executes the test to measure upload speed, observing the given context.
@@ -291,7 +294,7 @@ func (s *Server) UploadTestContext(ctx context.Context) error {
 		return ErrServerNil
 	}
 
-	return s.uploadTestContext(ctx, uploadRequest)
+	return s.uploadTestContext(ctx, s.uploadRequestFor())
 }
 
 func (s *Server) uploadTestContext(ctx context.Context, uploadRequest uploadFunc) error {
@@ -299,7 +302,10 @@ func (s *Server) uploadTestContext(ctx context.Context, uploadRequest uploadFunc
 		return ErrServerNil
 	}
 
-	s.resolveUploadURL(ctx)
+	// TCP tests use no HTTP upload URL, so there are no redirects to resolve.
+	if !s.usesTCP() {
+		s.resolveUploadURL(ctx)
+	}
 
 	return s.testContext(
 		ctx,

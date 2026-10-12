@@ -36,7 +36,9 @@ type Config struct {
 	NoDownload    bool
 	NoUpload      bool
 	PingMode      speedtest.Proto
-	Unit          speedtest.UnitType
+	// TestMode is the protocol for download and upload tests.
+	TestMode speedtest.TestMode
+	Unit     speedtest.UnitType
 	// UnitSet reports that Unit holds a resolved unit. The zero value of [speedtest.UnitType] is decimal bits,
 	// so a Config without it uses the default Mbps output.
 	UnitSet bool
@@ -60,6 +62,10 @@ var (
 	errNegative = errors.New("negative")
 	// errUnknownSource rejects a source that is neither an IP address nor a network interface.
 	errUnknownSource = errors.New("neither an IP address nor a network interface")
+	// errProxyWithTCP rejects a proxy with TCP tests, whose connections cannot go through an HTTP proxy.
+	errProxyWithTCP = errors.New(
+		"--proxy cannot be used with --protocol tcp, whose connections bypass HTTP proxies",
+	)
 )
 
 // Setup applies global side effects based on the configuration and returns
@@ -139,6 +145,11 @@ func Load() (Config, error) {
 		invalid("ping-mode", err)
 	}
 
+	testMode, err := parser.ParseTestMode(viper.GetString("protocol"))
+	if err != nil {
+		invalid("protocol", err)
+	}
+
 	unit, err := parser.ParseUnit(viper.GetString("unit"))
 	if err != nil {
 		invalid("unit", err)
@@ -178,6 +189,7 @@ func Load() (Config, error) {
 		NoDownload:    viper.GetBool("no-download"),
 		NoUpload:      viper.GetBool("no-upload"),
 		PingMode:      pingMode,
+		TestMode:      testMode,
 		Unit:          unit,
 		UnitSet:       true,
 		Debug:         viper.GetBool("debug"),
@@ -195,6 +207,10 @@ func Load() (Config, error) {
 	err = checkOutputFormats(cfg)
 	if err != nil {
 		errs = append(errs, err)
+	}
+
+	if cfg.TestMode == speedtest.TCPTest && cfg.Proxy != "" {
+		errs = append(errs, fmt.Errorf("%w: %w", ErrInvalidSetting, errProxyWithTCP))
 	}
 
 	if len(errs) > 0 {

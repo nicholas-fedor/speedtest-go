@@ -419,6 +419,18 @@ func TestLoadRejectsInvalidSettings(t *testing.T) {
 			want:     `--dscp: "ef" is not a whole number`,
 		},
 		{
+			name:     "unknown protocol",
+			settings: map[string]any{"protocol": "quic"},
+			wantErr:  parser.ErrUnknownProtocol,
+			want:     "--protocol",
+		},
+		{
+			name:     "proxy with TCP tests",
+			settings: map[string]any{"protocol": "tcp", "proxy": "http://proxy.example:8080"},
+			wantErr:  errProxyWithTCP,
+			want:     "--proxy cannot be used with --protocol tcp",
+		},
+		{
 			name:     "json and jsonl",
 			settings: map[string]any{"json": true, "jsonl": true},
 			wantErr:  ErrInvalidSetting,
@@ -638,4 +650,29 @@ func TestParseDSCP(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 46, dscp)
+}
+
+// TestLoadTestMode checks that the protocol setting selects the test mode, with HTTP as the default.
+//
+//nolint:paralleltest // mutates global viper
+func TestLoadTestMode(t *testing.T) {
+	for _, tt := range []struct {
+		protocol string
+		want     speedtest.TestMode
+	}{
+		{protocol: "", want: speedtest.HTTPTest},
+		{protocol: "http", want: speedtest.HTTPTest},
+		{protocol: "tcp", want: speedtest.TCPTest},
+	} {
+		t.Run(tt.protocol, func(t *testing.T) {
+			viper.Reset()
+			t.Cleanup(viper.Reset)
+
+			viper.Set("protocol", tt.protocol)
+
+			cfg, err := Load()
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.TestMode)
+		})
+	}
 }

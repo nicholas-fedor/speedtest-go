@@ -39,6 +39,8 @@ func RegisterRootFlags(rootCmd *cobra.Command, cfgFile *string) {
 	rootCmd.Flags().Bool("no-upload", false, "Disable upload test.")
 	rootCmd.Flags().String("ping-mode", "http", "Select a method for Ping (support icmp/tcp/http).")
 	rootCmd.Flags().
+		String("protocol", "http", "Select the download and upload protocol (http or tcp).")
+	rootCmd.Flags().
 		StringP("unit", "u", "", "Set human-readable and auto-scaled rate units for output "+
 			"(options: decimal-bits/decimal-bytes/binary-bits/binary-bytes).")
 
@@ -61,6 +63,7 @@ func RegisterRootFlags(rootCmd *cobra.Command, cfgFile *string) {
 	_ = viper.BindPFlag("no-download", rootCmd.Flags().Lookup("no-download"))
 	_ = viper.BindPFlag("no-upload", rootCmd.Flags().Lookup("no-upload"))
 	_ = viper.BindPFlag("ping-mode", rootCmd.Flags().Lookup("ping-mode"))
+	_ = viper.BindPFlag("protocol", rootCmd.Flags().Lookup("protocol"))
 	_ = viper.BindPFlag("unit", rootCmd.Flags().Lookup("unit"))
 }
 

@@ -38,6 +38,7 @@ func setupSpeedtestClient(cfg config.Config) *speedtest.Speedtest {
 			DNSBindSource:  cfg.DNSBindSource,
 			Debug:          cfg.Debug,
 			PingMode:       cfg.PingMode,
+			TestMode:       cfg.TestMode,
 			SavingMode:     cfg.SavingMode,
 			MaxConnections: cfg.Thread,
 			CityFlag:       cfg.City,

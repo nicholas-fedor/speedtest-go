@@ -183,6 +183,7 @@ Flags:
       --no-download         Disable download test.
       --no-upload           Disable upload test.
       --ping-mode string    Select a method for Ping (support icmp/tcp/http). (default "http")
+      --protocol string     Select the download and upload protocol (http or tcp). (default "http")
       --proxy string        Set a proxy(http[s] or socks) for the speedtest.
       --saving-mode         Test with few resources, though low accuracy (especially > 30Mbps).
   -s, --server ints         Select server id to run speedtest.
@@ -305,6 +306,16 @@ speedtest-go --dscp 46
 ```
 
 The code point is set on IPv4 and IPv6 sockets on Linux, macOS and the BSDs, and on DNS sockets too when `--dns-bind-source` is set. Other platforms cannot set it, so a nonzero value there is an invalid setting, as is a value outside 0 to 63. A connection that cannot be marked fails rather than running unmarked.
+
+#### Test over TCP
+
+By default, downloads and uploads use HTTP. With `--protocol tcp`, they use the plain TCP protocol that speedtest.net servers also serve, normally on port 8080, which avoids HTTP overhead.
+
+```bash
+speedtest-go --protocol tcp
+```
+
+The ping method is chosen separately with `--ping-mode`, and the packet loss test works the same way in both modes. TCP connections cannot go through an HTTP proxy, so `--protocol tcp` together with `--proxy` is an invalid setting.
 
 #### Test with a virtual location
 
