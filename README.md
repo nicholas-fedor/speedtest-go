@@ -170,10 +170,12 @@ Available Commands:
   version     Print version information
 
 Flags:
+      --base-url string     Set the speedtest API base URL (default https://www.speedtest.net).
       --config string       config file (default is $HOME/.speedtest-go.yaml)
       --custom-url string   Specify the url of the server instead of fetching from speedtest.net.
       --debug               Enable debug mode.
       --dns-bind-source     DNS request binding source (experimental).
+      --dscp int            Mark connections with a DSCP code point from 0 to 63 (Linux, macOS and BSD).
   -h, --help                help for speedtest-go
       --json                Output results in json format.
       --jsonl               Output results in jsonl format (one json object per line).
@@ -293,6 +295,16 @@ speedtest-go --source eth0
 On Linux, an interface name binds the API, ping, download, upload and packet loss connections to the interface with `SO_BINDTODEVICE`, so their traffic leaves through it whatever the routing table prefers, and each one uses the interface's address of the matching IP version. Linux kernels before 5.7 allow that binding only with the `CAP_NET_RAW` capability. On other platforms, those connections use the interface's IPv4 address, or its first IPv6 address that is not link-local, as their source.
 
 DNS lookups use the system resolver unless `--dns-bind-source` is set, which sends them from the source as well. An interface without an IPv4 address or an IPv6 address that is not link-local is an invalid setting, as is any value that is neither an IP address nor an interface.
+
+#### Mark traffic with DSCP
+
+On a network that applies quality of service, `--dscp` marks the API, ping, download, upload and packet loss connections with a Differentiated Services code point from 0 to 63, so the test measures the treatment that class of traffic receives. For example, 46 is Expedited Forwarding, often used for voice, and 34 is Assured Forwarding 41.
+
+```bash
+speedtest-go --dscp 46
+```
+
+The code point is set on IPv4 and IPv6 sockets on Linux, macOS and the BSDs, and on DNS sockets too when `--dns-bind-source` is set. Other platforms cannot set it, so a nonzero value there is an invalid setting, as is a value outside 0 to 63. A connection that cannot be marked fails rather than running unmarked.
 
 #### Test with a virtual location
 

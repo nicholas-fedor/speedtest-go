@@ -43,6 +43,7 @@ func setupSpeedtestClient(cfg config.Config) *speedtest.Speedtest {
 			LocationFlag:   cfg.Location,
 			Keyword:        cfg.Search,
 			BaseURL:        cfg.BaseURL,
+			DSCP:           cfg.DSCP,
 		},
 	))
 }

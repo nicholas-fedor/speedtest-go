@@ -66,10 +66,13 @@ type UserConfig struct {
 	Source        string
 	DNSBindSource bool
 	// DialerControl runs on each socket the client dials before it connects, after any binding to a source
-	// interface. With DNSBindSource, it also runs on DNS sockets.
+	// interface and any DSCP marking. With DNSBindSource, it also runs on DNS sockets.
 	DialerControl func(network, address string, c syscall.RawConn) error
-	Debug         bool
-	PingMode      Proto
+	// DSCP marks each socket the client dials with a Differentiated Services code point from 0 to 63, where 0 leaves
+	// sockets unmarked. A value that [CheckDSCP] rejects is ignored.
+	DSCP     int
+	Debug    bool
+	PingMode Proto
 
 	SavingMode     bool
 	MaxConnections int
@@ -159,7 +162,7 @@ func (s *Speedtest) NewUserConfig(userConfig *UserConfig) {
 	}
 
 	source := resolveSource(userConfig.Source)
-	control := chainControl(source.control, userConfig.DialerControl)
+	control := chainControl(source.control, dscpControl(userConfig.DSCP), userConfig.DialerControl)
 
 	var resolver *net.Resolver
 	if userConfig.DNSBindSource && (source.sourceIP != nil || control != nil) {

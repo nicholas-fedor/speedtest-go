@@ -42,6 +42,8 @@ type Config struct {
 	UnitSet bool
 	Debug   bool
 	BaseURL string
+	// DSCP is the Differentiated Services code point to mark connections with, or 0 to leave them unmarked.
+	DSCP int
 }
 
 // EnvPrefix is the prefix of the environment variables that supply settings. A setting's variable is the prefix,
@@ -152,6 +154,11 @@ func Load() (Config, error) {
 		invalid("source", err)
 	}
 
+	dscp, err := parseDSCP(viper.GetString("dscp"))
+	if err != nil {
+		invalid("dscp", err)
+	}
+
 	cfg := Config{
 		ServerIDs:     viper.GetIntSlice("server"),
 		CustomURL:     viper.GetString("custom-url"),
@@ -175,6 +182,7 @@ func Load() (Config, error) {
 		UnitSet:       true,
 		Debug:         viper.GetBool("debug"),
 		BaseURL:       viper.GetString("base-url"),
+		DSCP:          dscp,
 	}
 
 	if cfg.BaseURL != "" {
@@ -224,6 +232,33 @@ func parseThread(raw string) (int, error) {
 	}
 
 	return thread, nil
+}
+
+// parseDSCP parses the Differentiated Services code point.
+//
+// Parameters:
+//   - raw: the setting value. Empty means 0, which leaves connections unmarked.
+//
+// Returns:
+//   - int: the code point.
+//   - error: the parse error, or an error wrapping [speedtest.ErrInvalidDSCP] or [speedtest.ErrDSCPUnsupported].
+func parseDSCP(raw string) (int, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, nil
+	}
+
+	dscp, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("%q is %w", raw, errNotWholeNumber)
+	}
+
+	err = speedtest.CheckDSCP(dscp)
+	if err != nil {
+		return 0, fmt.Errorf("cannot mark connections: %w", err)
+	}
+
+	return dscp, nil
 }
 
 // checkSource rejects a source that the speedtest client could not bind to.
