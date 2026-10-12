@@ -11,41 +11,32 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/flags"
 )
 
-// rootCmd represents the base command when called without any subcommands.
-var rootCmd = &cobra.Command{
-	Use:   "speedtest-go",
-	Short: "Test internet bandwidth using speedtest.net",
-	Long:  "A command-line tool to test internet download and upload speeds using speedtest.net servers.",
-	RunE: func(_ *cobra.Command, _ []string) error {
-		cfg, err := config.Load()
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-
-		return app.RunSpeedtest(cfg)
-	},
-}
-
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
-func Execute() error {
-	err := rootCmd.Execute()
-	if err != nil {
-		return fmt.Errorf("failed to execute root command: %w", err)
-	}
-
-	return nil
-}
-
-// Init initializes the CLI commands and flags.
-func Init() {
+// NewRootCommand builds the speedtest-go command tree with its subcommands and flags. Each call returns a
+// separate tree, so a command can run once without state left over from another.
+//
+// Returns:
+//   - *cobra.Command: the root command, ready to execute.
+func NewRootCommand() *cobra.Command {
 	cfgFile := ""
 
-	// Flags have parsed by the time this runs, so later errors are not usage mistakes and skip the usage text.
-	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
-		cmd.SilenceUsage = true
+	rootCmd := &cobra.Command{
+		Use:   "speedtest-go",
+		Short: "Test internet bandwidth using speedtest.net",
+		Long:  "A command-line tool to test internet download and upload speeds using speedtest.net servers.",
+		// Flags have parsed by the time this runs, so later errors are not usage mistakes and skip the usage text.
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			cmd.SilenceUsage = true
 
-		return config.InitViper(cfgFile)
+			return config.InitViper(cfgFile)
+		},
+		RunE: func(_ *cobra.Command, _ []string) error {
+			cfg, err := config.Load()
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
+
+			return app.RunSpeedtest(cfg)
+		},
 	}
 
 	// Flag values cobra cannot parse, such as a non-numeric --thread, are invalid settings.
@@ -55,9 +46,11 @@ func Init() {
 
 	flags.RegisterRootFlags(rootCmd, &cfgFile)
 
-	rootCmd.AddCommand(listCmd)
-	rootCmd.AddCommand(citiesCmd)
-	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(
+		newListCommand(),
+		newCitiesCommand(),
+		newVersionCommand(),
+	)
 
-	flags.RegisterListFlags(listCmd)
+	return rootCmd
 }

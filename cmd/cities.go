@@ -6,12 +6,17 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/app"
 )
 
-// citiesCmd represents the cities command.
-var citiesCmd = &cobra.Command{
-	Use:   "cities",
-	Short: "List predefined city labels",
-	Long:  "Display a list of predefined city labels that can be used for location-based server selection.",
-	RunE: func(_ *cobra.Command, _ []string) error {
-		return app.ShowCities()
-	},
+// newCitiesCommand builds the cities command.
+//
+// Returns:
+//   - *cobra.Command: the command that lists the predefined city labels.
+func newCitiesCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "cities",
+		Short: "List predefined city labels",
+		Long:  "Display a list of predefined city labels that can be used for location-based server selection.",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return app.ShowCities()
+		},
+	}
 }

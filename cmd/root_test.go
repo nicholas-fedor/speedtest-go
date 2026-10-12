@@ -4,22 +4,96 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/config"
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/version"
 )
 
-// initOnce registers the commands and flags once per test binary, since repeated runs reuse the global root command.
-var initOnce sync.Once
+// execute runs a new root command with args and returns its error and combined output. It resets the global viper
+// state the command binds to, and always passes an unreachable --base-url, so no case can reach speedtest.net.
+func execute(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	var out bytes.Buffer
+
+	rootCmd := NewRootCommand()
+	rootCmd.SetOut(&out)
+	rootCmd.SetErr(&out)
+	rootCmd.SetArgs(append(args, "--base-url", "http://127.0.0.1:9"))
+
+	err := rootCmd.Execute()
+
+	return out.String(), err
+}
+
+// writeSettings writes an empty settings file and returns its path, so a run never reads the real home directory.
+func writeSettings(t *testing.T) string {
+	t.Helper()
+
+	settings := filepath.Join(t.TempDir(), "speedtest-go.yaml")
+	require.NoError(t, os.WriteFile(settings, []byte("debug: false\n"), 0o600))
+
+	return settings
+}
+
+// TestNewRootCommand checks that the tree has its subcommands and that each call builds a separate tree.
+//
+//nolint:paralleltest // NewRootCommand binds flags to the global viper.
+func TestNewRootCommand(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	first := NewRootCommand()
+	second := NewRootCommand()
+
+	names := make([]string, 0, len(first.Commands()))
+	for _, sub := range first.Commands() {
+		names = append(names, sub.Name())
+	}
+
+	assert.ElementsMatch(t, []string{"list", "cities", "version"}, names)
+	assert.NotSame(t, first, second)
+	assert.NotSame(t, first.Flags().Lookup("thread"), second.Flags().Lookup("thread"))
+}
+
+// TestNewRootCommandStartsClean checks that a flag set during one run is not seen by the next command, in its own
+// flags or through viper, which reads the most recently built tree.
+//
+//nolint:paralleltest // NewRootCommand binds flags to the global viper.
+func TestNewRootCommandStartsClean(t *testing.T) {
+	_, err := execute(t, "--config", writeSettings(t), "--ping-mode", "udp")
+	require.ErrorIs(t, err, config.ErrInvalidSetting)
+
+	next := NewRootCommand()
+
+	pingMode := next.Flags().Lookup("ping-mode")
+	assert.False(t, pingMode.Changed)
+	assert.Equal(t, "http", pingMode.Value.String())
+	assert.Equal(t, "http", viper.GetString("ping-mode"))
+}
+
+// TestExecuteVersion checks a full successful run of a subcommand, including the pre-run hook that reads settings.
+//
+//nolint:paralleltest // execute resets the global viper.
+func TestExecuteVersion(t *testing.T) {
+	out, err := execute(t, "--config", writeSettings(t), "version")
+	require.NoError(t, err)
+	assert.Equal(t, version.String()+"\n", out)
+}
 
 // TestExecuteFlagErrorIsInvalidSetting checks that a flag value cobra cannot parse is reported as an invalid
-// setting, so the CLI exits with code 2 for it. Parsing fails before any initializer reads the settings file.
+// setting, so the CLI exits with code 2 for it, and that the usage text follows. Parsing fails before the pre-run
+// hook reads the settings file.
 //
-//nolint:paralleltest // Init registers flags on the package-level root command.
+//nolint:paralleltest // execute resets the global viper.
 func TestExecuteFlagErrorIsInvalidSetting(t *testing.T) {
 	out, err := execute(t, "--thread", "abc")
 	require.ErrorIs(t, err, config.ErrInvalidSetting)
@@ -27,31 +101,10 @@ func TestExecuteFlagErrorIsInvalidSetting(t *testing.T) {
 	assert.Contains(t, out, "Usage:")
 }
 
-// execute runs the root command with args and returns its error and combined output. It always passes an
-// unreachable --base-url, so no case can reach speedtest.net.
-func execute(t *testing.T, args ...string) (string, error) {
-	t.Helper()
-
-	initOnce.Do(Init)
-
-	// The pre-run hook silences usage on the shared command, and the CLI only ever executes once.
-	rootCmd.SilenceUsage = false
-
-	var out bytes.Buffer
-
-	rootCmd.SetOut(&out)
-	rootCmd.SetErr(&out)
-	rootCmd.SetArgs(append(args, "--base-url", "http://127.0.0.1:9"))
-
-	err := Execute()
-
-	return out.String(), err
-}
-
 // TestExecuteSettingsFileErrorIsInvalidSetting checks that a settings file that cannot be read is an invalid
 // setting, so the CLI exits with code 2, and that the error is not followed by the usage text.
 //
-//nolint:paralleltest // Init registers flags on the package-level root command.
+//nolint:paralleltest // execute resets the global viper.
 func TestExecuteSettingsFileErrorIsInvalidSetting(t *testing.T) {
 	out, err := execute(t, "--config", filepath.Join(t.TempDir(), "missing.yaml"))
 	require.ErrorIs(t, err, config.ErrInvalidSetting)
@@ -62,12 +115,9 @@ func TestExecuteSettingsFileErrorIsInvalidSetting(t *testing.T) {
 // TestExecuteRunErrorSkipsUsage checks that an error after flag parsing, here an unknown ping mode, is reported
 // without the usage text, which only helps with flag mistakes.
 //
-//nolint:paralleltest // Init registers flags on the package-level root command.
+//nolint:paralleltest // execute resets the global viper.
 func TestExecuteRunErrorSkipsUsage(t *testing.T) {
-	settings := filepath.Join(t.TempDir(), "speedtest-go.yaml")
-	require.NoError(t, os.WriteFile(settings, []byte("debug: false\n"), 0o600))
-
-	out, err := execute(t, "--config", settings, "--ping-mode", "udp")
+	out, err := execute(t, "--config", writeSettings(t), "--ping-mode", "udp")
 	require.ErrorIs(t, err, config.ErrInvalidSetting)
 	assert.Contains(t, out, `unknown ping mode "udp"`)
 	assert.NotContains(t, out, "Usage:")
