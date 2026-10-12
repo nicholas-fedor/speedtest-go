@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Mark connections with a DSCP code point by @nicholas-fedor in [#464](https://github.com/nicholas-fedor/speedtest-go/pull/464)
+- Create packet loss analyzers from the client's network setup by @nicholas-fedor in [#462](https://github.com/nicholas-fedor/speedtest-go/pull/462)
 - Accept network interface names as the source by @nicholas-fedor in [#460](https://github.com/nicholas-fedor/speedtest-go/pull/460)
 - Build the command tree with a constructor by @nicholas-fedor in [#451](https://github.com/nicholas-fedor/speedtest-go/pull/451)
 - Skip changelog-only pull requests by @nicholas-fedor in [#436](https://github.com/nicholas-fedor/speedtest-go/pull/436)
