@@ -407,6 +407,18 @@ func TestLoadRejectsInvalidSettings(t *testing.T) {
 			want:     `--source: "no-such-interface0" is neither an IP address nor a network interface`,
 		},
 		{
+			name:     "DSCP out of range",
+			settings: map[string]any{"dscp": 64},
+			wantErr:  speedtest.ErrInvalidDSCP,
+			want:     "--dscp: cannot mark connections: DSCP must be from 0 to 63: 64",
+		},
+		{
+			name:     "non-numeric DSCP",
+			settings: map[string]any{"dscp": "ef"},
+			wantErr:  errNotWholeNumber,
+			want:     `--dscp: "ef" is not a whole number`,
+		},
+		{
 			name:     "json and jsonl",
 			settings: map[string]any{"json": true, "jsonl": true},
 			wantErr:  ErrInvalidSetting,
@@ -599,4 +611,31 @@ func TestCheckSource(t *testing.T) {
 	for _, source := range []string{"no-such-interface0", "speedtest.example", "tcp://no-such-interface0"} {
 		assert.ErrorIs(t, checkSource(source), errUnknownSource, source)
 	}
+}
+
+// TestParseDSCP checks that an empty value means unmarked, and that valid code points are accepted where the
+// platform can mark sockets and rejected where it cannot.
+func TestParseDSCP(t *testing.T) {
+	t.Parallel()
+
+	dscp, err := parseDSCP("")
+	require.NoError(t, err)
+	assert.Zero(t, dscp)
+
+	dscp, err = parseDSCP(" 0 ")
+	require.NoError(t, err)
+	assert.Zero(t, dscp)
+
+	_, err = parseDSCP("-1")
+	require.ErrorIs(t, err, speedtest.ErrInvalidDSCP)
+
+	dscp, err = parseDSCP("46")
+	if speedtest.CheckDSCP(46) != nil {
+		require.ErrorIs(t, err, speedtest.ErrDSCPUnsupported)
+
+		return
+	}
+
+	require.NoError(t, err)
+	assert.Equal(t, 46, dscp)
 }

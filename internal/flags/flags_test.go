@@ -28,6 +28,7 @@ func TestRegisterRootFlagsAddsPersistentFlags(t *testing.T) {
 	require.NotNil(t, pf.Lookup("ua"))
 	require.NotNil(t, pf.Lookup("debug"))
 	require.NotNil(t, pf.Lookup("base-url"))
+	require.NotNil(t, pf.Lookup("dscp"))
 }
 
 //nolint:paralleltest // mutates global viper
