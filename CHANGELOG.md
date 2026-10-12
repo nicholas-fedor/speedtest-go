@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Accept network interface names as the source by @nicholas-fedor in [#460](https://github.com/nicholas-fedor/speedtest-go/pull/460)
 - Build the command tree with a constructor by @nicholas-fedor in [#451](https://github.com/nicholas-fedor/speedtest-go/pull/451)
 - Skip changelog-only pull requests by @nicholas-fedor in [#436](https://github.com/nicholas-fedor/speedtest-go/pull/436)
 - Resolve golangci-lint formatting and tag findings by @nicholas-fedor in [#421](https://github.com/nicholas-fedor/speedtest-go/pull/421)
