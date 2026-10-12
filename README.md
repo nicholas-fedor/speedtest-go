@@ -184,7 +184,7 @@ Flags:
       --proxy string        Set a proxy(http[s] or socks) for the speedtest.
       --saving-mode         Test with few resources, though low accuracy (especially > 30Mbps).
   -s, --server ints         Select server id to run speedtest.
-      --source string       Bind a source interface for the speedtest.
+      --source string       Send from a source IP address or network interface name.
   -t, --thread int          Set the number of concurrent connections.
       --ua string           Set the user-agent header for the speedtest.
   -u, --unit string         Set human-readable and auto-scaled rate units for output (options: decimal-bits/decimal-bytes/binary-bits/binary-bytes).
@@ -281,6 +281,19 @@ $ speedtest-go --server 6691 --server 6087
 
 An ID that speedtest.net does not list is an error, and the error names every such ID. With `-m`, the servers selected with `--server` or `--custom-url` are the pool that each multi-server test spreads its connections across.
 
+#### Test through a specific interface
+
+On a host with several network connections, `--source` picks the one to test. It takes an IP address of this host or a network interface name.
+
+```bash
+speedtest-go --source 192.168.1.101
+speedtest-go --source eth0
+```
+
+On Linux, an interface name binds the API, ping, download and upload connections to the interface with `SO_BINDTODEVICE`, so their traffic leaves through it whatever the routing table prefers, and each one uses the interface's address of the matching IP version. Linux kernels before 5.7 allow that binding only with the `CAP_NET_RAW` capability. On other platforms, those connections use the interface's IPv4 address, or its first IPv6 address that is not link-local, as their source. The packet loss test uses that address on every platform.
+
+DNS lookups use the system resolver unless `--dns-bind-source` is set, which sends them from the source as well. An interface without an IPv4 address or an IPv6 address that is not link-local is an invalid setting, as is any value that is neither an IP address nor an interface.
+
 #### Test with a virtual location
 
 You can test speed from a virtual location by first listing servers in a specific city or coordinates, then selecting server IDs to test against.
@@ -338,8 +351,8 @@ func main() {
  // Use a proxy for the speedtest. eg: socks://127.0.0.1:7890
  // speedtest.WithUserConfig(&speedtest.UserConfig{Proxy: "socks://127.0.0.1:7890"})(speedtestClient)
 
- // Select a network card as the data interface.
- // speedtest.WithUserConfig(&speedtest.UserConfig{Source: "192.168.1.101"})(speedtestClient)
+ // Send from a source IP address or network interface name, such as "192.168.1.101" or "eth0".
+ // speedtest.WithUserConfig(&speedtest.UserConfig{Source: "eth0"})(speedtestClient)
 
  // Get user's network information
  // user, _ := speedtestClient.FetchUserInfo()

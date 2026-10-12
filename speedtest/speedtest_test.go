@@ -152,25 +152,26 @@ func TestSpeedtest_NewUserConfig(t *testing.T) {
 func Test_resolveSource(t *testing.T) {
 	t.Parallel()
 
-	_, _, literal := resolveSource("tcp://127.0.0.1")
-	assert.True(t, net.IPv4(127, 0, 0, 1).Equal(literal), "a literal keeps its parsed IP")
+	literal := resolveSource("tcp://127.0.0.1")
+	assert.True(t, net.IPv4(127, 0, 0, 1).Equal(literal.sourceIP), "a literal keeps its parsed IP")
+	assert.Nil(t, literal.control, "an address is not bound to a device")
 
-	_, _, hostname := resolveSource("localhost")
+	hostname := resolveSource("localhost").sourceIP
 	require.NotNil(t, hostname, "a hostname binds DNS to the address it resolves to")
 	assert.True(t, hostname.IsLoopback())
 
-	_, _, empty := resolveSource("")
-	assert.Nil(t, empty)
+	assert.Equal(t, sourceBinding{}, resolveSource(""))
 
-	_, _, unresolved := resolveSource("bad host")
-	assert.Nil(t, unresolved, "a source that does not resolve leaves DNS unbound")
+	unresolved := resolveSource("bad host")
+	assert.Nil(t, unresolved.sourceIP, "a source that does not resolve leaves DNS unbound")
+	assert.Nil(t, unresolved.tcp)
 }
 
 // Test_sourceBoundResolver checks that the resolver dials DNS servers from the source IP.
 func Test_sourceBoundResolver(t *testing.T) {
 	t.Parallel()
 
-	resolver := sourceBoundResolver(net.IPv4(127, 0, 0, 1))
+	resolver := sourceBoundResolver(net.IPv4(127, 0, 0, 1), nil)
 
 	conn, err := resolver.Dial(context.Background(), "udp", "127.0.0.1:53")
 	require.NoError(t, err, "dialing UDP sends nothing, so no DNS server is needed")

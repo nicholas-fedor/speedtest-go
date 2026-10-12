@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -55,6 +56,8 @@ var (
 	errNotWholeNumber = errors.New("not a whole number")
 	// errNegative rejects a count below zero.
 	errNegative = errors.New("negative")
+	// errUnknownSource rejects a source that is neither an IP address nor a network interface.
+	errUnknownSource = errors.New("neither an IP address nor a network interface")
 )
 
 // Setup applies global side effects based on the configuration and returns
@@ -144,6 +147,11 @@ func Load() (Config, error) {
 		invalid("thread", err)
 	}
 
+	err = checkSource(viper.GetString("source"))
+	if err != nil {
+		invalid("source", err)
+	}
+
 	cfg := Config{
 		ServerIDs:     viper.GetIntSlice("server"),
 		CustomURL:     viper.GetString("custom-url"),
@@ -216,6 +224,41 @@ func parseThread(raw string) (int, error) {
 	}
 
 	return thread, nil
+}
+
+// checkSource rejects a source that the speedtest client could not bind to.
+//
+// Parameters:
+//   - source: the setting value, an IP address or a network interface name, optionally with a network prefix such
+//     as "tcp://". Empty means no source.
+//
+// Returns:
+//   - error: an error wrapping errUnknownSource for any other value, or wrapping
+//     [speedtest.ErrNoInterfaceAddress] for an interface without a usable address.
+func checkSource(source string) error {
+	if source == "" {
+		return nil
+	}
+
+	_, address, found := strings.Cut(source, "://")
+	if !found {
+		address = source
+	}
+
+	if net.ParseIP(address) != nil {
+		return nil
+	}
+
+	_, err := speedtest.ResolveInterface(address)
+	if errors.Is(err, speedtest.ErrInterfaceNotFound) {
+		return fmt.Errorf("%q is %w", source, errUnknownSource)
+	}
+
+	if err != nil {
+		return fmt.Errorf("%q cannot be the source: %w", source, err)
+	}
+
+	return nil
 }
 
 // checkOutputFormats rejects more than one of the json, jsonl, and unix output formats.

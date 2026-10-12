@@ -279,19 +279,25 @@ func endedByContext(ctx context.Context, err error) bool {
 	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
-// packetLossSourceIP parses the analyzer's source as an IP address.
+// packetLossSourceIP resolves the analyzer's source to an IP address.
 //
 // Parameters:
-//   - source: the configured source, possibly with a network prefix such as "udp://".
+//   - source: the configured source, an IP address or a network interface name, possibly with a network prefix
+//     such as "udp://".
 //
 // Returns:
-//   - net.IP: the source IP, or nil when the source is empty or not an IP address.
+//   - net.IP: the source IP, or nil when the source is empty or neither an IP address nor an interface.
 func packetLossSourceIP(source string) net.IP {
 	if len(source) == 0 {
 		return nil
 	}
 
 	_, address := parseAddr(source)
+
+	interfaceIP, err := ResolveInterface(address)
+	if err == nil {
+		return interfaceIP
+	}
 
 	return net.ParseIP(address)
 }
