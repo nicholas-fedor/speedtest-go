@@ -1,6 +1,7 @@
 package speedtest
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"net/url"
@@ -20,6 +21,9 @@ const (
 	// serversAdvancedPath returns a single server and the caller's location as XML.
 	serversAdvancedPath = "api/ios-config.php"
 )
+
+// cacheBustParam is the query parameter that [cacheBust] sets to a random value.
+const cacheBustParam = "r"
 
 // ErrInvalidBaseURL is returned when a base URL is not an absolute http or https URL.
 var ErrInvalidBaseURL = errors.New("invalid base URL")
@@ -88,4 +92,16 @@ func (s *Speedtest) endpoint(path string) (*url.URL, error) {
 	}
 
 	return base.JoinPath(path), nil
+}
+
+// cacheBust adds a random query parameter to an endpoint URL, keeping its other parameters. Responses that describe
+// the caller, such as its IP, ISP, and coordinates, are cached by speedtest.net's CDN, which can then answer with
+// another caller's details. A unique URL never matches a cached response.
+//
+// Parameters:
+//   - endpoint: the URL to change in place.
+func cacheBust(endpoint *url.URL) {
+	query := endpoint.Query()
+	query.Set(cacheBustParam, rand.Text())
+	endpoint.RawQuery = query.Encode()
 }
