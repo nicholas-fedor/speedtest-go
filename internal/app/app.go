@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -46,7 +47,8 @@ func setupSpeedtestClient(cfg config.Config) *speedtest.Speedtest {
 	))
 }
 
-// retrieveServers fetches and selects the target servers.
+// retrieveServers fetches and selects the target servers. It returns the pool for --multi and the targets.
+// Servers named with --custom-url or --server are their own pool.
 func retrieveServers(
 	speedtestClient *speedtest.Speedtest,
 	cfg config.Config,
@@ -67,35 +69,15 @@ func retrieveServers(
 			task.CheckError(err)
 
 			targets = []*speedtest.Server{target}
+			servers = targets
 
 			task.Println("Skip: Using Custom Server")
 		case len(cfg.ServerIDs) > 0:
-			type fetchResult struct {
-				server *speedtest.Server
-				err    error
-			}
-
-			results := make(chan fetchResult, len(cfg.ServerIDs))
-			for _, id := range cfg.ServerIDs {
-				go func(id int) {
-					serverPtr, errFetch := speedtestClient.FetchServerByID(strconv.Itoa(id))
-					results <- fetchResult{server: serverPtr, err: errFetch}
-				}(id)
-			}
-
-			for range cfg.ServerIDs {
-				res := <-results
-				if res.err != nil {
-					continue // Silently Skip all ids that actually don't exist.
-				}
-
-				targets = append(targets, res.server)
-			}
-
+			targets, err = fetchServersByID(speedtestClient, cfg.ServerIDs)
 			task.CheckError(err)
-			task.Printf("Found %d Specified Public Server(s)",
-				len(targets),
-			)
+
+			servers = targets
+			task.Printf("Found %d Specified Public Server(s)", len(targets))
 		default:
 			servers, err = speedtestClient.FetchServers()
 			task.CheckError(err)
@@ -108,6 +90,65 @@ func retrieveServers(
 	})
 
 	return servers, targets
+}
+
+// fetchServersByID looks up each server ID concurrently.
+//
+// Parameters:
+//   - speedtestClient: the client that performs the lookups.
+//   - ids: the server IDs from --server.
+//
+// Returns:
+//   - speedtest.Servers: the servers in the order of ids.
+//   - error: an error wrapping [speedtest.ErrServerNotFound] that lists every unknown ID, joined with any other
+//     lookup errors.
+func fetchServersByID(speedtestClient *speedtest.Speedtest, ids []int) (speedtest.Servers, error) {
+	found := make(speedtest.Servers, len(ids))
+	errs := make([]error, len(ids))
+
+	var wg sync.WaitGroup
+
+	for index, id := range ids {
+		wg.Go(func() {
+			found[index], errs[index] = speedtestClient.FetchServerByID(strconv.Itoa(id))
+		})
+	}
+
+	wg.Wait()
+
+	var (
+		missing []string
+		failed  []error
+	)
+
+	for index, serverID := range ids {
+		switch err := errs[index]; {
+		case err == nil:
+		case errors.Is(err, speedtest.ErrServerNotFound):
+			missing = append(missing, strconv.Itoa(serverID))
+		default:
+			failed = append(failed, fmt.Errorf("server %d: %w", serverID, err))
+		}
+	}
+
+	if len(missing) > 0 {
+		failed = append(
+			[]error{
+				fmt.Errorf(
+					"%w for --server %s",
+					speedtest.ErrServerNotFound,
+					strings.Join(missing, ", "),
+				),
+			},
+			failed...,
+		)
+	}
+
+	if len(failed) > 0 {
+		return nil, errors.Join(failed...)
+	}
+
+	return found, nil
 }
 
 // runTest executes the bandwidth test based on configuration.

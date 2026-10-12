@@ -1,6 +1,8 @@
 package task
 
 import (
+	"bytes"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -378,4 +380,54 @@ func TestTask_CheckError(t *testing.T) {
 			assert.NotPanics(t, func() { tt.tr.CheckError(tt.args.err) })
 		})
 	}
+}
+
+// TestTask_CheckErrorExitsWithFailure checks that a fatal error without a spinner goes to stderr, never stdout,
+// and ends the process with exit code 1, so JSON and unix output stay parseable and scripts see the failure.
+func TestTask_CheckErrorExitsWithFailure(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		jsonOutput bool
+		unixOutput bool
+	}{
+		{name: "json output", jsonOutput: true, unixOutput: false},
+		{name: "unix output", jsonOutput: false, unixOutput: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				stderr bytes.Buffer
+				codes  []int
+			)
+
+			manager := NewManager(tt.jsonOutput, tt.unixOutput)
+			manager.stderr = &stderr
+			manager.exit = func(code int) { codes = append(codes, code) }
+
+			task := &Task{manager: manager, title: "Retrieving Servers"}
+			task.CheckError(errors.New("connection refused"))
+
+			assert.Equal(t, []int{1}, codes)
+			assert.Equal(t, "Fatal: retrieving servers, err: connection refused\n", stderr.String())
+		})
+	}
+}
+
+// TestTask_CheckErrorIgnoresNil checks that a nil error neither writes nor exits.
+func TestTask_CheckErrorIgnoresNil(t *testing.T) {
+	t.Parallel()
+
+	var stderr bytes.Buffer
+
+	manager := NewManager(true, false)
+	manager.stderr = &stderr
+	manager.exit = func(code int) { t.Errorf("exit(%d) called for a nil error", code) }
+
+	(&Task{manager: manager, title: "Download"}).CheckError(nil)
+
+	assert.Empty(t, stderr.String())
 }

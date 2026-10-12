@@ -41,9 +41,12 @@ func Execute() error {
 func Init() {
 	cfgFile := ""
 
-	cobra.OnInitialize(func() {
-		cobra.CheckErr(config.InitViper(cfgFile))
-	})
+	// Flags have parsed by the time this runs, so later errors are not usage mistakes and skip the usage text.
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
+		cmd.SilenceUsage = true
+
+		return config.InitViper(cfgFile)
+	}
 
 	// Flag values cobra cannot parse, such as a non-numeric --thread, are invalid settings.
 	rootCmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
