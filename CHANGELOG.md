@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update ossf/scorecard-action action to v2.5.0 by @renovate[bot] in [#447](https://github.com/nicholas-fedor/speedtest-go/pull/447)
 - Update module golang.org/x/text to v0.43.0 by @renovate[bot] in [#424](https://github.com/nicholas-fedor/speedtest-go/pull/424)
 - Update module golang.org/x/term to v0.47.0 by @renovate[bot] in [#423](https://github.com/nicholas-fedor/speedtest-go/pull/423)
 - Update module golang.org/x/sys to v0.49.0 by @renovate[bot] in [#419](https://github.com/nicholas-fedor/speedtest-go/pull/419)
