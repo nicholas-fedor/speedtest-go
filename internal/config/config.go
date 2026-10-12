@@ -46,6 +46,10 @@ type Config struct {
 	BaseURL string
 	// DSCP is the Differentiated Services code point to mark connections with, or 0 to leave them unmarked.
 	DSCP int
+	// DownloadSize is the download block size from the library's size table, or 0 for the default.
+	DownloadSize int
+	// UploadSize is the upload block size in kB from the library's size table, or 0 for the default.
+	UploadSize int
 }
 
 // EnvPrefix is the prefix of the environment variables that supply settings. A setting's variable is the prefix,
@@ -170,6 +174,16 @@ func Load() (Config, error) {
 		invalid("dscp", err)
 	}
 
+	downloadSize, err := parseTransferSize(viper.GetString("dl-size"), speedtest.CheckDownloadSize)
+	if err != nil {
+		invalid("dl-size", err)
+	}
+
+	uploadSize, err := parseTransferSize(viper.GetString("ul-size"), speedtest.CheckUploadSize)
+	if err != nil {
+		invalid("ul-size", err)
+	}
+
 	cfg := Config{
 		ServerIDs:     viper.GetIntSlice("server"),
 		CustomURL:     viper.GetString("custom-url"),
@@ -195,6 +209,8 @@ func Load() (Config, error) {
 		Debug:         viper.GetBool("debug"),
 		BaseURL:       viper.GetString("base-url"),
 		DSCP:          dscp,
+		DownloadSize:  downloadSize,
+		UploadSize:    uploadSize,
 	}
 
 	if cfg.BaseURL != "" {
@@ -275,6 +291,34 @@ func parseDSCP(raw string) (int, error) {
 	}
 
 	return dscp, nil
+}
+
+// parseTransferSize parses a download or upload block size.
+//
+// Parameters:
+//   - raw: the setting value. Empty means 0, the default size.
+//   - check: the library's check for the direction, [speedtest.CheckDownloadSize] or [speedtest.CheckUploadSize].
+//
+// Returns:
+//   - int: the size.
+//   - error: the parse error, or the check's error wrapping [speedtest.ErrInvalidTransferSize].
+func parseTransferSize(raw string, check func(int) error) (int, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, nil
+	}
+
+	size, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("%q is %w", raw, errNotWholeNumber)
+	}
+
+	err = check(size)
+	if err != nil {
+		return 0, fmt.Errorf("cannot use this size: %w", err)
+	}
+
+	return size, nil
 }
 
 // checkSource rejects a source that the speedtest client could not bind to.

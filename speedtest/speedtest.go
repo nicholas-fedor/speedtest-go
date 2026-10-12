@@ -87,6 +87,14 @@ type UserConfig struct {
 	PingMode Proto
 	// TestMode selects the protocol for download and upload tests. The ping method is set by PingMode.
 	TestMode TestMode
+	// DownloadSize selects the download block size from 350, 500, 750, 1000, 1500, 2000, 2500, 3000, 3500, or 4000.
+	// Over HTTP it is the side of the requested image, and over TCP the size in kB. 0 keeps the default of 1000, and
+	// a value that [CheckDownloadSize] rejects is ignored.
+	DownloadSize int
+	// UploadSize selects the upload block size in kB from 100, 300, 500, 800, 1000, 1500, 2500, 3000, 3500, or 4000.
+	// 0 keeps the defaults of 1000 for single-server and 800 for multi-server tests, and a value that
+	// [CheckUploadSize] rejects is ignored.
+	UploadSize int
 
 	SavingMode     bool
 	MaxConnections int
@@ -173,6 +181,20 @@ func (s *Speedtest) NewUserConfig(userConfig *UserConfig) {
 
 	if len(s.config.BaseURL) == 0 {
 		s.config.BaseURL = DefaultBaseURL
+	}
+
+	err := CheckDownloadSize(s.config.DownloadSize)
+	if err != nil {
+		dbg.Printf("Warning: skipping the download size. err: %s\n", err.Error())
+
+		s.config.DownloadSize = 0
+	}
+
+	err = CheckUploadSize(s.config.UploadSize)
+	if err != nil {
+		dbg.Printf("Warning: skipping the upload size. err: %s\n", err.Error())
+
+		s.config.UploadSize = 0
 	}
 
 	source := resolveSource(userConfig.Source)
