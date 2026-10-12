@@ -50,6 +50,7 @@ type Speedtest struct {
 	doer      *http.Client
 	config    *UserConfig
 	tcpDialer *net.Dialer
+	udpDialer *net.Dialer
 	ipDialer  *net.Dialer
 }
 
@@ -112,7 +113,7 @@ func parseAddr(addr string) (string, string) {
 
 // NewUserConfig sets the user configuration for the speedtest instance.
 //
-// It always builds the TCP and ICMP dialers and the HTTP transport from the configuration, so the user agent,
+// It always builds the TCP, UDP, and ICMP dialers and the HTTP transport from the configuration, so the user agent,
 // proxy, source address, and dialer control apply whether or not a source address is set. The client's own HTTP
 // client sends requests through that transport. Process-wide defaults such as [http.DefaultClient] and
 // [net.DefaultResolver] are never modified.
@@ -171,6 +172,15 @@ func (s *Speedtest) NewUserConfig(userConfig *UserConfig) {
 		KeepAlive: dialKeepAlive,
 		Control:   control,
 		Resolver:  resolver,
+	}
+
+	s.udpDialer = &net.Dialer{
+		Timeout:  dialTimeout,
+		Control:  control,
+		Resolver: resolver,
+	}
+	if source.sourceIP != nil {
+		s.udpDialer.LocalAddr = &net.UDPAddr{IP: source.sourceIP}
 	}
 
 	s.ipDialer = &net.Dialer{

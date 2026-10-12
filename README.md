@@ -409,8 +409,8 @@ func main() {
  serverList, _ := speedtestClient.FetchServers()
  targets, _ := serverList.FindServer([]int{})
 
- // Create a packet loss analyzer, use default options
- analyzer := speedtest.NewPacketLossAnalyzer(nil)
+ // Create a packet loss analyzer that connects the way the client does, with default options
+ analyzer := speedtestClient.NewPacketLossAnalyzer(nil)
 
  // Perform packet loss analysis on all available servers
  for _, server := range targets {

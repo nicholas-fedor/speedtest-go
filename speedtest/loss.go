@@ -22,6 +22,9 @@ type PacketLossAnalyzerOptions struct {
 	UDPDialer              *net.Dialer // udp dialer for sending packet
 }
 
+// defaultPacketSendingTimeout bounds connecting the analyzer's sockets when the options set no timeout.
+const defaultPacketSendingTimeout = 5 * time.Second
+
 // PacketLossAnalyzer performs packet loss analysis on network connections.
 type PacketLossAnalyzer struct {
 	options *PacketLossAnalyzerOptions
@@ -51,7 +54,7 @@ func NewPacketLossAnalyzer(options *PacketLossAnalyzerOptions) *PacketLossAnalyz
 	}
 
 	if options.PacketSendingTimeout == 0 {
-		options.PacketSendingTimeout = 5 * time.Second
+		options.PacketSendingTimeout = defaultPacketSendingTimeout
 	}
 
 	source := resolveSource(options.SourceInterface)
@@ -79,6 +82,62 @@ func NewPacketLossAnalyzer(options *PacketLossAnalyzerOptions) *PacketLossAnalyz
 	return &PacketLossAnalyzer{
 		options: options,
 	}
+}
+
+// NewPacketLossAnalyzer creates a packet loss analyzer whose connections leave the way the client's do: from its
+// source, through its socket control, and with its source-bound DNS resolver.
+//
+// Each dialer the options leave unset is a copy of the client's, with the analyzer's PacketSendingTimeout, so the
+// client's own dialers never change. The copies make SourceInterface unnecessary. Other options keep the defaults
+// of [NewPacketLossAnalyzer].
+//
+// Parameters:
+//   - options: the analyzer options, or nil for the defaults.
+//
+// Returns:
+//   - *PacketLossAnalyzer: the analyzer.
+func (s *Speedtest) NewPacketLossAnalyzer(options *PacketLossAnalyzerOptions) *PacketLossAnalyzer {
+	if options == nil {
+		options = &PacketLossAnalyzerOptions{}
+	}
+
+	if s == nil {
+		return NewPacketLossAnalyzer(options)
+	}
+
+	timeout := options.PacketSendingTimeout
+	if timeout == 0 {
+		timeout = defaultPacketSendingTimeout
+	}
+
+	if options.TCPDialer == nil {
+		options.TCPDialer = dialerWithTimeout(s.tcpDialer, timeout)
+	}
+
+	if options.UDPDialer == nil {
+		options.UDPDialer = dialerWithTimeout(s.udpDialer, timeout)
+	}
+
+	return NewPacketLossAnalyzer(options)
+}
+
+// dialerWithTimeout returns a copy of dialer with a different connect timeout.
+//
+// Parameters:
+//   - dialer: the dialer to copy, nil for a client that was not built by [New].
+//   - timeout: the copy's connect timeout.
+//
+// Returns:
+//   - *net.Dialer: the copy, or nil when dialer is nil, so [NewPacketLossAnalyzer] builds its default dialer.
+func dialerWithTimeout(dialer *net.Dialer, timeout time.Duration) *net.Dialer {
+	if dialer == nil {
+		return nil
+	}
+
+	dialerCopy := *dialer
+	dialerCopy.Timeout = timeout
+
+	return &dialerCopy
 }
 
 // RunMulti Mix all servers to get the average packet loss.

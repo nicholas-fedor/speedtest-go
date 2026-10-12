@@ -277,11 +277,7 @@ func runServerTests(
 	})
 
 	// create a packet loss analyzer
-	analyzer := speedtest.NewPacketLossAnalyzer(
-		&speedtest.PacketLossAnalyzerOptions{
-			SourceInterface: cfg.Source,
-		},
-	)
+	analyzer := speedtestClient.NewPacketLossAnalyzer(nil)
 
 	blocker := sync.WaitGroup{}
 	packetLossAnalyzerCtx, packetLossAnalyzerCancel := context.WithTimeout(
