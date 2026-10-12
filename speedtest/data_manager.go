@@ -34,6 +34,8 @@ type Manager interface {
 
 	GetTotalDownload() int64
 	GetTotalUpload() int64
+	GetUploadBacklog() int64
+	GetUploadConfirmationRatio() float64
 	AddTotalDownload(value int64)
 	AddTotalUpload(value int64)
 
@@ -131,6 +133,8 @@ type DataManager struct {
 	captureTime          time.Duration
 	rateCaptureFrequency time.Duration
 	nThread              int
+	uploadMaxWorkers     int
+	cpus                 int // the CPU count, which bounds the upload workers active at the start
 
 	running   bool
 	runningRW sync.RWMutex
@@ -146,11 +150,19 @@ type TestDirection struct {
 	TestType        int                         // test type
 	manager         *DataManager                // manager
 	totalDataVolume atomic.Int64                // total send/receive data volume
+	totalReadVolume atomic.Int64                // upload bytes read into the transport, confirmed or not
 	RateSequence    []int64                     // rate history sequence
 	welford         *internal.Welford           // std/EWMA/mean
 	welfordMu       sync.Mutex                  // protects welford and RateSequence
 	captureCallback func(realTimeRate ByteRate) // user callback
 	closeFunc       func()                      // close func
+
+	// workerMu guards activeWorkers and maxWorkers, and workerCond wakes workers when either the count or the
+	// running state changes.
+	workerMu      sync.Mutex
+	workerCond    *sync.Cond
+	activeWorkers int // workers allowed to send requests, numbered from 0
+	maxWorkers    int // workers started
 }
 
 // NewDataManager creates a new DataManager instance with default settings.
@@ -161,6 +173,8 @@ func NewDataManager() *DataManager {
 	) // uniformly distributed sequence of bits
 	ret := &DataManager{
 		nThread:              runtime.NumCPU(),
+		uploadMaxWorkers:     defaultUploadMaxWorkers,
+		cpus:                 runtime.NumCPU(),
 		captureTime:          defaultCaptureTime,
 		rateCaptureFrequency: defaultRateCaptureFrequency,
 		Snapshot:             &Snapshot{},
@@ -175,11 +189,14 @@ func NewDataManager() *DataManager {
 
 // NewDataDirection creates a new TestDirection for the specified test type.
 func (dm *DataManager) NewDataDirection(testType int) *TestDirection {
-	return &TestDirection{
+	direction := &TestDirection{
 		TestType:  testType,
 		manager:   dm,
 		funcGroup: &funcGroup{},
 	}
+	direction.workerCond = sync.NewCond(&direction.workerMu)
+
+	return direction
 }
 
 // SetCallbackDownload sets the callback function for download rate updates.
@@ -226,6 +243,11 @@ func (td *TestDirection) AddTotalDataVolume(delta int64) int64 {
 	return td.totalDataVolume.Add(delta)
 }
 
+// GetTotalReadVolume returns the upload bytes read into the transport, whether or not the server confirmed them.
+func (td *TestDirection) GetTotalReadVolume() int64 {
+	return td.totalReadVolume.Load()
+}
+
 // Start begins the test direction execution with the given cancel function and main request handler index.
 //
 // It runs until the capture time ends or the rate settles. See [TestDirection.StartContext] to also stop when a
@@ -259,6 +281,11 @@ func (td *TestDirection) StartContext(
 		mainRequestHandlerIndex = 0
 	}
 
+	workerLimit := td.manager.nThread
+	if td.TestType == typeUpload {
+		workerLimit = min(workerLimit, td.manager.uploadMaxWorkers)
+	}
+
 	mainLoadFactor := 0.1
 	// When the number of processor cores is equivalent to the processing program,
 	// the processing efficiency reaches the highest level (VT is not considered).
@@ -268,10 +295,22 @@ func (td *TestDirection) StartContext(
 	}
 
 	if len(fns) == 1 {
-		mainN = td.manager.nThread
+		mainN = workerLimit
 	}
 
-	auxN := td.manager.nThread - mainN
+	auxN := workerLimit - mainN
+
+	// Uploads start with no more workers than CPUs and let adaptUploadWorkers grow or shrink the count. Downloads
+	// run every worker.
+	initialWorkers := workerLimit
+	if td.TestType == typeUpload {
+		initialWorkers = min(workerLimit, td.manager.cpus)
+	}
+
+	td.workerMu.Lock()
+	td.maxWorkers = workerLimit
+	td.activeWorkers = initialWorkers
+	td.workerMu.Unlock()
 
 	dbg.Printf("Available fns: %d\n", len(fns))
 	dbg.Printf("mainN: %d\n", mainN)
@@ -284,14 +323,17 @@ func (td *TestDirection) StartContext(
 	var once sync.Once
 
 	stopCapture := make(chan bool, 1)
+	stopAdapting := make(chan struct{})
 	td.closeFunc = func() {
 		once.Do(func() {
 			stopCapture <- true
 
 			close(stopCapture)
+			close(stopAdapting)
 			td.manager.runningRW.Lock()
 			td.manager.running = false
 			td.manager.runningRW.Unlock()
+			td.stopWorkers()
 			cancel()
 			dbg.Println("FuncGroup: Stop")
 		})
@@ -302,19 +344,17 @@ func (td *TestDirection) StartContext(
 
 	td.rateCapture(stopCapture)
 
+	if td.TestType == typeUpload && workerLimit > 1 {
+		dbg.Printf("Upload workers: %d/%d\n", initialWorkers, workerLimit)
+
+		go td.adaptUploadWorkers(stopAdapting)
+	}
+
 	time.AfterFunc(td.manager.captureTime, td.closeFunc)
 
-	for range mainN {
+	for worker := range mainN {
 		waitGroup.Go(func() {
-			for {
-				td.manager.runningRW.RLock()
-				running := td.manager.running
-				td.manager.runningRW.RUnlock()
-
-				if !running {
-					return
-				}
-
+			for td.waitForTurn(worker) {
 				fns[mainRequestHandlerIndex]()
 			}
 		})
@@ -330,25 +370,14 @@ func (td *TestDirection) StartContext(
 				continue
 			}
 
-			waitGroup.Add(1)
-
+			worker := mainN + auxIndex
 			taskIndex := functionIndex
 
-			go func() {
-				defer waitGroup.Done()
-
-				for {
-					td.manager.runningRW.RLock()
-					running := td.manager.running
-					td.manager.runningRW.RUnlock()
-
-					if !running {
-						return
-					}
-
+			waitGroup.Go(func() {
+				for td.waitForTurn(worker) {
 					fns[taskIndex]()
 				}
-			}()
+			})
 
 			auxIndex++
 		}
@@ -489,6 +518,30 @@ func (dm *DataManager) GetTotalUpload() int64 {
 	return upload.GetTotalDataVolume()
 }
 
+// GetUploadBacklog returns the upload bytes read into the transport but not yet confirmed by a successful response.
+func (dm *DataManager) GetUploadBacklog() int64 {
+	dm.Lock()
+	upload := dm.upload
+	dm.Unlock()
+
+	return max(upload.GetTotalReadVolume()-upload.GetTotalDataVolume(), 0)
+}
+
+// GetUploadConfirmationRatio returns the share of upload bytes read into the transport that the server confirmed,
+// from 0 to 1, or 0 before any bytes were read. It counts application-level confirmations, not TCP acknowledgments.
+func (dm *DataManager) GetUploadConfirmationRatio() float64 {
+	dm.Lock()
+	upload := dm.upload
+	dm.Unlock()
+
+	read := upload.GetTotalReadVolume()
+	if read <= 0 {
+		return 0
+	}
+
+	return min(max(float64(upload.GetTotalDataVolume())/float64(read), 0), 1)
+}
+
 // SetRateCaptureFrequency sets the frequency for capturing rate data.
 func (dm *DataManager) SetRateCaptureFrequency(duration time.Duration) Manager {
 	dm.rateCaptureFrequency = duration
@@ -504,11 +557,16 @@ func (dm *DataManager) SetCaptureTime(duration time.Duration) Manager {
 }
 
 // SetNThread sets the number of threads for the manager.
-func (dm *DataManager) SetNThread(n int) Manager {
-	if n < 1 {
+//
+// Uploads use at most that many workers too, or 8 when threads is below 1, since more upload workers than the
+// uplink can drain only queue unconfirmed data.
+func (dm *DataManager) SetNThread(threads int) Manager {
+	if threads < 1 {
 		dm.nThread = runtime.NumCPU()
+		dm.uploadMaxWorkers = defaultUploadMaxWorkers
 	} else {
-		dm.nThread = n
+		dm.nThread = threads
+		dm.uploadMaxWorkers = threads
 	}
 
 	return dm
@@ -587,6 +645,14 @@ func (dm *DataManager) GetEWMAUploadRate() float64 {
 	return 0
 }
 
+// isRunning reports whether a test direction is running.
+func (dm *DataManager) isRunning() bool {
+	dm.runningRW.RLock()
+	defer dm.runningRW.RUnlock()
+
+	return dm.running
+}
+
 // DataChunk represents a chunk of data for speed tests.
 type DataChunk struct {
 	manager             *DataManager
@@ -596,6 +662,8 @@ type DataChunk struct {
 	err                 error
 	ContentLength       int64
 	remainOrDiscardSize int64
+	// uploadRead counts the bytes read from an upload chunk into its direction's read volume.
+	uploadRead *atomic.Int64
 }
 
 var blackHolePool = sync.Pool{
@@ -690,6 +758,13 @@ func (dc *DataChunk) UploadHandler(size int64) Chunk {
 	dc.dateType = typeUpload
 	dc.startTime = time.Now()
 
+	// Capture the direction once, so each small read adds to it without taking the manager lock.
+	if dc.manager != nil {
+		dc.manager.Lock()
+		dc.uploadRead = &dc.manager.upload.totalReadVolume
+		dc.manager.Unlock()
+	}
+
 	return dc
 }
 
@@ -713,8 +788,13 @@ func (dc *DataChunk) Read(buffer []byte) (int, error) {
 		bytesRead = copy(buffer, *dc.manager.repeatByte)
 	}
 
-	// Upload bytes are counted once the server confirms the request, not when the transport reads them.
+	// Upload bytes count as uploaded once the server confirms the request. Reading only adds to the read volume,
+	// which measures the backlog.
 	dc.remainOrDiscardSize -= int64(bytesRead)
+
+	if dc.uploadRead != nil {
+		dc.uploadRead.Add(int64(bytesRead))
+	}
 
 	return bytesRead, nil
 }

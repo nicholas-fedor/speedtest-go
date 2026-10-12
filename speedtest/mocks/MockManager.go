@@ -17,10 +17,19 @@ func NewMockManager(t interface {
 	mock.TestingT
 	Cleanup(func())
 }) *MockManager {
+	if helper, ok := t.(interface{ Helper() }); ok {
+		helper.Helper()
+	}
+
 	mock := &MockManager{}
 	mock.Mock.Test(t)
 
-	t.Cleanup(func() { mock.AssertExpectations(t) })
+	t.Cleanup(func() {
+		if helper, ok := t.(interface{ Helper() }); ok {
+			helper.Helper()
+		}
+		mock.AssertExpectations(t)
+	})
 
 	return mock
 }
@@ -51,7 +60,7 @@ type MockManager_AddTotalDownload_Call struct {
 
 // AddTotalDownload is a helper method to define mock.On call
 //   - value int64
-func (_e *MockManager_Expecter) AddTotalDownload(value interface{}) *MockManager_AddTotalDownload_Call {
+func (_e *MockManager_Expecter) AddTotalDownload(value any) *MockManager_AddTotalDownload_Call {
 	return &MockManager_AddTotalDownload_Call{Call: _e.mock.On("AddTotalDownload", value)}
 }
 
@@ -91,7 +100,7 @@ type MockManager_AddTotalUpload_Call struct {
 
 // AddTotalUpload is a helper method to define mock.On call
 //   - value int64
-func (_e *MockManager_Expecter) AddTotalUpload(value interface{}) *MockManager_AddTotalUpload_Call {
+func (_e *MockManager_Expecter) AddTotalUpload(value any) *MockManager_AddTotalUpload_Call {
 	return &MockManager_AddTotalUpload_Call{Call: _e.mock.On("AddTotalUpload", value)}
 }
 
@@ -382,6 +391,94 @@ func (_c *MockManager_GetTotalUpload_Call) RunAndReturn(run func() int64) *MockM
 	return _c
 }
 
+// GetUploadBacklog provides a mock function for the type MockManager
+func (_mock *MockManager) GetUploadBacklog() int64 {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetUploadBacklog")
+	}
+
+	var r0 int64
+	if returnFunc, ok := ret.Get(0).(func() int64); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+	return r0
+}
+
+// MockManager_GetUploadBacklog_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetUploadBacklog'
+type MockManager_GetUploadBacklog_Call struct {
+	*mock.Call
+}
+
+// GetUploadBacklog is a helper method to define mock.On call
+func (_e *MockManager_Expecter) GetUploadBacklog() *MockManager_GetUploadBacklog_Call {
+	return &MockManager_GetUploadBacklog_Call{Call: _e.mock.On("GetUploadBacklog")}
+}
+
+func (_c *MockManager_GetUploadBacklog_Call) Run(run func()) *MockManager_GetUploadBacklog_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockManager_GetUploadBacklog_Call) Return(n int64) *MockManager_GetUploadBacklog_Call {
+	_c.Call.Return(n)
+	return _c
+}
+
+func (_c *MockManager_GetUploadBacklog_Call) RunAndReturn(run func() int64) *MockManager_GetUploadBacklog_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetUploadConfirmationRatio provides a mock function for the type MockManager
+func (_mock *MockManager) GetUploadConfirmationRatio() float64 {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetUploadConfirmationRatio")
+	}
+
+	var r0 float64
+	if returnFunc, ok := ret.Get(0).(func() float64); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Get(0).(float64)
+	}
+	return r0
+}
+
+// MockManager_GetUploadConfirmationRatio_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetUploadConfirmationRatio'
+type MockManager_GetUploadConfirmationRatio_Call struct {
+	*mock.Call
+}
+
+// GetUploadConfirmationRatio is a helper method to define mock.On call
+func (_e *MockManager_Expecter) GetUploadConfirmationRatio() *MockManager_GetUploadConfirmationRatio_Call {
+	return &MockManager_GetUploadConfirmationRatio_Call{Call: _e.mock.On("GetUploadConfirmationRatio")}
+}
+
+func (_c *MockManager_GetUploadConfirmationRatio_Call) Run(run func()) *MockManager_GetUploadConfirmationRatio_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockManager_GetUploadConfirmationRatio_Call) Return(f float64) *MockManager_GetUploadConfirmationRatio_Call {
+	_c.Call.Return(f)
+	return _c
+}
+
+func (_c *MockManager_GetUploadConfirmationRatio_Call) RunAndReturn(run func() float64) *MockManager_GetUploadConfirmationRatio_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewChunk provides a mock function for the type MockManager
 func (_mock *MockManager) NewChunk() speedtest.Chunk {
 	ret := _mock.Called()
@@ -454,7 +551,7 @@ type MockManager_RegisterDownloadHandler_Call struct {
 
 // RegisterDownloadHandler is a helper method to define mock.On call
 //   - fn func()
-func (_e *MockManager_Expecter) RegisterDownloadHandler(fn interface{}) *MockManager_RegisterDownloadHandler_Call {
+func (_e *MockManager_Expecter) RegisterDownloadHandler(fn any) *MockManager_RegisterDownloadHandler_Call {
 	return &MockManager_RegisterDownloadHandler_Call{Call: _e.mock.On("RegisterDownloadHandler", fn)}
 }
 
@@ -507,7 +604,7 @@ type MockManager_RegisterUploadHandler_Call struct {
 
 // RegisterUploadHandler is a helper method to define mock.On call
 //   - fn func()
-func (_e *MockManager_Expecter) RegisterUploadHandler(fn interface{}) *MockManager_RegisterUploadHandler_Call {
+func (_e *MockManager_Expecter) RegisterUploadHandler(fn any) *MockManager_RegisterUploadHandler_Call {
 	return &MockManager_RegisterUploadHandler_Call{Call: _e.mock.On("RegisterUploadHandler", fn)}
 }
 
@@ -580,7 +677,7 @@ type MockManager_SetCallbackDownload_Call struct {
 
 // SetCallbackDownload is a helper method to define mock.On call
 //   - callback func(downRate speedtest.ByteRate)
-func (_e *MockManager_Expecter) SetCallbackDownload(callback interface{}) *MockManager_SetCallbackDownload_Call {
+func (_e *MockManager_Expecter) SetCallbackDownload(callback any) *MockManager_SetCallbackDownload_Call {
 	return &MockManager_SetCallbackDownload_Call{Call: _e.mock.On("SetCallbackDownload", callback)}
 }
 
@@ -620,7 +717,7 @@ type MockManager_SetCallbackUpload_Call struct {
 
 // SetCallbackUpload is a helper method to define mock.On call
 //   - callback func(upRate speedtest.ByteRate)
-func (_e *MockManager_Expecter) SetCallbackUpload(callback interface{}) *MockManager_SetCallbackUpload_Call {
+func (_e *MockManager_Expecter) SetCallbackUpload(callback any) *MockManager_SetCallbackUpload_Call {
 	return &MockManager_SetCallbackUpload_Call{Call: _e.mock.On("SetCallbackUpload", callback)}
 }
 
@@ -673,7 +770,7 @@ type MockManager_SetCaptureTime_Call struct {
 
 // SetCaptureTime is a helper method to define mock.On call
 //   - duration time.Duration
-func (_e *MockManager_Expecter) SetCaptureTime(duration interface{}) *MockManager_SetCaptureTime_Call {
+func (_e *MockManager_Expecter) SetCaptureTime(duration any) *MockManager_SetCaptureTime_Call {
 	return &MockManager_SetCaptureTime_Call{Call: _e.mock.On("SetCaptureTime", duration)}
 }
 
@@ -726,7 +823,7 @@ type MockManager_SetNThread_Call struct {
 
 // SetNThread is a helper method to define mock.On call
 //   - n int
-func (_e *MockManager_Expecter) SetNThread(n interface{}) *MockManager_SetNThread_Call {
+func (_e *MockManager_Expecter) SetNThread(n any) *MockManager_SetNThread_Call {
 	return &MockManager_SetNThread_Call{Call: _e.mock.On("SetNThread", n)}
 }
 
@@ -779,7 +876,7 @@ type MockManager_SetRateCaptureFrequency_Call struct {
 
 // SetRateCaptureFrequency is a helper method to define mock.On call
 //   - duration time.Duration
-func (_e *MockManager_Expecter) SetRateCaptureFrequency(duration interface{}) *MockManager_SetRateCaptureFrequency_Call {
+func (_e *MockManager_Expecter) SetRateCaptureFrequency(duration any) *MockManager_SetRateCaptureFrequency_Call {
 	return &MockManager_SetRateCaptureFrequency_Call{Call: _e.mock.On("SetRateCaptureFrequency", duration)}
 }
 

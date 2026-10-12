@@ -1,0 +1,360 @@
+// Copyright (c) Nicholas Fedor 2026 <nick@nickfedor.com>
+// SPDX-License-Identifier: MIT
+
+package speedtest
+
+import (
+	"context"
+	"io"
+	"sync"
+	"testing"
+	"testing/synctest"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/testserver"
+)
+
+// mebibyte is one MiB, the unit of the backlog limit.
+const mebibyte = 1024 * 1024
+
+// TestNextUploadWorkers checks each decision: growth on a better rate, holding steady, proportional drops for a
+// lower rate or a large backlog, and the bounds of one worker and the cap.
+func TestNextUploadWorkers(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		active     int
+		rate       float64
+		bestRate   float64
+		backlog    int64
+		wantActive int
+		wantBest   float64
+	}{
+		{
+			name:       "first measurement grows",
+			active:     2,
+			rate:       100,
+			bestRate:   0,
+			wantActive: 3,
+			wantBest:   100,
+		},
+		{
+			name:       "better rate grows",
+			active:     3,
+			rate:       110,
+			bestRate:   100,
+			wantActive: 4,
+			wantBest:   110,
+		},
+		{
+			name:       "growth stops at the cap",
+			active:     8,
+			rate:       200,
+			bestRate:   100,
+			wantActive: 8,
+			wantBest:   200,
+		},
+		{
+			name:       "similar rate holds",
+			active:     4,
+			rate:       102,
+			bestRate:   100,
+			wantActive: 4,
+			wantBest:   100,
+		},
+		{name: "rate halves", active: 8, rate: 50, bestRate: 100, wantActive: 4, wantBest: 50},
+		{
+			name:       "slight drop removes one",
+			active:     4,
+			rate:       84,
+			bestRate:   100,
+			wantActive: 3,
+			wantBest:   84,
+		},
+		{
+			name:       "backlog twice the limit halves",
+			active:     4,
+			rate:       100,
+			bestRate:   100,
+			backlog:    16 * mebibyte,
+			wantActive: 2,
+			wantBest:   100,
+		},
+		{
+			name:       "one worker stays",
+			active:     1,
+			rate:       10,
+			bestRate:   100,
+			wantActive: 1,
+			wantBest:   100,
+		},
+		{name: "never below one", active: 2, rate: 1, bestRate: 100, wantActive: 1, wantBest: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			active, best := nextUploadWorkers(tt.active, 8, tt.rate, tt.bestRate, tt.backlog)
+			assert.Equal(t, tt.wantActive, active)
+			assert.InDelta(t, tt.wantBest, best, 1e-9)
+		})
+	}
+}
+
+// TestAdaptUploadWorkers drives the controller loop with fake confirmed and read volumes, one adjustment per
+// interval: growth while the rate improves, holding while it is steady, then drops for a lower rate and a backlog.
+func TestAdaptUploadWorkers(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		td := NewDataManager().NewDataDirection(typeUpload)
+		td.maxWorkers = 8
+		td.activeWorkers = 2
+
+		stop := make(chan struct{})
+
+		var done sync.WaitGroup
+
+		done.Go(func() { td.adaptUploadWorkers(stop) })
+
+		// Volumes change halfway between adjustments, so no change races a tick.
+		time.Sleep(uploadAdjustInterval / 2)
+
+		steps := []struct {
+			confirmed int64
+			backlog   int64
+		}{
+			{confirmed: 1_000_000},
+			{confirmed: 2_000_000},
+			{confirmed: 2_000_000},
+			{confirmed: 1_000_000},
+			{confirmed: 1_000_000, backlog: 20 * mebibyte},
+		}
+
+		got := make([]int, 0, len(steps))
+
+		for _, step := range steps {
+			td.AddTotalDataVolume(step.confirmed)
+			td.totalReadVolume.Add(step.confirmed + step.backlog)
+
+			time.Sleep(uploadAdjustInterval)
+			synctest.Wait()
+
+			td.workerMu.Lock()
+			got = append(got, td.activeWorkers)
+			td.workerMu.Unlock()
+		}
+
+		close(stop)
+		done.Wait()
+
+		assert.Equal(t, []int{3, 4, 4, 2, 1}, got)
+	})
+}
+
+// TestAdaptUploadWorkersStalled checks intervals without new confirmations: before the first confirmation they are
+// skipped, a quiet interval with a small backlog keeps the workers, and one with a large backlog removes them.
+func TestAdaptUploadWorkersStalled(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		td := NewDataManager().NewDataDirection(typeUpload)
+		td.maxWorkers = 8
+		td.activeWorkers = 4
+
+		stop := make(chan struct{})
+
+		var done sync.WaitGroup
+
+		done.Go(func() { td.adaptUploadWorkers(stop) })
+
+		time.Sleep(uploadAdjustInterval / 2)
+
+		steps := []struct {
+			confirmed int64
+			read      int64
+		}{
+			{confirmed: 0, read: 4 * mebibyte},
+			{confirmed: 1_000_000, read: 1_000_000},
+			{confirmed: 0, read: mebibyte},
+			{confirmed: 0, read: 30 * mebibyte},
+		}
+
+		got := make([]int, 0, len(steps))
+
+		for _, step := range steps {
+			td.AddTotalDataVolume(step.confirmed)
+			td.totalReadVolume.Add(step.read)
+
+			time.Sleep(uploadAdjustInterval)
+			synctest.Wait()
+
+			td.workerMu.Lock()
+			got = append(got, td.activeWorkers)
+			td.workerMu.Unlock()
+		}
+
+		close(stop)
+		done.Wait()
+
+		// Skipped before any confirmation, grows on the first, holds through a quiet interval with a 5 MiB backlog
+		// under the 10 MiB limit, then drops for a 35 MiB backlog.
+		assert.Equal(t, []int{4, 5, 5, 2}, got)
+	})
+}
+
+// TestWaitForTurn checks that a worker above the active count waits, resumes when the count rises, and gives up
+// when the test stops.
+func TestWaitForTurn(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		dm := NewDataManager()
+		dm.running = true
+
+		td := dm.NewDataDirection(typeUpload)
+		td.activeWorkers = 1
+
+		results := make(chan bool, 2)
+
+		go func() { results <- td.waitForTurn(1) }()
+
+		synctest.Wait()
+		require.Empty(t, results, "worker 1 must wait while one worker is active")
+
+		td.workerMu.Lock()
+		td.activeWorkers = 2
+		td.workerMu.Unlock()
+		td.workerCond.Broadcast()
+
+		assert.True(t, <-results, "worker 1 resumes when two workers are active")
+
+		go func() { results <- td.waitForTurn(5) }()
+
+		synctest.Wait()
+		require.Empty(t, results)
+
+		dm.runningRW.Lock()
+		dm.running = false
+		dm.runningRW.Unlock()
+		td.stopWorkers()
+
+		assert.False(t, <-results, "a waiting worker gives up when the test stops")
+	})
+}
+
+// TestStartContextUploadWorkers checks that uploads start at most as many concurrent workers as CPUs within the
+// upload cap, while downloads run every worker. The CPU count is fixed at 2, below the cap, so the test shows the
+// gating on any machine.
+func TestStartContextUploadWorkers(t *testing.T) {
+	t.Parallel()
+
+	const threads = 16
+
+	tests := []struct {
+		name     string
+		testType int
+		wantMax  int
+		wantPeak int
+	}{
+		{
+			name:     "upload",
+			testType: typeUpload,
+			wantMax:  defaultUploadMaxWorkers,
+			wantPeak: 2,
+		},
+		{name: "download", testType: typeDownload, wantMax: threads, wantPeak: threads},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				dm := NewDataManager()
+				dm.nThread = threads
+				dm.cpus = 2
+				dm.captureTime = 100 * time.Millisecond
+
+				var (
+					mu            sync.Mutex
+					running, peak int
+				)
+
+				td := dm.NewDataDirection(tt.testType)
+				td.Add(func() {
+					mu.Lock()
+					running++
+					peak = max(peak, running)
+					mu.Unlock()
+
+					time.Sleep(10 * time.Millisecond)
+
+					mu.Lock()
+					running--
+					mu.Unlock()
+				})
+
+				_, cancel := context.WithCancel(context.Background())
+				td.StartContext(context.Background(), cancel, 0)
+
+				assert.Equal(t, tt.wantMax, td.maxWorkers)
+				assert.Equal(t, tt.wantPeak, peak)
+			})
+		})
+	}
+}
+
+// TestSetNThreadUploadCap checks that a thread count also caps upload workers, and that the default cap applies
+// without one.
+func TestSetNThreadUploadCap(t *testing.T) {
+	t.Parallel()
+
+	dm := NewDataManager()
+	assert.Equal(t, defaultUploadMaxWorkers, dm.uploadMaxWorkers)
+
+	dm.SetNThread(3)
+	assert.Equal(t, 3, dm.uploadMaxWorkers)
+
+	dm.SetNThread(0)
+	assert.Equal(t, defaultUploadMaxWorkers, dm.uploadMaxWorkers)
+}
+
+// TestDataManagerUploadBacklog checks the backlog and confirmation ratio as chunks are read and confirmed.
+func TestDataManagerUploadBacklog(t *testing.T) {
+	t.Parallel()
+
+	dm := NewDataManager()
+	assert.Zero(t, dm.GetUploadConfirmationRatio(), "nothing read yet")
+
+	_, err := io.Copy(io.Discard, dm.NewChunk().UploadHandler(3*readChunkSize))
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(3*readChunkSize), dm.GetUploadBacklog())
+	assert.Zero(t, dm.GetUploadConfirmationRatio())
+
+	dm.AddTotalUpload(readChunkSize)
+	assert.Equal(t, int64(2*readChunkSize), dm.GetUploadBacklog())
+	assert.InDelta(t, 1.0/3, dm.GetUploadConfirmationRatio(), 1e-9)
+
+	dm.AddTotalUpload(5 * readChunkSize)
+	assert.Zero(t, dm.GetUploadBacklog(), "the backlog never goes negative")
+	assert.InDelta(t, 1.0, dm.GetUploadConfirmationRatio(), 1e-9, "the ratio never exceeds 1")
+}
+
+// TestUploadRequestClearsBacklog checks that a confirmed upload to the fake server leaves no backlog.
+func TestUploadRequestClearsBacklog(t *testing.T) {
+	t.Parallel()
+
+	api := testserver.NewAPI(t)
+	client, manager := runningClient(t)
+	server := &Server{URL: api.ServerUploadURL("1001"), Context: client}
+
+	require.NoError(t, uploadRequest(context.Background(), server, 0))
+
+	assert.Zero(t, manager.GetUploadBacklog())
+	assert.InDelta(t, 1.0, manager.GetUploadConfirmationRatio(), 1e-9)
+}
