@@ -18,14 +18,16 @@ const packetSendingInterval = 100 * time.Millisecond
 // This means we cannot get packet loss through a proxy.
 func main() {
 	// 0. Fetching servers
-	serverList, err := speedtest.FetchServers()
+	speedtestClient := speedtest.New()
+
+	serverList, err := speedtestClient.FetchServers()
 	checkError(err)
 
 	// 1. Retrieve available servers
 	targets := serverList.Available()
 
-	// 2. Create a packet loss analyzer, use default options
-	analyzer := speedtest.NewPacketLossAnalyzer(&speedtest.PacketLossAnalyzerOptions{
+	// 2. Create a packet loss analyzer that connects the way the client does, with a faster sending interval
+	analyzer := speedtestClient.NewPacketLossAnalyzer(&speedtest.PacketLossAnalyzerOptions{
 		PacketSendingInterval: packetSendingInterval,
 	})
 

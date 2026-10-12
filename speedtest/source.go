@@ -31,7 +31,7 @@ type sourceBinding struct {
 	// control binds sockets to the source interface, or nil when the source is not an interface or the platform
 	// cannot bind to one.
 	control dialControl
-	// sourceIP is the address DNS queries leave from when they are bound to the source, or nil.
+	// sourceIP is the address UDP sockets, and DNS queries bound to the source, leave from, or nil.
 	sourceIP net.IP
 }
 

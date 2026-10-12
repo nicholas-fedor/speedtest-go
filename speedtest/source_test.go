@@ -260,3 +260,28 @@ func TestNewUserConfigDialerControlDNS(t *testing.T) {
 	assert.Nil(t, New(WithUserConfig(&UserConfig{DNSBindSource: true})).tcpDialer.Resolver,
 		"without a source or a Control function, DNS keeps the default resolver")
 }
+
+// TestNewUserConfigUDPDialer checks that the client's UDP dialer leaves from the source and runs its Control chain.
+func TestNewUserConfigUDPDialer(t *testing.T) {
+	t.Parallel()
+
+	var userControls atomic.Int32
+
+	client := New(WithUserConfig(&UserConfig{
+		Source: "127.0.0.1",
+		DialerControl: func(string, string, syscall.RawConn) error {
+			userControls.Add(1)
+
+			return nil
+		},
+	}))
+
+	assert.Equal(t, &net.UDPAddr{IP: net.ParseIP("127.0.0.1")}, client.udpDialer.LocalAddr)
+
+	conn, err := client.udpDialer.DialContext(context.Background(), "udp", "127.0.0.1:9")
+	require.NoError(t, err)
+	require.NoError(t, conn.Close())
+
+	assert.Positive(t, userControls.Load())
+	assert.Nil(t, New().udpDialer.LocalAddr, "without a source the system picks the address")
+}
