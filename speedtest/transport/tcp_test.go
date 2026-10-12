@@ -2,10 +2,13 @@ package transport
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -467,22 +470,6 @@ func TestClient_PacketLoss(t *testing.T) {
 	got, err := client.PacketLoss()
 	require.NoError(t, err)
 	assert.Equal(t, &PLoss{Sent: 90, Dup: 5, Max: 100}, got)
-}
-
-func TestClient_Download(t *testing.T) {
-	t.Parallel()
-
-	client := &Client{}
-
-	assert.Panics(t, func() { client.Download() })
-}
-
-func TestClient_Upload(t *testing.T) {
-	t.Parallel()
-
-	client := &Client{}
-
-	assert.Panics(t, func() { client.Upload() })
 }
 
 // connectFake connects a new client to the fake TCP server and disconnects it when the test ends.
@@ -1022,4 +1009,310 @@ func Test_watchContext_NoDone(t *testing.T) {
 	stop()
 
 	require.NoError(t, client1.Close(), "the connection must still be open")
+}
+
+// TestClient_Download checks that a download hands the handler exactly the requested bytes, that bytes a handler
+// leaves unread are discarded, and that the connection stays aligned for the next command either way.
+func TestClient_Download(t *testing.T) {
+	t.Parallel()
+
+	const size = 100_000
+
+	tests := []struct {
+		name     string
+		readUpTo int64
+	}{
+		{name: "handler reads everything", readUpTo: size + 1},
+		{name: "handler stops early", readUpTo: 10},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := connectFake(t, testserver.NewTCPServer(t))
+
+			var read int64
+
+			err := client.Download(context.Background(), size, func(stream io.Reader) error {
+				var copyErr error
+
+				read, copyErr = io.Copy(io.Discard, io.LimitReader(stream, tt.readUpTo))
+
+				return copyErr
+			})
+			require.NoError(t, err)
+			assert.Equal(t, min(tt.readUpTo, size), read)
+
+			_, err = client.PingContext(context.Background())
+			require.NoError(t, err, "the connection must be aligned for the next command")
+		})
+	}
+}
+
+// TestClient_DownloadErrors checks invalid requests, a truncated reply, and a failing handler.
+func TestClient_DownloadErrors(t *testing.T) {
+	t.Parallel()
+
+	readAll := func(stream io.Reader) error {
+		_, err := io.Copy(io.Discard, stream)
+
+		return err
+	}
+
+	t.Run("invalid request", func(t *testing.T) {
+		t.Parallel()
+
+		client := connectFake(t, testserver.NewTCPServer(t))
+
+		require.ErrorIs(t, client.Download(context.Background(), 0, readAll), ErrInvalidTransfer)
+		require.ErrorIs(t, client.Download(context.Background(), 10, nil), ErrInvalidTransfer)
+		require.ErrorIs(t, (&Client{}).Download(context.Background(), 10, readAll), ErrEmptyConn)
+	})
+
+	t.Run("truncated", func(t *testing.T) {
+		t.Parallel()
+
+		srv := testserver.NewTCPServer(t)
+		srv.SetFaults(testserver.Faults{TruncateDownloads: true})
+
+		err := connectFake(t, srv).Download(context.Background(), 100_000, readAll)
+		require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+		assert.Contains(t, err.Error(), "after 50000 of 100000 bytes")
+	})
+
+	t.Run("handler error", func(t *testing.T) {
+		t.Parallel()
+
+		failure := errors.New("disk full")
+
+		err := connectFake(t, testserver.NewTCPServer(t)).Download(
+			context.Background(),
+			1_000,
+			func(io.Reader) error { return failure },
+		)
+		require.ErrorIs(t, err, failure)
+	})
+}
+
+// TestClient_Upload checks that an upload returns the server's confirmed count and sends exactly the declared
+// total, which the next command shows by getting its own reply.
+func TestClient_Upload(t *testing.T) {
+	t.Parallel()
+
+	const size = 100_000
+
+	srv := testserver.NewTCPServer(t)
+	client := connectFake(t, srv)
+
+	payload, err := UploadPayloadSize(size)
+	require.NoError(t, err)
+
+	confirmed, err := client.Upload(
+		context.Background(),
+		size,
+		bytes.NewReader(make([]byte, payload)),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, int64(size), confirmed)
+
+	_, err = client.PingContext(context.Background())
+	require.NoError(t, err, "the connection must be aligned for the next command")
+
+	assert.True(t, slices.ContainsFunc(srv.Commands(), func(command testserver.Command) bool {
+		return command.Line == "UPLOAD 100000 0"
+	}))
+}
+
+// TestClient_UploadErrors checks invalid requests and a source that runs out before the payload is complete.
+func TestClient_UploadErrors(t *testing.T) {
+	t.Parallel()
+
+	client := connectFake(t, testserver.NewTCPServer(t))
+	source := bytes.NewReader(make([]byte, 100))
+
+	for _, size := range []int64{-1, 0, 5} {
+		_, err := client.Upload(context.Background(), size, source)
+		require.ErrorIs(t, err, ErrInvalidTransfer, size)
+	}
+
+	_, err := client.Upload(context.Background(), 100, nil)
+	require.ErrorIs(t, err, ErrInvalidTransfer)
+
+	_, err = (&Client{}).Upload(context.Background(), 100, source)
+	require.ErrorIs(t, err, ErrEmptyConn)
+
+	_, err = client.Upload(context.Background(), 100_000, bytes.NewReader(make([]byte, 10)))
+	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+}
+
+// TestUploadPayloadSize checks the payload left after the command line, its newline, and the final newline.
+func TestUploadPayloadSize(t *testing.T) {
+	t.Parallel()
+
+	payload, err := UploadPayloadSize(100)
+	require.NoError(t, err)
+	assert.Equal(t, int64(100-len("UPLOAD 100 0\n")-1), payload)
+
+	payload, err = UploadPayloadSize(int64(len("UPLOAD 14 0\n") + 1))
+	require.NoError(t, err)
+	assert.Zero(
+		t,
+		payload,
+		"a size that holds only the command and the newline has an empty payload",
+	)
+
+	for _, size := range []int64{-1, 0, 12} {
+		_, err = UploadPayloadSize(size)
+		require.ErrorIs(t, err, ErrInvalidTransfer, size)
+	}
+}
+
+// Test_parseUploadReply checks the confirmation format and the bounds of its count.
+func Test_parseUploadReply(t *testing.T) {
+	t.Parallel()
+
+	confirmed, err := parseUploadReply([]byte("OK 100 1710000000000\n"), 100)
+	require.NoError(t, err)
+	assert.Equal(t, int64(100), confirmed)
+
+	for _, reply := range []string{"ERROR\n", "OK 100\n", "OK x 1\n", "OK -1 1\n", "OK 101 1\n", "PLOSS 1 2 3\n"} {
+		_, err = parseUploadReply([]byte(reply), 100)
+		require.ErrorIs(t, err, ErrInvalidResponse, reply)
+	}
+}
+
+// TestClient_TransferCancelled checks that cancelling the context in the middle of a download or an upload ends it
+// with the context's error and closes the connection.
+func TestClient_TransferCancelled(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		transfer func(ctx context.Context, cancel context.CancelFunc, client *Client) error
+		name     string
+	}{
+		{
+			name: "download",
+			transfer: func(ctx context.Context, cancel context.CancelFunc, client *Client) error {
+				return client.Download(ctx, 50_000_000, func(stream io.Reader) error {
+					buffer := make([]byte, 1024)
+
+					_, err := stream.Read(buffer)
+					if err != nil {
+						return err
+					}
+
+					cancel()
+
+					_, err = io.Copy(io.Discard, stream)
+
+					return err
+				})
+			},
+		},
+		{
+			name: "upload",
+			transfer: func(ctx context.Context, cancel context.CancelFunc, client *Client) error {
+				_, err := client.Upload(ctx, 50_000_000, &cancellingReader{cancel: cancel})
+
+				return err
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := testserver.NewTCPServer(t)
+			client := connectFake(t, srv)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			err := tt.transfer(ctx, cancel, client)
+			require.ErrorIs(t, err, context.Canceled)
+
+			require.Eventually(
+				t,
+				func() bool { return srv.OpenConns() == 0 },
+				5*time.Second,
+				10*time.Millisecond,
+			)
+		})
+	}
+}
+
+// cancellingReader supplies zero bytes and cancels a context after its first read.
+type cancellingReader struct {
+	cancel context.CancelFunc
+	reads  int
+}
+
+// Read fills buffer with zeros, cancelling the context after the first call.
+func (r *cancellingReader) Read(buffer []byte) (int, error) {
+	r.reads++
+	if r.reads == 2 {
+		r.cancel()
+	}
+
+	clear(buffer)
+
+	return len(buffer), nil
+}
+
+// TestClient_TransferFailureClosesConnection checks that a transfer failing partway closes the connection, so no
+// later command reads leftover download bytes or leaves the server waiting for the rest of an upload.
+func TestClient_TransferFailureClosesConnection(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		transfer func(client *Client) error
+		name     string
+	}{
+		{
+			name: "download handler error",
+			transfer: func(client *Client) error {
+				return client.Download(context.Background(), 100_000, func(stream io.Reader) error {
+					_, _ = stream.Read(make([]byte, 10))
+
+					return errors.New("disk full")
+				})
+			},
+		},
+		{
+			name: "upload source ends early",
+			transfer: func(client *Client) error {
+				_, err := client.Upload(
+					context.Background(),
+					100_000,
+					bytes.NewReader(make([]byte, 10)),
+				)
+
+				return err
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := testserver.NewTCPServer(t)
+			client := connectFake(t, srv)
+
+			require.Error(t, tt.transfer(client))
+
+			// A reused connection would hang waiting for the server, so bound the check.
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			_, err := client.PingContext(ctx)
+			require.ErrorIs(t, err, ErrEmptyConn, "the failed connection must not be reused")
+
+			require.Eventually(
+				t,
+				func() bool { return srv.OpenConns() == 0 },
+				5*time.Second,
+				10*time.Millisecond,
+			)
+		})
+	}
 }
