@@ -571,16 +571,26 @@ func TestSetupUnit(t *testing.T) {
 	}
 }
 
-// TestCheckSource checks that IP addresses and existing interface names are accepted, with or without a network
-// prefix, and that anything else is rejected.
+// TestCheckSource checks that IP addresses and interface names with a usable address are accepted, with or without
+// a network prefix, and that anything else is rejected.
 func TestCheckSource(t *testing.T) {
 	t.Parallel()
 
 	interfaces, err := net.Interfaces()
 	require.NoError(t, err)
-	require.NotEmpty(t, interfaces)
 
-	name := interfaces[0].Name
+	var name string
+
+	for _, iface := range interfaces {
+		_, err = speedtest.ResolveInterface(iface.Name)
+		if err == nil {
+			name = iface.Name
+
+			break
+		}
+	}
+
+	require.NotEmpty(t, name, "no interface has a usable address")
 
 	for _, source := range []string{"", "192.0.2.10", "2001:db8::1", "tcp://192.0.2.10", name, "tcp://" + name} {
 		require.NoError(t, checkSource(source), source)

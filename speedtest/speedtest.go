@@ -161,7 +161,7 @@ func (s *Speedtest) NewUserConfig(userConfig *UserConfig) {
 	control := chainControl(source.control, userConfig.DialerControl)
 
 	var resolver *net.Resolver
-	if userConfig.DNSBindSource && (source.sourceIP != nil || source.control != nil) {
+	if userConfig.DNSBindSource && (source.sourceIP != nil || control != nil) {
 		resolver = sourceBoundResolver(source.sourceIP, control)
 	}
 

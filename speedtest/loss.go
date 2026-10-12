@@ -29,8 +29,10 @@ type PacketLossAnalyzer struct {
 
 // NewPacketLossAnalyzer creates a new packet loss analyzer with the given options.
 //
-// When SourceInterface is an IP address, optionally with a network prefix such as "udp://", the default TCP and
-// UDP dialers bind to it. Other values leave the dialers unbound. Dialers set in the options are used as given.
+// SourceInterface binds the default TCP and UDP dialers the same way [UserConfig.Source] binds the client's: an IP
+// address or hostname sets their source address, and an interface name binds them to the device on Linux or sets
+// the interface's address elsewhere. A network prefix such as "udp://" is ignored. Dialers set in the options are
+// used as given.
 func NewPacketLossAnalyzer(options *PacketLossAnalyzerOptions) *PacketLossAnalyzer {
 	if options == nil {
 		options = &PacketLossAnalyzerOptions{}
@@ -52,19 +54,25 @@ func NewPacketLossAnalyzer(options *PacketLossAnalyzerOptions) *PacketLossAnalyz
 		options.PacketSendingTimeout = 5 * time.Second
 	}
 
-	sourceIP := packetLossSourceIP(options.SourceInterface)
+	source := resolveSource(options.SourceInterface)
 
 	if options.TCPDialer == nil {
-		options.TCPDialer = &net.Dialer{Timeout: options.PacketSendingTimeout}
-		if sourceIP != nil {
-			options.TCPDialer.LocalAddr = &net.TCPAddr{IP: sourceIP}
+		options.TCPDialer = &net.Dialer{
+			Timeout: options.PacketSendingTimeout,
+			Control: source.control,
+		}
+		if source.sourceIP != nil {
+			options.TCPDialer.LocalAddr = &net.TCPAddr{IP: source.sourceIP}
 		}
 	}
 
 	if options.UDPDialer == nil {
-		options.UDPDialer = &net.Dialer{Timeout: options.PacketSendingTimeout}
-		if sourceIP != nil {
-			options.UDPDialer.LocalAddr = &net.UDPAddr{IP: sourceIP}
+		options.UDPDialer = &net.Dialer{
+			Timeout: options.PacketSendingTimeout,
+			Control: source.control,
+		}
+		if source.sourceIP != nil {
+			options.UDPDialer.LocalAddr = &net.UDPAddr{IP: source.sourceIP}
 		}
 	}
 
@@ -277,27 +285,4 @@ func endedByContext(ctx context.Context, err error) bool {
 	}
 
 	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
-}
-
-// packetLossSourceIP resolves the analyzer's source to an IP address.
-//
-// Parameters:
-//   - source: the configured source, an IP address or a network interface name, possibly with a network prefix
-//     such as "udp://".
-//
-// Returns:
-//   - net.IP: the source IP, or nil when the source is empty or neither an IP address nor an interface.
-func packetLossSourceIP(source string) net.IP {
-	if len(source) == 0 {
-		return nil
-	}
-
-	_, address := parseAddr(source)
-
-	interfaceIP, err := ResolveInterface(address)
-	if err == nil {
-		return interfaceIP
-	}
-
-	return net.ParseIP(address)
 }

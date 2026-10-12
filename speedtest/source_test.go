@@ -7,7 +7,10 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"runtime"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -118,13 +121,36 @@ func TestResolveSourceInterface(t *testing.T) {
 	assert.Equal(t, &net.IPAddr{IP: binding.sourceIP}, binding.ip)
 }
 
-// TestPacketLossSourceIPInterface checks that packet loss accepts an interface name as its source.
-func TestPacketLossSourceIPInterface(t *testing.T) {
+// TestNewPacketLossAnalyzerSourceInterface checks that the analyzer's default dialers bind to an interface source
+// the same way the client's do, and that they still reach a loopback server through it.
+func TestNewPacketLossAnalyzerSourceInterface(t *testing.T) {
 	t.Parallel()
 
-	ip := packetLossSourceIP("udp://" + loopbackInterface(t))
-	require.NotNil(t, ip)
-	assert.True(t, ip.IsLoopback())
+	options := NewPacketLossAnalyzer(
+		&PacketLossAnalyzerOptions{SourceInterface: "udp://" + loopbackInterface(t)},
+	).options
+
+	if runtime.GOOS == "linux" {
+		assert.NotNil(t, options.TCPDialer.Control)
+		assert.NotNil(t, options.UDPDialer.Control)
+		assert.Nil(t, options.TCPDialer.LocalAddr)
+		assert.Nil(t, options.UDPDialer.LocalAddr)
+	} else {
+		tcpSource, ok := options.TCPDialer.LocalAddr.(*net.TCPAddr)
+		require.True(t, ok)
+		assert.True(t, tcpSource.IP.IsLoopback())
+	}
+
+	server := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(server.Close)
+
+	conn, err := options.TCPDialer.DialContext(
+		context.Background(),
+		"tcp",
+		strings.TrimPrefix(server.URL, "http://"),
+	)
+	require.NoError(t, err)
+	require.NoError(t, conn.Close())
 }
 
 // TestChainControl checks that nil entries are skipped, that the functions run in order, and that the chain stops
@@ -206,4 +232,31 @@ func TestNewUserConfigSourceInterfaceDNS(t *testing.T) {
 	require.NoError(t, conn.Close())
 
 	assert.Positive(t, userControls.Load(), "DNS sockets should run the user Control function")
+}
+
+// TestNewUserConfigDialerControlDNS checks that with DNSBindSource, DNS sockets run a user Control function even
+// without a source, as its documentation states.
+func TestNewUserConfigDialerControlDNS(t *testing.T) {
+	t.Parallel()
+
+	var userControls atomic.Int32
+
+	client := New(WithUserConfig(&UserConfig{
+		DNSBindSource: true,
+		DialerControl: func(string, string, syscall.RawConn) error {
+			userControls.Add(1)
+
+			return nil
+		},
+	}))
+
+	require.NotNil(t, client.tcpDialer.Resolver)
+
+	conn, err := client.tcpDialer.Resolver.Dial(context.Background(), "udp", "127.0.0.1:53")
+	require.NoError(t, err)
+	require.NoError(t, conn.Close())
+
+	assert.Positive(t, userControls.Load(), "DNS sockets should run the user Control function")
+	assert.Nil(t, New(WithUserConfig(&UserConfig{DNSBindSource: true})).tcpDialer.Resolver,
+		"without a source or a Control function, DNS keeps the default resolver")
 }
