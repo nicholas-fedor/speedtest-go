@@ -156,6 +156,9 @@ type TestDirection struct {
 	welfordMu       sync.Mutex                  // protects welford and RateSequence
 	captureCallback func(realTimeRate ByteRate) // user callback
 	closeFunc       func()                      // close func
+	// finalRate is the measured bytes per second over the capture window, recorded by the stop function before the
+	// workers are told to stop, so it is safe to read once the direction has stopped.
+	finalRate float64
 
 	// workerMu guards activeWorkers and maxWorkers, and workerCond wakes workers when either the count or the
 	// running state changes.
@@ -322,11 +325,15 @@ func (td *TestDirection) StartContext(
 	// Initialize closeFunc before starting rateCapture goroutine to prevent nil panic
 	var once sync.Once
 
-	stopCapture := make(chan bool, 1)
 	stopAdapting := make(chan struct{})
+	stopCapture := make(chan struct{})
+	captureStart := time.Now()
+
 	td.closeFunc = func() {
 		once.Do(func() {
-			stopCapture <- true
+			// Record the final rate at the moment the test stops, before requests are cancelled, so neither bytes
+			// that arrive while they shut down nor a slow rate callback affect it.
+			td.finalRate = measuredRate(td.GetTotalDataVolume(), time.Since(captureStart))
 
 			close(stopCapture)
 			close(stopAdapting)
@@ -339,10 +346,10 @@ func (td *TestDirection) StartContext(
 		})
 	}
 
+	td.rateCapture(captureStart, stopCapture)
+
 	stopWatching := context.AfterFunc(ctx, td.closeFunc)
 	defer stopWatching()
-
-	td.rateCapture(stopCapture)
 
 	if td.TestType == typeUpload && workerLimit > 1 {
 		dbg.Printf("Upload workers: %d/%d\n", initialWorkers, workerLimit)
@@ -386,20 +393,25 @@ func (td *TestDirection) StartContext(
 	waitGroup.Wait()
 }
 
-func (td *TestDirection) rateCapture(stopCapture chan bool) {
+// rateCapture samples the transferred volume at each capture interval, updating the live rate and calling the
+// rate callback, until stop is closed.
+//
+// Parameters:
+//   - start: when the capture window began.
+//   - stop: closed to end the capture.
+func (td *TestDirection) rateCapture(start time.Time, stop <-chan struct{}) {
 	ticker := time.NewTicker(td.manager.rateCaptureFrequency)
 
 	var prevTotalDataVolume int64
 
 	td.welford = internal.NewWelford(welfordWindowSize, td.manager.rateCaptureFrequency)
-	sTime := time.Now()
 
-	go func(t *time.Ticker) {
-		defer t.Stop()
+	go func() {
+		defer ticker.Stop()
 
 		for {
 			select {
-			case <-t.C:
+			case <-ticker.C:
 				newTotalDataVolume := td.GetTotalDataVolume()
 				deltaDataVolume := newTotalDataVolume - prevTotalDataVolume
 				prevTotalDataVolume = newTotalDataVolume
@@ -410,7 +422,7 @@ func (td *TestDirection) rateCapture(stopCapture chan bool) {
 				}
 
 				globalAvg := float64(td.GetTotalDataVolume()) / float64(
-					time.Since(sTime).Milliseconds(),
+					time.Since(start).Milliseconds(),
 				) * conversionFactor
 				shouldStop := td.welford.Update(
 					globalAvg,
@@ -431,13 +443,27 @@ func (td *TestDirection) rateCapture(stopCapture chan bool) {
 				if td.captureCallback != nil {
 					td.captureCallback(ByteRate(ewma))
 				}
-			case stop := <-stopCapture:
-				if stop {
-					return
-				}
+			case <-stop:
+				return
 			}
 		}
-	}(ticker)
+	}()
+}
+
+// measuredRate returns the average rate of a volume transferred over a duration.
+//
+// Parameters:
+//   - volume: the bytes transferred.
+//   - elapsed: the time they took.
+//
+// Returns:
+//   - float64: the rate in bytes per second, or 0 when no time has passed.
+func measuredRate(volume int64, elapsed time.Duration) float64 {
+	if elapsed <= 0 {
+		return 0
+	}
+
+	return float64(volume) / elapsed.Seconds()
 }
 
 // NewChunk creates a new data chunk for the manager.

@@ -15,6 +15,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -1595,4 +1596,33 @@ func TestResolveUploadURLs(t *testing.T) {
 	for index, server := range servers {
 		assert.Equal(t, api.ServerUploadURL(strconv.Itoa(index)), server.uploadTarget())
 	}
+}
+
+// TestServer_testContextFinalRate checks that single-server download and upload tests report the measured volume
+// over the capture window as their speed.
+func TestServer_testContextFinalRate(t *testing.T) {
+	t.Parallel()
+
+	request := func(_ context.Context, server *Server, _ int) error {
+		time.Sleep(100 * time.Millisecond)
+		server.Context.AddTotalDownload(1_000_000)
+		server.Context.AddTotalUpload(1_000_000)
+
+		return nil
+	}
+
+	synctest.Test(t, func(t *testing.T) {
+		client := New(WithUserConfig(&UserConfig{MaxConnections: 1}))
+		client.SetCaptureTime(1050 * time.Millisecond)
+
+		server := &Server{Context: client}
+
+		require.NoError(t, server.downloadTestContext(context.Background(), request))
+		assert.InDelta(t, 10_000_000/1.05, float64(server.DLSpeed), 1e-6)
+
+		client.Reset()
+
+		require.NoError(t, server.uploadTestContext(context.Background(), request))
+		assert.InDelta(t, 10_000_000/1.05, float64(server.ULSpeed), 1e-6)
+	})
 }

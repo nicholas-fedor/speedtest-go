@@ -322,11 +322,15 @@ func TestTestDirection_rateCapture(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			dm := NewDataManager()
-			td := dm.NewDataDirection(typeDownload)
-			stopCapture := make(chan bool, 1)
-			td.rateCapture(stopCapture)
-			assert.NotNil(t, stopCapture)
+			// The bubble fails the test if the capture goroutine is still running when it ends.
+			synctest.Test(t, func(_ *testing.T) {
+				td := NewDataManager().NewDataDirection(typeDownload)
+				stop := make(chan struct{})
+				td.rateCapture(time.Now(), stop)
+
+				time.Sleep(3 * td.manager.rateCaptureFrequency)
+				close(stop)
+			})
 		})
 	}
 }
@@ -1207,8 +1211,8 @@ func TestTestDirection_rateCaptureBursts(t *testing.T) {
 					rates = append(rates, rate)
 				}
 
-				stopCapture := make(chan bool, 1)
-				td.rateCapture(stopCapture)
+				stop := make(chan struct{})
+				td.rateCapture(time.Now(), stop)
 
 				// Bursts land halfway between ticks, so no burst races a tick.
 				time.Sleep(dm.rateCaptureFrequency / 2)
@@ -1222,7 +1226,7 @@ func TestTestDirection_rateCaptureBursts(t *testing.T) {
 					synctest.Wait()
 				}
 
-				stopCapture <- true
+				close(stop)
 
 				mu.Lock()
 				defer mu.Unlock()
@@ -1241,4 +1245,127 @@ func TestTestDirection_rateCaptureBursts(t *testing.T) {
 			})
 		})
 	}
+}
+
+// TestMeasuredRate checks the rate arithmetic, including a window with no elapsed time.
+func TestMeasuredRate(t *testing.T) {
+	t.Parallel()
+
+	assert.InDelta(t, 1_500_000.0, measuredRate(3_000_000, 2*time.Second), 1e-9)
+	assert.Zero(t, measuredRate(3_000_000, 0))
+	assert.Zero(t, measuredRate(3_000_000, -time.Second))
+}
+
+// TestStartContextFinalRate checks that the final rate is the measured volume over the capture window. One
+// megabyte arrives every 100 ms, ten times in a 1.05 s window, for both directions. The live estimate starts at zero
+// and would still read well below this when the window ends.
+func TestStartContextFinalRate(t *testing.T) {
+	t.Parallel()
+
+	for _, testType := range []int{typeDownload, typeUpload} {
+		synctest.Test(t, func(t *testing.T) {
+			dm := NewDataManager()
+			dm.SetNThread(1)
+			dm.captureTime = 1050 * time.Millisecond
+
+			td := dm.NewDataDirection(testType)
+			td.Add(func() {
+				time.Sleep(100 * time.Millisecond)
+				td.AddTotalDataVolume(1_000_000)
+			})
+
+			_, cancel := context.WithCancel(context.Background())
+			td.StartContext(context.Background(), cancel, 0)
+
+			assert.InDelta(t, 10_000_000/1.05, td.finalRate, 1e-6)
+
+			// The capture can still be finishing a tick after the stop, so read the live estimate under its lock.
+			td.welfordMu.Lock()
+			ewma := td.welford.EWMA()
+			td.welfordMu.Unlock()
+
+			assert.Less(t, ewma, 0.9*td.finalRate, "the live estimate is still converging")
+		})
+	}
+}
+
+// TestStartContextFinalRateExcludesCancellation checks that bytes arriving while requests are cancelled, after the
+// capture stops, are left out of the final rate.
+func TestStartContextFinalRateExcludesCancellation(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		dm := NewDataManager()
+		dm.SetNThread(1)
+		dm.captureTime = 100 * time.Millisecond
+
+		td := dm.NewDataDirection(typeDownload)
+
+		var once sync.Once
+
+		td.Add(func() {
+			once.Do(func() { td.AddTotalDataVolume(1_000) })
+			time.Sleep(10 * time.Millisecond)
+		})
+
+		td.StartContext(context.Background(), func() { td.AddTotalDataVolume(1_000_000) }, 0)
+
+		assert.Equal(t, int64(1_001_000), td.GetTotalDataVolume())
+		assert.InDelta(
+			t,
+			10_000.0,
+			td.finalRate,
+			1e-9,
+			"only the 1,000 bytes before the stop count",
+		)
+	})
+}
+
+// TestStartContextFinalRateIgnoresBlockedCallback checks that a rate callback that blocks neither delays the stop nor
+// changes the final rate: the test stops on time, and bytes that arrive while the capture is still busy are left
+// out, whichever case the capture handles next.
+func TestStartContextFinalRateIgnoresBlockedCallback(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		dm := NewDataManager()
+		dm.SetNThread(1)
+		dm.captureTime = 100 * time.Millisecond
+
+		td := dm.NewDataDirection(typeDownload)
+		release := make(chan struct{})
+
+		td.captureCallback = func(ByteRate) { <-release }
+
+		var once sync.Once
+
+		td.Add(func() {
+			once.Do(func() { td.AddTotalDataVolume(1_000) })
+			time.Sleep(10 * time.Millisecond)
+		})
+
+		start := time.Now()
+
+		_, cancel := context.WithCancel(context.Background())
+		td.StartContext(context.Background(), cancel, 0)
+
+		// The stop comes at 100 ms. A worker that started another 10 ms request at that same instant finishes it first.
+		assert.LessOrEqual(
+			t,
+			time.Since(start),
+			110*time.Millisecond,
+			"a blocked callback must not delay the stop",
+		)
+
+		td.AddTotalDataVolume(1_000_000)
+		close(release)
+
+		assert.InDelta(
+			t,
+			10_000.0,
+			td.finalRate,
+			1e-9,
+			"only the 1,000 bytes before the stop count",
+		)
+	})
 }
