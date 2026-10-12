@@ -3,9 +3,11 @@ package speedtest
 import (
 	"bytes"
 	"context"
+	"io"
 	"runtime"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -1108,4 +1110,135 @@ func TestDataManager_ConcurrentHandlers(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+// TestDataChunk_ReadDoesNotCountUpload checks that reading an upload chunk leaves the upload total alone. The
+// transport reads ahead into buffers, so bytes are counted only once the server confirms the request.
+func TestDataChunk_ReadDoesNotCountUpload(t *testing.T) {
+	t.Parallel()
+
+	dm := NewDataManager()
+	chunk := dm.NewChunk().UploadHandler(3 * readChunkSize)
+
+	read, err := io.Copy(io.Discard, chunk)
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(3*readChunkSize), read)
+	assert.Zero(t, dm.GetTotalUpload())
+}
+
+// TestRateSample checks that downloads sample the period's own volume and uploads sample the cumulative average
+// scaled to one period.
+func TestRateSample(t *testing.T) {
+	t.Parallel()
+
+	const frequency = 50 * time.Millisecond
+
+	tests := []struct {
+		name      string
+		testType  int
+		globalAvg float64
+		delta     int64
+		want      float64
+	}{
+		{
+			name:      "download uses the delta",
+			testType:  typeDownload,
+			globalAvg: 2000,
+			delta:     300,
+			want:      300,
+		},
+		{name: "download idle period", testType: typeDownload, globalAvg: 2000, delta: 0, want: 0},
+		{
+			name:      "upload uses the average",
+			testType:  typeUpload,
+			globalAvg: 2000,
+			delta:     300,
+			want:      100,
+		},
+		{name: "upload idle period", testType: typeUpload, globalAvg: 2000, delta: 0, want: 100},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.InDelta(
+				t,
+				tt.want,
+				rateSample(tt.testType, tt.globalAvg, tt.delta, frequency),
+				1e-9,
+			)
+		})
+	}
+}
+
+// TestTestDirection_rateCaptureBursts feeds a whole chunk every other capture period, the pattern confirmed uploads
+// produce, and checks the reported rate once it has settled over the first half of the periods. Uploads then rise
+// steadily instead of dipping on the periods without new bytes. Downloads, which sample each period's own volume,
+// still dip on every such period, which shows the pattern tells the two apart.
+func TestTestDirection_rateCaptureBursts(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		testType int
+		wantDips int
+	}{
+		{name: "upload", testType: typeUpload, wantDips: 0},
+		{name: "download", testType: typeDownload, wantDips: 5},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				dm := NewDataManager()
+				td := dm.NewDataDirection(tt.testType)
+
+				var (
+					mu    sync.Mutex
+					rates []ByteRate
+				)
+
+				td.captureCallback = func(rate ByteRate) {
+					mu.Lock()
+					defer mu.Unlock()
+
+					rates = append(rates, rate)
+				}
+
+				stopCapture := make(chan bool, 1)
+				td.rateCapture(stopCapture)
+
+				// Bursts land halfway between ticks, so no burst races a tick.
+				time.Sleep(dm.rateCaptureFrequency / 2)
+
+				for period := range 20 {
+					if period%2 == 0 {
+						td.AddTotalDataVolume(64 * 1024)
+					}
+
+					time.Sleep(dm.rateCaptureFrequency)
+					synctest.Wait()
+				}
+
+				stopCapture <- true
+
+				mu.Lock()
+				defer mu.Unlock()
+
+				require.Len(t, rates, 20)
+
+				dips := 0
+
+				for index := len(rates) / 2; index < len(rates); index++ {
+					if rates[index] < rates[index-1] {
+						dips++
+					}
+				}
+
+				assert.Equal(t, tt.wantDips, dips, "settled rates: %v", rates[len(rates)/2:])
+			})
+		})
+	}
 }
