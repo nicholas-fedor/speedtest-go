@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update goreleaser/goreleaser-action action to v7.3.0 by @renovate[bot] in [#473](https://github.com/nicholas-fedor/speedtest-go/pull/473)
 - Lock file maintenance by @renovate[bot] in [#446](https://github.com/nicholas-fedor/speedtest-go/pull/446)
 - Update ossf/scorecard-action action to v2.5.0 by @renovate[bot] in [#447](https://github.com/nicholas-fedor/speedtest-go/pull/447)
 - Update module golang.org/x/text to v0.43.0 by @renovate[bot] in [#424](https://github.com/nicholas-fedor/speedtest-go/pull/424)
