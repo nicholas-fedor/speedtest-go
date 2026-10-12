@@ -56,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Count upload bytes only after the server confirms them by @nicholas-fedor in [#455](https://github.com/nicholas-fedor/speedtest-go/pull/455)
 - Bypass cached responses for caller details by @nicholas-fedor in [#453](https://github.com/nicholas-fedor/speedtest-go/pull/453)
 - Report fatal errors on stderr and exit with a failure code by @nicholas-fedor in [#449](https://github.com/nicholas-fedor/speedtest-go/pull/449)
 - Validate settings and prefix environment variables by @nicholas-fedor in [#444](https://github.com/nicholas-fedor/speedtest-go/pull/444)
