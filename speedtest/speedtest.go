@@ -56,11 +56,16 @@ type Speedtest struct {
 // UserConfig holds configuration options for speedtest.
 type UserConfig struct {
 	// T is the HTTP transport built from this configuration. NewUserConfig replaces any value set here.
-	T             *http.Transport
-	UserAgent     string
-	Proxy         string
+	T         *http.Transport
+	UserAgent string
+	Proxy     string
+	// Source is where connections leave from: an IP address, a network interface name, or a hostname, optionally
+	// with a network prefix such as "tcp://". On Linux, an interface name binds each socket to the interface, which
+	// then supplies an address of the destination's family. Elsewhere it uses the address [ResolveInterface] picks.
 	Source        string
 	DNSBindSource bool
+	// DialerControl runs on each socket the client dials before it connects, after any binding to a source
+	// interface. With DNSBindSource, it also runs on DNS sockets.
 	DialerControl func(network, address string, c syscall.RawConn) error
 	Debug         bool
 	PingMode      Proto
@@ -152,26 +157,27 @@ func (s *Speedtest) NewUserConfig(userConfig *UserConfig) {
 		s.config.BaseURL = DefaultBaseURL
 	}
 
-	tcpSource, icmpSource, sourceIP := resolveSource(userConfig.Source)
+	source := resolveSource(userConfig.Source)
+	control := chainControl(source.control, userConfig.DialerControl)
 
 	var resolver *net.Resolver
-	if userConfig.DNSBindSource && sourceIP != nil {
-		resolver = sourceBoundResolver(sourceIP)
+	if userConfig.DNSBindSource && (source.sourceIP != nil || control != nil) {
+		resolver = sourceBoundResolver(source.sourceIP, control)
 	}
 
 	s.tcpDialer = &net.Dialer{
-		LocalAddr: tcpSource,
+		LocalAddr: source.tcp,
 		Timeout:   dialTimeout,
 		KeepAlive: dialKeepAlive,
-		Control:   userConfig.DialerControl,
+		Control:   control,
 		Resolver:  resolver,
 	}
 
 	s.ipDialer = &net.Dialer{
-		LocalAddr: icmpSource,
+		LocalAddr: source.ip,
 		Timeout:   dialTimeout,
 		KeepAlive: dialKeepAlive,
-		Control:   userConfig.DialerControl,
+		Control:   control,
 		Resolver:  resolver,
 	}
 
@@ -269,66 +275,27 @@ func New(opts ...Option) *Speedtest {
 	return s
 }
 
-// resolveSource parses a source address for the TCP and ICMP dialers.
-//
-// The source may carry a network prefix such as "tcp://", which is ignored. Addresses that do not resolve leave
-// the corresponding dialer unbound, with a debug warning.
-//
-// Parameters:
-//   - source: the configured source address, possibly empty.
-//
-// Returns:
-//   - net.Addr: the local TCP address, or nil to let the system choose.
-//   - net.Addr: the local IP address for ICMP, or nil to let the system choose.
-//   - net.IP: the source IP for binding DNS queries: the literal IP, or the address a hostname resolved to, or nil
-//     when the source is empty or does not resolve.
-func resolveSource(source string) (net.Addr, net.Addr, net.IP) {
-	if len(source) == 0 {
-		return nil, nil, nil
-	}
-
-	_, address := parseAddr(source)
-
-	var tcpSource, icmpSource net.Addr
-
-	tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("[%s]:0", address))
-	if err == nil {
-		tcpSource = tcpAddr
-	} else {
-		dbg.Printf("Warning: skipping parse the source address. err: %s\n", err.Error())
-	}
-
-	ipAddr, err := net.ResolveIPAddr("ip", address)
-	if err == nil {
-		icmpSource = ipAddr
-	} else {
-		dbg.Printf("Warning: skipping parse the source address. err: %s\n", err.Error())
-	}
-
-	sourceIP := net.ParseIP(address)
-	if sourceIP == nil && tcpAddr != nil {
-		sourceIP = tcpAddr.IP
-	}
-
-	return tcpSource, icmpSource, sourceIP
-}
-
-// sourceBoundResolver returns a DNS resolver whose queries leave from the source IP.
+// sourceBoundResolver returns a DNS resolver whose queries leave from the source.
 //
 // It uses the pure Go resolver, because the cgo resolver ignores a custom Dial function.
 //
 // Parameters:
-//   - sourceIP: the local IP to send DNS queries from.
+//   - sourceIP: the local IP to send DNS queries from, or nil when control binds them to an interface instead.
+//   - control: the client's socket control, including any binding to the source interface, or nil.
 //
 // Returns:
 //   - *net.Resolver: the resolver for the client's dialers.
-func sourceBoundResolver(sourceIP net.IP) *net.Resolver {
+func sourceBoundResolver(sourceIP net.IP, control dialControl) *net.Resolver {
 	return &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, dnsServer string) (net.Conn, error) {
 			dialer := &net.Dialer{
-				Timeout:   dnsDialTimeout,
-				LocalAddr: localAddrFor(network, sourceIP),
+				Timeout: dnsDialTimeout,
+				Control: control,
+			}
+
+			if sourceIP != nil {
+				dialer.LocalAddr = localAddrFor(network, sourceIP)
 			}
 
 			return dialer.DialContext(ctx, network, dnsServer)

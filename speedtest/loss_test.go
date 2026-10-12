@@ -261,8 +261,8 @@ func TestPacketLossAnalyzer_loopSender(t *testing.T) {
 	}
 }
 
-// TestNewPacketLossAnalyzer_Source checks that the default dialers bind to an IP source and stay unbound otherwise,
-// and that dialers given in the options are kept.
+// TestNewPacketLossAnalyzer_Source checks that the default dialers bind to an IP source and stay unbound for a source
+// that does not resolve, and that dialers given in the options are kept.
 func TestNewPacketLossAnalyzer_Source(t *testing.T) {
 	t.Parallel()
 
@@ -275,7 +275,7 @@ func TestNewPacketLossAnalyzer_Source(t *testing.T) {
 	}{
 		{name: "IP", source: "127.0.0.1", wantIP: loopback},
 		{name: "IP with network prefix", source: "udp://127.0.0.1", wantIP: loopback},
-		{name: "interface name", source: "eth0"},
+		{name: "unknown name", source: "no-such-interface0"},
 		{name: "empty", source: ""},
 	}
 

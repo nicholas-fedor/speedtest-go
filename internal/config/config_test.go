@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -97,7 +98,7 @@ func TestLoadReadsViperState(t *testing.T) {
 	viper.Set("location", "40.7128,-74.0060")
 	viper.Set("city", "New York")
 	viper.Set("proxy", "http://proxy:8080")
-	viper.Set("source", "eth0")
+	viper.Set("source", "192.0.2.10")
 	viper.Set("dns-bind-source", true)
 	viper.Set("multi", false)
 	viper.Set("thread", 4)
@@ -122,7 +123,7 @@ func TestLoadReadsViperState(t *testing.T) {
 	assert.Equal(t, "40.7128,-74.0060", cfg.Location)
 	assert.Equal(t, "New York", cfg.City)
 	assert.Equal(t, "http://proxy:8080", cfg.Proxy)
-	assert.Equal(t, "eth0", cfg.Source)
+	assert.Equal(t, "192.0.2.10", cfg.Source)
 	assert.True(t, cfg.DNSBindSource)
 	assert.False(t, cfg.Multi)
 	assert.Equal(t, 4, cfg.Thread)
@@ -400,6 +401,12 @@ func TestLoadRejectsInvalidSettings(t *testing.T) {
 			want:     "--thread",
 		},
 		{
+			name:     "unknown source",
+			settings: map[string]any{"source": "no-such-interface0"},
+			wantErr:  errUnknownSource,
+			want:     `--source: "no-such-interface0" is neither an IP address nor a network interface`,
+		},
+		{
 			name:     "json and jsonl",
 			settings: map[string]any{"json": true, "jsonl": true},
 			wantErr:  ErrInvalidSetting,
@@ -561,5 +568,35 @@ func TestSetupUnit(t *testing.T) {
 
 			assert.Equal(t, tt.want, rate.String())
 		})
+	}
+}
+
+// TestCheckSource checks that IP addresses and interface names with a usable address are accepted, with or without
+// a network prefix, and that anything else is rejected.
+func TestCheckSource(t *testing.T) {
+	t.Parallel()
+
+	interfaces, err := net.Interfaces()
+	require.NoError(t, err)
+
+	var name string
+
+	for _, iface := range interfaces {
+		_, err = speedtest.ResolveInterface(iface.Name)
+		if err == nil {
+			name = iface.Name
+
+			break
+		}
+	}
+
+	require.NotEmpty(t, name, "no interface has a usable address")
+
+	for _, source := range []string{"", "192.0.2.10", "2001:db8::1", "tcp://192.0.2.10", name, "tcp://" + name} {
+		require.NoError(t, checkSource(source), source)
+	}
+
+	for _, source := range []string{"no-such-interface0", "speedtest.example", "tcp://no-such-interface0"} {
+		assert.ErrorIs(t, checkSource(source), errUnknownSource, source)
 	}
 }

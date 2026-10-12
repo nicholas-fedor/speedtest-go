@@ -13,7 +13,8 @@ func RegisterRootFlags(rootCmd *cobra.Command, cfgFile *string) {
 		StringVar(cfgFile, "config", "", "config file (default is $HOME/.speedtest-go.yaml)")
 	rootCmd.PersistentFlags().
 		String("proxy", "", "Set a proxy(http[s] or socks) for the speedtest.")
-	rootCmd.PersistentFlags().String("source", "", "Bind a source interface for the speedtest.")
+	rootCmd.PersistentFlags().
+		String("source", "", "Send from a source IP address or network interface name.")
 	rootCmd.PersistentFlags().
 		Bool("dns-bind-source", false, "DNS request binding source (experimental).")
 	rootCmd.PersistentFlags().String("ua", "", "Set the user-agent header for the speedtest.")
