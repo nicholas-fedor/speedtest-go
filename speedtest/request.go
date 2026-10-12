@@ -84,6 +84,7 @@ func (s *Server) multiTestContext(
 	servers Servers,
 	register registerFunc,
 	requestFunc func(context.Context, *Server, int) error,
+	size int,
 	handlerName string,
 	setSpeed func(ByteRate),
 ) error {
@@ -119,7 +120,7 @@ func (s *Server) multiTestContext(
 		testDirection = register(func() {
 			atomic.AddInt64(&requestTimes, 1)
 
-			err := requestFunc(_context, server, 3)
+			err := requestFunc(_context, server, size)
 			if err != nil {
 				atomic.AddInt64(&errorTimes, 1)
 			}
@@ -161,6 +162,7 @@ func (s *Server) MultiDownloadTestContext(ctx context.Context, servers Servers) 
 		servers,
 		s.Context.RegisterDownloadHandler,
 		s.downloadRequestFor(),
+		s.Context.downloadIndex(defaultDownloadIndex),
 		"Download",
 		func(rate ByteRate) { s.DLSpeed = rate },
 	)
@@ -183,6 +185,7 @@ func (s *Server) MultiUploadTestContext(ctx context.Context, servers Servers) er
 		servers,
 		s.Context.RegisterUploadHandler,
 		s.uploadRequestFor(),
+		s.Context.uploadIndex(defaultMultiUploadIndex),
 		"Upload",
 		func(rate ByteRate) { s.ULSpeed = rate },
 	)
@@ -272,7 +275,7 @@ func (s *Server) downloadTestContext(ctx context.Context, downloadRequest downlo
 	return s.testContext(
 		ctx,
 		downloadRequest,
-		3,
+		s.Context.downloadIndex(defaultDownloadIndex),
 		s.Context.RegisterDownloadHandler,
 		func(rate ByteRate) { s.DLSpeed = rate },
 		func(d *time.Duration) { s.TestDuration.Download = d },
@@ -310,7 +313,7 @@ func (s *Server) uploadTestContext(ctx context.Context, uploadRequest uploadFunc
 	return s.testContext(
 		ctx,
 		uploadRequest,
-		4,
+		s.Context.uploadIndex(defaultUploadIndex),
 		s.Context.RegisterUploadHandler,
 		func(rate ByteRate) { s.ULSpeed = rate },
 		func(d *time.Duration) { s.TestDuration.Upload = d },

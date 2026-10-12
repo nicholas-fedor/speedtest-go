@@ -55,6 +55,8 @@ func TestRegisterRootFlagsAddsLocalFlags(t *testing.T) {
 	require.NotNil(t, f.Lookup("no-upload"))
 	require.NotNil(t, f.Lookup("ping-mode"))
 	require.NotNil(t, f.Lookup("protocol"))
+	require.NotNil(t, f.Lookup("dl-size"))
+	require.NotNil(t, f.Lookup("ul-size"))
 	require.NotNil(t, f.Lookup("unit"))
 }
 

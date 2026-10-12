@@ -431,6 +431,18 @@ func TestLoadRejectsInvalidSettings(t *testing.T) {
 			want:     "--proxy cannot be used with --protocol tcp",
 		},
 		{
+			name:     "download size not in the table",
+			settings: map[string]any{"dl-size": 800},
+			wantErr:  speedtest.ErrInvalidTransferSize,
+			want:     "--dl-size: cannot use this size",
+		},
+		{
+			name:     "non-numeric upload size",
+			settings: map[string]any{"ul-size": "big"},
+			wantErr:  errNotWholeNumber,
+			want:     `--ul-size: "big" is not a whole number`,
+		},
+		{
 			name:     "json and jsonl",
 			settings: map[string]any{"json": true, "jsonl": true},
 			wantErr:  ErrInvalidSetting,
@@ -675,4 +687,25 @@ func TestLoadTestMode(t *testing.T) {
 			assert.Equal(t, tt.want, cfg.TestMode)
 		})
 	}
+}
+
+// TestLoadTransferSizes checks that table sizes load as given and that empty settings mean the defaults.
+//
+//nolint:paralleltest // mutates global viper
+func TestLoadTransferSizes(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Zero(t, cfg.DownloadSize)
+	assert.Zero(t, cfg.UploadSize)
+
+	viper.Set("dl-size", 2000)
+	viper.Set("ul-size", "300")
+
+	cfg, err = Load()
+	require.NoError(t, err)
+	assert.Equal(t, 2000, cfg.DownloadSize)
+	assert.Equal(t, 300, cfg.UploadSize)
 }

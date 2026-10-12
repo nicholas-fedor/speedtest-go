@@ -41,6 +41,10 @@ func RegisterRootFlags(rootCmd *cobra.Command, cfgFile *string) {
 	rootCmd.Flags().
 		String("protocol", "http", "Select the download and upload protocol (http or tcp).")
 	rootCmd.Flags().
+		Int("dl-size", 0, "Set the download block size, from 350 to 4000 (default 1000).")
+	rootCmd.Flags().
+		Int("ul-size", 0, "Set the upload block size in kB, from 100 to 4000 (default 1000, or 800 with --multi).")
+	rootCmd.Flags().
 		StringP("unit", "u", "", "Set human-readable and auto-scaled rate units for output "+
 			"(options: decimal-bits/decimal-bytes/binary-bits/binary-bytes).")
 
@@ -64,6 +68,8 @@ func RegisterRootFlags(rootCmd *cobra.Command, cfgFile *string) {
 	_ = viper.BindPFlag("no-upload", rootCmd.Flags().Lookup("no-upload"))
 	_ = viper.BindPFlag("ping-mode", rootCmd.Flags().Lookup("ping-mode"))
 	_ = viper.BindPFlag("protocol", rootCmd.Flags().Lookup("protocol"))
+	_ = viper.BindPFlag("dl-size", rootCmd.Flags().Lookup("dl-size"))
+	_ = viper.BindPFlag("ul-size", rootCmd.Flags().Lookup("ul-size"))
 	_ = viper.BindPFlag("unit", rootCmd.Flags().Lookup("unit"))
 }
 

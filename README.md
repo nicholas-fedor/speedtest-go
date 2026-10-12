@@ -174,6 +174,7 @@ Flags:
       --config string       config file (default is $HOME/.speedtest-go.yaml)
       --custom-url string   Specify the url of the server instead of fetching from speedtest.net.
       --debug               Enable debug mode.
+      --dl-size int         Set the download block size, from 350 to 4000 (default 1000).
       --dns-bind-source     DNS request binding source (experimental).
       --dscp int            Mark connections with a DSCP code point from 0 to 63 (Linux, macOS and BSD).
   -h, --help                help for speedtest-go
@@ -190,6 +191,7 @@ Flags:
       --source string       Send from a source IP address or network interface name.
   -t, --thread int          Set the number of concurrent connections.
       --ua string           Set the user-agent header for the speedtest.
+      --ul-size int         Set the upload block size in kB, from 100 to 4000 (default 1000, or 800 with --multi).
   -u, --unit string         Set human-readable and auto-scaled rate units for output (options: decimal-bits/decimal-bytes/binary-bits/binary-bytes).
       --unix                Output results in unix like format.
 
@@ -316,6 +318,21 @@ speedtest-go --protocol tcp
 ```
 
 The ping method is chosen separately with `--ping-mode`, and the packet loss test works the same way in both modes. TCP connections cannot go through an HTTP proxy, so `--protocol tcp` together with `--proxy` is an invalid setting.
+
+#### Choose transfer sizes
+
+Each download and upload request moves one block of data. Larger blocks spend less of the test on starting requests, which can matter on fast links, while smaller blocks suit slow ones. `--dl-size` and `--ul-size` pick a block size from these tables:
+
+| Flag | Sizes | Default |
+|---|---|---|
+| `--dl-size` | 350, 500, 750, 1000, 1500, 2000, 2500, 3000, 3500, 4000 | 1000 |
+| `--ul-size` | 100, 300, 500, 800, 1000, 1500, 2500, 3000, 3500, 4000 | 1000, or 800 with `--multi` |
+
+Over HTTP, a download size is the side of the requested test image, so 2000 requests a 2000x2000 image, and an upload size is in kB. With `--protocol tcp`, both sizes are in kB. Any other value is an invalid setting.
+
+```bash
+speedtest-go --dl-size 2000 --ul-size 1500
+```
 
 #### Test with a virtual location
 
