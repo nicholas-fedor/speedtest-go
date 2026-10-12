@@ -25,6 +25,7 @@ const (
 	packetLossAnalyzerTimeout = 40 * time.Second
 	echoInterval              = 500 * time.Millisecond
 	sleepAfterTests           = 30 * time.Second
+	percent                   = 100
 )
 
 // setupSpeedtestClient creates and configures the speedtest client.
@@ -235,16 +236,23 @@ func runBandwidthTest(
 		speed := server.DLSpeed
 
 		total := float64(server.Context.GetTotalDownload())
+		used := fmt.Sprintf("Used: %.2fMB", total/bytesToMB)
+
 		if !isDownload {
 			speed = server.ULSpeed
 			total = float64(server.Context.GetTotalUpload())
+			used = fmt.Sprintf(
+				"Used: %.2fMB Confirmed: %.1f%%",
+				total/bytesToMB,
+				server.Context.GetUploadConfirmationRatio()*percent,
+			)
 		}
 
 		task.Printf(
-			"%s: %s (Used: %.2fMB) (Latency: %dms Jitter: %dms Min: %dms Max: %dms)",
+			"%s: %s (%s) (Latency: %dms Jitter: %dms Min: %dms Max: %dms)",
 			taskName,
 			speed,
-			total/bytesToMB,
+			used,
 			mean/nanoToMilli,
 			std/nanoToMilli,
 			minL/nanoToMilli,
