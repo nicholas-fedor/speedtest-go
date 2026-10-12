@@ -81,7 +81,8 @@ func Setup(cfg Config) Config {
 
 // InitViper configures viper for config file and environment variable loading.
 // An empty cfgFile means the default $HOME/.speedtest-go.yaml is used.
-// Environment variables are read with [EnvPrefix].
+// Environment variables are read with [EnvPrefix]. A settings file that cannot be read or parsed is an error
+// wrapping [ErrInvalidSetting].
 func InitViper(cfgFile string) error {
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
@@ -113,7 +114,7 @@ func InitViper(cfgFile string) error {
 		return nil
 	}
 
-	return fmt.Errorf("failed to read config file: %w", err)
+	return fmt.Errorf("%w: failed to read config file: %w", ErrInvalidSetting, err)
 }
 
 // Load reads the current viper state and returns a validated Config.

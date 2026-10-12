@@ -3,15 +3,23 @@ package task
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
 	"github.com/chelnak/ysmrr"
 )
 
+// exitFailure is the process exit code for a fatal task error.
+const exitFailure = 1
+
 // Manager manages tasks with spinners for CLI output.
 type Manager struct {
-	sm         ysmrr.SpinnerManager
+	sm ysmrr.SpinnerManager
+	// stderr receives fatal errors when no spinner shows them.
+	stderr io.Writer
+	// exit ends the process after a fatal error.
+	exit       func(code int)
 	isOut      bool
 	noProgress bool
 }
@@ -27,12 +35,18 @@ type Task struct {
 func NewManager(jsonOutput, unixOutput bool) *Manager {
 	isOut := !jsonOutput || unixOutput
 
-	tm := &Manager{sm: ysmrr.NewSpinnerManager(), isOut: isOut, noProgress: unixOutput}
+	manager := &Manager{
+		sm:         ysmrr.NewSpinnerManager(),
+		stderr:     os.Stderr,
+		exit:       os.Exit,
+		isOut:      isOut,
+		noProgress: unixOutput,
+	}
 	if isOut && !unixOutput {
-		tm.sm.Start()
+		manager.sm.Start()
 	}
 
-	return tm
+	return manager
 }
 
 // Reset resets the spinner manager.
@@ -154,17 +168,25 @@ func (t *Task) Printf(format string, args ...any) {
 	t.spinner.UpdateMessagef(format, args...)
 }
 
-// CheckError checks for error and exits if present.
+// CheckError ends the process with exit code 1 when err is not nil. The progress spinner shows the error when
+// there is one. Otherwise the error goes to stderr, which keeps JSON and unix output on stdout intact.
+//
+// Parameters:
+//   - err: the task's error, or nil to continue.
 func (t *Task) CheckError(err error) {
-	if err != nil {
-		if t.spinner != nil {
-			t.Printf("Fatal: %s, err: %v", strings.ToLower(t.title), err)
-			t.spinner.Error()
-			t.manager.Stop()
-		} else {
-			_, _ = fmt.Fprintf(os.Stdout, "Fatal: %s, err: %v", strings.ToLower(t.title), err)
-		}
-
-		os.Exit(0)
+	if err == nil {
+		return
 	}
+
+	message := fmt.Sprintf("Fatal: %s, err: %v", strings.ToLower(t.title), err)
+
+	if t.spinner != nil {
+		t.spinner.UpdateMessage(message)
+		t.spinner.Error()
+		t.manager.Stop()
+	} else {
+		_, _ = fmt.Fprintln(t.manager.stderr, message)
+	}
+
+	t.manager.exit(exitFailure)
 }

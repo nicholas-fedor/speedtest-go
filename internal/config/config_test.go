@@ -212,7 +212,7 @@ func TestInitViperPropagatesParseError(t *testing.T) {
 	t.Cleanup(viper.Reset)
 
 	err := InitViper(cfgPath)
-	require.Error(t, err)
+	require.ErrorIs(t, err, ErrInvalidSetting)
 	assert.Contains(t, err.Error(), "failed to read config file")
 }
 
@@ -222,7 +222,7 @@ func TestInitViperPropagatesMissingExplicitFile(t *testing.T) {
 	t.Cleanup(viper.Reset)
 
 	err := InitViper(filepath.Join(t.TempDir(), "does-not-exist.yaml"))
-	require.Error(t, err)
+	require.ErrorIs(t, err, ErrInvalidSetting)
 	assert.Contains(t, err.Error(), "failed to read config file")
 }
 
