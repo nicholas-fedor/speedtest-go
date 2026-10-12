@@ -22,7 +22,6 @@ type (
 	downloadFunc func(context.Context, *Server, int) error
 	uploadFunc   func(context.Context, *Server, int) error
 	registerFunc func(func()) *TestDirection
-	getRateFunc  func() float64
 )
 
 var (
@@ -86,7 +85,6 @@ func (s *Server) multiTestContext(
 	register registerFunc,
 	requestFunc func(context.Context, *Server, int) error,
 	handlerName string,
-	getRate getRateFunc,
 	setSpeed func(ByteRate),
 ) error {
 	if s == nil {
@@ -140,7 +138,9 @@ func (s *Server) multiTestContext(
 		return fmt.Errorf("speed test ended by context: %w", err)
 	}
 
-	rate := ByteRate(getRate())
+	// The final rate is the measured volume over the capture window, not the live estimate, which starts at zero and
+	// reads low until it converges.
+	rate := ByteRate(testDirection.finalRate)
 	setSpeed(rate)
 
 	if rate == 0 && float64(errorTimes)/float64(requestTimes) > 0.1 {
@@ -162,7 +162,6 @@ func (s *Server) MultiDownloadTestContext(ctx context.Context, servers Servers) 
 		s.Context.RegisterDownloadHandler,
 		downloadRequest,
 		"Download",
-		s.Context.GetEWMADownloadRate,
 		func(rate ByteRate) { s.DLSpeed = rate },
 	)
 }
@@ -182,7 +181,6 @@ func (s *Server) MultiUploadTestContext(ctx context.Context, servers Servers) er
 		s.Context.RegisterUploadHandler,
 		uploadRequest,
 		"Upload",
-		s.Context.GetEWMAUploadRate,
 		func(rate ByteRate) { s.ULSpeed = rate },
 	)
 }
@@ -210,7 +208,6 @@ func (s *Server) testContext(
 	requestFunc func(context.Context, *Server, int) error,
 	size int,
 	register registerFunc,
-	getRate getRateFunc,
 	setSpeed func(ByteRate),
 	setDuration func(*time.Duration),
 ) error {
@@ -232,14 +229,15 @@ func (s *Server) testContext(
 
 	defer cancel()
 
-	register(func() {
+	testDirection := register(func() {
 		atomic.AddInt64(&requestTimes, 1)
 
 		err := requestFunc(_context, s, size)
 		if err != nil {
 			atomic.AddInt64(&errorTimes, 1)
 		}
-	}).StartContext(ctx, cancel, 0)
+	})
+	testDirection.StartContext(ctx, cancel, 0)
 
 	// A cancelled test measured nothing useful, so leave the server's earlier results as they were.
 	err := ctx.Err()
@@ -249,7 +247,9 @@ func (s *Server) testContext(
 
 	duration := time.Since(start)
 
-	rate := ByteRate(getRate())
+	// The final rate is the measured volume over the capture window, not the live estimate, which starts at zero and
+	// reads low until it converges.
+	rate := ByteRate(testDirection.finalRate)
 	if rate == 0 && float64(errorTimes)/float64(requestTimes) > 0.1 {
 		rate = -1 // N/A
 	}
@@ -271,7 +271,6 @@ func (s *Server) downloadTestContext(ctx context.Context, downloadRequest downlo
 		downloadRequest,
 		3,
 		s.Context.RegisterDownloadHandler,
-		s.Context.GetEWMADownloadRate,
 		func(rate ByteRate) { s.DLSpeed = rate },
 		func(d *time.Duration) { s.TestDuration.Download = d },
 	)
@@ -307,7 +306,6 @@ func (s *Server) uploadTestContext(ctx context.Context, uploadRequest uploadFunc
 		uploadRequest,
 		4,
 		s.Context.RegisterUploadHandler,
-		s.Context.GetEWMAUploadRate,
 		func(rate ByteRate) { s.ULSpeed = rate },
 		func(d *time.Duration) { s.TestDuration.Upload = d },
 	)
