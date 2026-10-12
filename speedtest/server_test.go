@@ -806,3 +806,88 @@ func TestServer_getNotNullValue(t *testing.T) {
 		})
 	}
 }
+
+// TestServers_FilterCountry checks that codes match without regard to case, that the order is kept, and that no
+// match gives an empty list.
+func TestServers_FilterCountry(t *testing.T) {
+	t.Parallel()
+
+	servers := Servers{
+		{ID: "1", CC: "GB"},
+		{ID: "2", CC: "JP"},
+		{ID: "3", CC: "gb"},
+		{ID: "4", CC: "US"},
+	}
+
+	ids := func(filtered Servers) []string {
+		result := make([]string, 0, len(filtered))
+		for _, server := range filtered {
+			result = append(result, server.ID)
+		}
+
+		return result
+	}
+
+	assert.Equal(t, []string{"1", "3"}, ids(servers.FilterCountry("gb")))
+	assert.Equal(t, []string{"1", "3", "4"}, ids(servers.FilterCountry("US", "GB")))
+	assert.Empty(t, servers.FilterCountry("FR"))
+	assert.Empty(t, servers.FilterCountry())
+}
+
+// TestServerCountryCode checks that servers keep their country code from the JSON list, the XML list, and a lookup
+// by ID.
+func TestServerCountryCode(t *testing.T) {
+	t.Parallel()
+
+	t.Run("JSON list", func(t *testing.T) {
+		t.Parallel()
+
+		servers, err := newBaseURLClient(
+			testserver.NewAPI(t).URL(),
+		).FetchServerListContext(context.Background())
+		require.NoError(t, err)
+		require.NotEmpty(t, servers)
+
+		for _, server := range servers {
+			assert.Equal(t, "JP", server.CC)
+		}
+	})
+
+	t.Run("XML list", func(t *testing.T) {
+		t.Parallel()
+
+		api := testserver.NewAPI(t)
+		api.SetResponse(testserver.PathServers, testserver.Response{})
+
+		servers, err := newBaseURLClient(api.URL()).FetchServerListContext(context.Background())
+		require.NoError(t, err)
+		require.True(
+			t,
+			api.Requested(testserver.PathServersStatic),
+			"the test must use the XML list",
+		)
+		require.NotEmpty(t, servers)
+
+		for _, server := range servers {
+			assert.Equal(t, "JP", server.CC)
+		}
+	})
+
+	t.Run("lookup by ID", func(t *testing.T) {
+		t.Parallel()
+
+		server, err := newBaseURLClient(testserver.NewAPI(t).URL()).
+			FetchServerByIDContext(context.Background(), "1001")
+		require.NoError(t, err)
+		assert.Equal(t, "JP", server.CC)
+	})
+}
+
+// TestLondonCountryCode checks that London uses the ISO code speedtest.net reports, GB, not UK.
+func TestLondonCountryCode(t *testing.T) {
+	t.Parallel()
+
+	location, err := GetLocation("london")
+	require.NoError(t, err)
+	assert.Equal(t, "gb", location.CC)
+}

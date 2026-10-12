@@ -21,6 +21,8 @@ type User struct {
 	Lat string `json:"lat" xml:"lat,attr"`
 	Lon string `json:"lon" xml:"lon,attr"`
 	Isp string `json:"isp" xml:"isp,attr"`
+	// Country is the caller's ISO 3166-1 alpha-2 country code, as speedtest.net reports it.
+	Country string `json:"country" xml:"country,attr"`
 }
 
 // Users for decode xml.

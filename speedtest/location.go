@@ -37,7 +37,7 @@ var locations = map[string]*Location{
 	"brasilia":     {"brasilia", "br", -15.793876, -47.8835327},
 	"hongkong":     {"hongkong", "hk", 22.3106806, 114.1700546},
 	"tokyo":        {"tokyo", "jp", 35.680938, 139.7674114},
-	"london":       {"london", "uk", 51.5072493, -0.1288861},
+	"london":       {"london", "gb", 51.5072493, -0.1288861},
 	"moscow":       {"moscow", "ru", 55.7497248, 37.615989},
 	"beijing":      {"beijing", "cn", 39.8721243, 116.4077473},
 	"paris":        {"paris", "fr", 48.8626026, 2.3477229},

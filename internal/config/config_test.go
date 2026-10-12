@@ -443,6 +443,27 @@ func TestLoadRejectsInvalidSettings(t *testing.T) {
 			want:     `--ul-size: "big" is not a whole number`,
 		},
 		{
+			name:     "country code too long",
+			settings: map[string]any{"filter-cc": []string{"gbr"}},
+			wantErr:  errInvalidCountryCode,
+			want:     `--filter-cc: "GBR" is not a two-letter country code or auto`,
+		},
+		{
+			name:     "country filter with servers",
+			settings: map[string]any{"filter-cc": []string{"gb"}, "server": []int{1001}},
+			wantErr:  errFilterWithServers,
+			want:     "--filter-cc cannot be used with --server or --custom-url",
+		},
+		{
+			name: "country filter with a custom URL",
+			settings: map[string]any{
+				"filter-cc":  []string{"gb"},
+				"custom-url": "http://speed.example",
+			},
+			wantErr: errFilterWithServers,
+			want:    "--filter-cc cannot be used with --server or --custom-url",
+		},
+		{
 			name:     "json and jsonl",
 			settings: map[string]any{"json": true, "jsonl": true},
 			wantErr:  ErrInvalidSetting,
@@ -708,4 +729,61 @@ func TestLoadTransferSizes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2000, cfg.DownloadSize)
 	assert.Equal(t, 300, cfg.UploadSize)
+}
+
+// TestParseCountryCodes checks normalization: upper case, comma-separated entries as an environment variable gives
+// them, blanks and repeats dropped in order, auto kept, and anything else rejected.
+func TestParseCountryCodes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		entries []string
+		want    []string
+		wantErr bool
+	}{
+		{name: "none", entries: nil, want: nil},
+		{name: "one", entries: []string{"gb"}, want: []string{"GB"}},
+		{name: "comma separated", entries: []string{"gb, us"}, want: []string{"GB", "US"}},
+		{
+			name:    "repeats and blanks",
+			entries: []string{"gb", "GB", ",", "jp"},
+			want:    []string{"GB", "JP"},
+		},
+		{name: "auto", entries: []string{"Auto", "gb"}, want: []string{"AUTO", "GB"}},
+		{name: "three letters", entries: []string{"gbr"}, wantErr: true},
+		{name: "digit", entries: []string{"g1"}, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := parseCountryCodes(tt.entries)
+			if tt.wantErr {
+				require.ErrorIs(t, err, errInvalidCountryCode)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestLoadCountryCodesFromEnv checks that a comma-separated environment variable gives every code.
+func TestLoadCountryCodesFromEnv(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("SPEEDTEST_GO_FILTER_CC", "gb,us")
+
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	require.NoError(t, InitViper(""))
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"GB", "US"}, cfg.CountryCodes)
 }

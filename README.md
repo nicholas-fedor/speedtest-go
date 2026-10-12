@@ -177,6 +177,7 @@ Flags:
       --dl-size int         Set the download block size, from 350 to 4000 (default 1000).
       --dns-bind-source     DNS request binding source (experimental).
       --dscp int            Mark connections with a DSCP code point from 0 to 63 (Linux, macOS and BSD).
+      --filter-cc strings   Only use servers in these countries (two-letter codes, or auto for your own).
   -h, --help                help for speedtest-go
       --json                Output results in json format.
       --jsonl               Output results in jsonl format (one json object per line).
@@ -333,6 +334,17 @@ Over HTTP, a download size is the side of the requested test image, so 2000 requ
 ```bash
 speedtest-go --dl-size 2000 --ul-size 1500
 ```
+
+#### Filter servers by country
+
+`--filter-cc` keeps only the servers in the given countries, named by their two-letter ISO codes. It applies to the server the test picks and to `list`, and takes several codes, repeated or separated by commas. `auto` stands for your own country: the country of `--city` when one is set, and otherwise the country speedtest.net reports for your connection.
+
+```bash
+speedtest-go --filter-cc auto
+speedtest-go list --filter-cc gb,ie
+```
+
+A filter that leaves no servers is an error. `--filter-cc` cannot be combined with `--server` or `--custom-url`, which already choose the servers.
 
 #### Test with a virtual location
 

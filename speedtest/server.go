@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -41,6 +42,7 @@ type Server struct {
 	Lon          string          `json:"lon"          xml:"lon,attr"`
 	Name         string          `json:"name"         xml:"name,attr"`
 	Country      string          `json:"country"      xml:"country,attr"`
+	CC           string          `json:"cc"           xml:"cc,attr"`
 	Sponsor      string          `json:"sponsor"      xml:"sponsor,attr"`
 	ID           string          `json:"id"           xml:"id,attr"`
 	Host         string          `json:"host"         xml:"host,attr"`
@@ -149,6 +151,28 @@ func (servers Servers) Len() int {
 // Swap swaps i-th and j-th. For sorting servers.
 func (servers Servers) Swap(i, j int) {
 	servers[i], servers[j] = servers[j], servers[i]
+}
+
+// FilterCountry returns the servers in any of the given countries, in their original order.
+//
+// Parameters:
+//   - codes: ISO 3166-1 alpha-2 country codes, such as "GB", matched without regard to case.
+//
+// Returns:
+//   - Servers: the matching servers, empty when none match.
+func (servers Servers) FilterCountry(codes ...string) Servers {
+	filtered := Servers{}
+
+	for _, server := range servers {
+		if slices.ContainsFunc(
+			codes,
+			func(code string) bool { return strings.EqualFold(code, server.CC) },
+		) {
+			filtered = append(filtered, server)
+		}
+	}
+
+	return filtered
 }
 
 // Hosts return hosts of servers.

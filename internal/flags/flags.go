@@ -19,6 +19,8 @@ func RegisterRootFlags(rootCmd *cobra.Command, cfgFile *string) {
 		Bool("dns-bind-source", false, "DNS request binding source (experimental).")
 	rootCmd.PersistentFlags().String("ua", "", "Set the user-agent header for the speedtest.")
 	rootCmd.PersistentFlags().
+		StringSlice("filter-cc", nil, "Only use servers in these countries (two-letter codes, or auto for your own).")
+	rootCmd.PersistentFlags().
 		Int("dscp", 0, "Mark connections with a DSCP code point from 0 to 63 (Linux, macOS and BSD).")
 	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode.")
 	rootCmd.PersistentFlags().
@@ -53,6 +55,7 @@ func RegisterRootFlags(rootCmd *cobra.Command, cfgFile *string) {
 	_ = viper.BindPFlag("dns-bind-source", rootCmd.PersistentFlags().Lookup("dns-bind-source"))
 	_ = viper.BindPFlag("ua", rootCmd.PersistentFlags().Lookup("ua"))
 	_ = viper.BindPFlag("dscp", rootCmd.PersistentFlags().Lookup("dscp"))
+	_ = viper.BindPFlag("filter-cc", rootCmd.PersistentFlags().Lookup("filter-cc"))
 	_ = viper.BindPFlag("debug", rootCmd.PersistentFlags().Lookup("debug"))
 	_ = viper.BindPFlag("base-url", rootCmd.PersistentFlags().Lookup("base-url"))
 
