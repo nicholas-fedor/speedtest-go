@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Filter servers by country code by @nicholas-fedor in [#477](https://github.com/nicholas-fedor/speedtest-go/pull/477)
 - Implement TCP download and upload transfers by @nicholas-fedor in [#469](https://github.com/nicholas-fedor/speedtest-go/pull/469)
 - Adapt the upload worker count to the confirmed rate by @nicholas-fedor in [#465](https://github.com/nicholas-fedor/speedtest-go/pull/465)
 - Mark connections with a DSCP code point by @nicholas-fedor in [#464](https://github.com/nicholas-fedor/speedtest-go/pull/464)
