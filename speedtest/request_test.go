@@ -3,13 +3,16 @@ package speedtest
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -1368,5 +1371,228 @@ func TestStandardDeviation(t *testing.T) {
 			assert.Equal(t, tt.wantMin, gotMin)
 			assert.Equal(t, tt.wantMax, gotMax)
 		})
+	}
+}
+
+// redirector is a server that answers every request with a redirect to one target, like an http upload URL that
+// moves to an https host. It records the methods it receives.
+type redirector struct {
+	server  *httptest.Server
+	mu      sync.Mutex
+	methods []string
+}
+
+// newRedirector starts a redirector that sends every request to target with status.
+func newRedirector(t *testing.T, target string, status int) *redirector {
+	t.Helper()
+
+	r := &redirector{}
+	r.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		r.mu.Lock()
+		r.methods = append(r.methods, req.Method)
+		r.mu.Unlock()
+
+		// Like the servers this works around, answer without reading an upload body.
+		http.Redirect(w, req, target, status)
+	}))
+	t.Cleanup(r.server.Close)
+
+	return r
+}
+
+// URL returns the redirecting upload URL.
+func (r *redirector) URL() string {
+	return r.server.URL + "/speedtest/upload.php"
+}
+
+// Methods returns the methods received so far.
+func (r *redirector) Methods() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return slices.Clone(r.methods)
+}
+
+// TestServer_resolveUploadURL checks that each redirect status is resolved with a single HEAD request, that the
+// upload then goes straight to the final URL and counts, and that the server's listed URL is unchanged.
+func TestServer_resolveUploadURL(t *testing.T) {
+	t.Parallel()
+
+	wantSize := int64(ulSizes[0]*100-51) * 10
+
+	for _, status := range []int{
+		http.StatusMovedPermanently,
+		http.StatusFound,
+		http.StatusTemporaryRedirect,
+		http.StatusPermanentRedirect,
+	} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			t.Parallel()
+
+			api := testserver.NewAPI(t)
+			final := api.ServerUploadURL("1001")
+			moved := newRedirector(t, final, status)
+
+			client, manager := runningClient(t)
+			server := &Server{URL: moved.URL(), Context: client}
+
+			server.resolveUploadURL(context.Background())
+
+			assert.Equal(t, final, server.uploadTarget())
+			assert.Equal(t, moved.URL(), server.URL, "the listed URL must stay as it was")
+
+			require.NoError(t, uploadRequest(context.Background(), server, 0))
+			assert.Equal(t, wantSize, manager.GetTotalUpload())
+			assert.Equal(
+				t,
+				[]string{http.MethodHead},
+				moved.Methods(),
+				"only the HEAD may reach the old URL",
+			)
+		})
+	}
+}
+
+// TestServer_resolveUploadURLFallsBack checks that uploads use the listed URL when nothing redirects, when the HEAD
+// request fails, and when the server has no client, and that a failed resolution clears an earlier result.
+func TestServer_resolveUploadURLFallsBack(t *testing.T) {
+	t.Parallel()
+
+	t.Run("no redirect", func(t *testing.T) {
+		t.Parallel()
+
+		api := testserver.NewAPI(t)
+		server := &Server{URL: api.ServerUploadURL("1001"), Context: New()}
+
+		server.resolveUploadURL(context.Background())
+
+		assert.Empty(t, server.uploadURL)
+		assert.Equal(t, server.URL, server.uploadTarget())
+	})
+
+	t.Run("failed request", func(t *testing.T) {
+		t.Parallel()
+
+		closed := httptest.NewServer(http.NotFoundHandler())
+		closed.Close()
+
+		server := &Server{
+			URL:       closed.URL + "/speedtest/upload.php",
+			Context:   New(),
+			uploadURL: "http://stale.invalid/upload.php",
+		}
+
+		server.resolveUploadURL(context.Background())
+
+		assert.Empty(t, server.uploadURL)
+		assert.Equal(t, server.URL, server.uploadTarget())
+	})
+
+	t.Run("no client", func(t *testing.T) {
+		t.Parallel()
+
+		server := &Server{URL: "http://upload.invalid/speedtest/upload.php"}
+
+		assert.NotPanics(t, func() { server.resolveUploadURL(context.Background()) })
+		assert.Equal(t, server.URL, server.uploadTarget())
+	})
+}
+
+// TestServer_UploadTestContext_Redirect checks that a full upload test against a redirecting server measures a
+// rate, without ever posting to the redirecting URL.
+func TestServer_UploadTestContext_Redirect(t *testing.T) {
+	t.Parallel()
+
+	api := testserver.NewAPI(t)
+	moved := newRedirector(t, api.ServerUploadURL("1001"), http.StatusTemporaryRedirect)
+
+	client := New(WithUserConfig(&UserConfig{MaxConnections: 2}))
+	client.SetCaptureTime(300 * time.Millisecond)
+
+	server := &Server{URL: moved.URL(), Context: client}
+
+	require.NoError(t, server.UploadTestContext(context.Background()))
+
+	assert.Positive(t, float64(server.ULSpeed))
+	assert.Positive(t, client.GetTotalUpload())
+	assert.Equal(t, []string{http.MethodHead}, moved.Methods())
+}
+
+// TestServer_MultiUploadTestContext_Redirect checks that multi-server uploads resolve every server in the pool
+// before the workers start.
+func TestServer_MultiUploadTestContext_Redirect(t *testing.T) {
+	t.Parallel()
+
+	api := testserver.NewAPI(t)
+	movedA := newRedirector(t, api.ServerUploadURL("1001"), http.StatusTemporaryRedirect)
+	movedB := newRedirector(t, api.ServerUploadURL("1002"), http.StatusFound)
+
+	client := New(WithUserConfig(&UserConfig{MaxConnections: 2}))
+	client.SetCaptureTime(300 * time.Millisecond)
+
+	pool := Servers{
+		{ID: "1001", URL: movedA.URL(), Context: client},
+		{ID: "1002", URL: movedB.URL(), Context: client},
+	}
+
+	require.NoError(t, pool[0].MultiUploadTestContext(context.Background(), pool))
+
+	assert.Equal(t, api.ServerUploadURL("1001"), pool[0].uploadTarget())
+	assert.Equal(t, api.ServerUploadURL("1002"), pool[1].uploadTarget())
+	assert.Positive(t, float64(pool[0].ULSpeed))
+	assert.Equal(t, []string{http.MethodHead}, movedA.Methods())
+	assert.Equal(t, []string{http.MethodHead}, movedB.Methods())
+}
+
+// TestResolveUploadURLs checks that every server is resolved while no more than the limit of HEAD requests are in
+// flight at once.
+func TestResolveUploadURLs(t *testing.T) {
+	t.Parallel()
+
+	const limit = 2
+
+	api := testserver.NewAPI(t)
+
+	var inFlight, maxInFlight atomic.Int32
+
+	moved := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		current := inFlight.Add(1)
+		defer inFlight.Add(-1)
+
+		for {
+			highest := maxInFlight.Load()
+			if current <= highest || maxInFlight.CompareAndSwap(highest, current) {
+				break
+			}
+		}
+
+		// Hold each request briefly, so requests beyond the limit would overlap.
+		time.Sleep(20 * time.Millisecond)
+
+		http.Redirect(
+			w,
+			req,
+			api.ServerUploadURL(strings.TrimPrefix(req.URL.Path, "/")),
+			http.StatusFound,
+		)
+	}))
+	t.Cleanup(moved.Close)
+
+	client := New()
+	servers := make(Servers, 0, 6)
+
+	for index := range 6 {
+		servers = append(
+			servers,
+			&Server{URL: fmt.Sprintf("%s/%d", moved.URL, index), Context: client},
+		)
+	}
+
+	resolveUploadURLs(context.Background(), servers, limit)
+
+	assert.LessOrEqual(t, maxInFlight.Load(), int32(limit))
+
+	for index, server := range servers {
+		assert.Equal(t, api.ServerUploadURL(strconv.Itoa(index)), server.uploadTarget())
 	}
 }

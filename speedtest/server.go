@@ -54,6 +54,8 @@ type Server struct {
 	TestDuration TestDuration    `json:"testDuration" xml:"-"`
 	PacketLoss   transport.PLoss `json:"packetLoss"   xml:"-"`
 	Context      *Speedtest      `json:"-"            xml:"-"`
+	// uploadURL is where uploads go once redirects from URL are resolved, or empty to use URL.
+	uploadURL string
 }
 
 // TestDuration holds the duration of different test phases.

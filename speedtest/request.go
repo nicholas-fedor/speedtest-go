@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -27,6 +28,16 @@ type (
 var (
 	dlSizes = [...]int{350, 500, 750, 1000, 1500, 2000, 2500, 3000, 3500, 4000}
 	ulSizes = [...]int{100, 300, 500, 800, 1000, 1500, 2500, 3000, 3500, 4000} // kB
+)
+
+// Limits on resolving upload redirects.
+const (
+	// uploadResolveTimeout bounds the HEAD request that resolves upload redirects, so an unresponsive server cannot
+	// hold up the start of a test.
+	uploadResolveTimeout = 5 * time.Second
+	// maxConcurrentUploadResolves bounds how many HEAD requests a multi-server test sends at once, since its pool can
+	// be the whole fetched server list.
+	maxConcurrentUploadResolves = 8
 )
 
 // ErrConnectTimeout is returned when server connection times out.
@@ -162,6 +173,9 @@ func (s *Server) MultiUploadTestContext(ctx context.Context, servers Servers) er
 		return ErrServerNil
 	}
 
+	// Resolve before the handlers are registered, so no upload worker reads a URL while it changes.
+	resolveUploadURLs(ctx, *servers.Available(), maxConcurrentUploadResolves)
+
 	return s.multiTestContext(
 		ctx,
 		servers,
@@ -286,6 +300,8 @@ func (s *Server) uploadTestContext(ctx context.Context, uploadRequest uploadFunc
 		return ErrServerNil
 	}
 
+	s.resolveUploadURL(ctx)
+
 	return s.testContext(
 		ctx,
 		uploadRequest,
@@ -343,6 +359,86 @@ func downloadRequest(ctx context.Context, server *Server, writer int) error {
 	return nil
 }
 
+// resolveUploadURL follows any redirects from the server's upload URL with a HEAD request and stores the final URL
+// for uploads. Some servers advertise an http URL that redirects to https and close the connection while a POST
+// body is still streaming, so the upload fails before its redirect can be seen. Sending to the final URL avoids
+// that. When the HEAD request fails or nothing redirects, uploads use the server's URL. The server's URL itself is
+// left as listed, since downloads and reports use it.
+//
+// Parameters:
+//   - ctx: cancellation for the HEAD request.
+func (s *Server) resolveUploadURL(ctx context.Context) {
+	s.uploadURL = ""
+
+	if s.Context == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, uploadResolveTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, s.URL, nil)
+	if err != nil {
+		return
+	}
+
+	resp, err := s.Context.doer.Do(req)
+	if err != nil {
+		dbg.Printf("Upload URL not resolved: %v\n", err)
+
+		return
+	}
+
+	_ = resp.Body.Close()
+
+	if resp.Request == nil || resp.Request.URL == nil {
+		return
+	}
+
+	resolved := resp.Request.URL.String()
+	if resolved != s.URL {
+		dbg.Printf("Resolved upload URL: %s -> %s\n", s.URL, resolved)
+		s.uploadURL = resolved
+	}
+}
+
+// resolveUploadURLs resolves the upload URL of every server, running at most limit resolutions at once, and returns
+// when all are done.
+//
+// Parameters:
+//   - ctx: cancellation for the HEAD requests.
+//   - servers: the servers to resolve.
+//   - limit: the most resolutions to run at once.
+func resolveUploadURLs(ctx context.Context, servers Servers, limit int) {
+	var resolving sync.WaitGroup
+
+	slots := make(chan struct{}, limit)
+
+	for _, server := range servers {
+		slots <- struct{}{}
+
+		resolving.Go(func() {
+			defer func() { <-slots }()
+
+			server.resolveUploadURL(ctx)
+		})
+	}
+
+	resolving.Wait()
+}
+
+// uploadTarget returns the URL uploads are sent to.
+//
+// Returns:
+//   - string: the resolved upload URL, or the server's URL when nothing was resolved.
+func (s *Server) uploadTarget() string {
+	if s.uploadURL != "" {
+		return s.uploadURL
+	}
+
+	return s.URL
+}
+
 func uploadRequest(ctx context.Context, server *Server, writer int) error {
 	if server == nil {
 		return ErrServerNil
@@ -356,13 +452,15 @@ func uploadRequest(ctx context.Context, server *Server, writer int) error {
 	chunkSize := int64(size*100-51) * 10
 	body := &countingReader{reader: server.Context.NewChunk().UploadHandler(chunkSize)}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, server.URL, io.NopCloser(body))
+	target := server.uploadTarget()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, io.NopCloser(body))
 	if err != nil {
 		return fmt.Errorf("failed to create upload HTTP request: %w", err)
 	}
 
 	req.ContentLength = chunkSize
-	dbg.Printf("Len=%d, XulURL: %s\n", req.ContentLength, server.URL)
+	dbg.Printf("Len=%d, XulURL: %s\n", req.ContentLength, target)
 	req.Header.Set("Content-Type", "application/octet-stream")
 
 	// Following a redirect would replace the POST with a bodyless GET, whose success confirms nothing. A redirect
