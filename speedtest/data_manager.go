@@ -383,7 +383,15 @@ func (td *TestDirection) rateCapture(stopCapture chan bool) {
 				globalAvg := float64(td.GetTotalDataVolume()) / float64(
 					time.Since(sTime).Milliseconds(),
 				) * conversionFactor
-				shouldStop := td.welford.Update(globalAvg, float64(deltaDataVolume))
+				shouldStop := td.welford.Update(
+					globalAvg,
+					rateSample(
+						td.TestType,
+						globalAvg,
+						deltaDataVolume,
+						td.manager.rateCaptureFrequency,
+					),
+				)
 				ewma := td.welford.EWMA()
 				td.welfordMu.Unlock()
 
@@ -705,11 +713,32 @@ func (dc *DataChunk) Read(buffer []byte) (int, error) {
 		bytesRead = copy(buffer, *dc.manager.repeatByte)
 	}
 
-	bytesRead64 := int64(bytesRead)
-	dc.remainOrDiscardSize -= bytesRead64
-	dc.manager.AddTotalUpload(bytesRead64)
+	// Upload bytes are counted once the server confirms the request, not when the transport reads them.
+	dc.remainOrDiscardSize -= int64(bytesRead)
 
 	return bytesRead, nil
+}
+
+// rateSample returns the value a rate capture period feeds to the EWMA estimator.
+//
+// Downloads count bytes as they arrive, so the period's own volume is a fair sample. Uploads count a whole request
+// once the server confirms it, so period volumes alternate between zero and a full request. For uploads the sample
+// is the cumulative average instead, scaled to one period, which avoids reporting that sawtooth.
+//
+// Parameters:
+//   - testType: typeDownload or typeUpload.
+//   - globalAvg: the cumulative rate since capture started, in bytes per second.
+//   - delta: the bytes counted during this period.
+//   - frequency: the capture period.
+//
+// Returns:
+//   - float64: the bytes to record for this period.
+func rateSample(testType int, globalAvg float64, delta int64, frequency time.Duration) float64 {
+	if testType == typeUpload {
+		return globalAvg * frequency.Seconds()
+	}
+
+	return float64(delta)
 }
 
 // calcMAFilter Median-Averaging Filter.

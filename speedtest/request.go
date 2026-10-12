@@ -35,6 +35,33 @@ var ErrConnectTimeout = errors.New("server connect timeout")
 // errNoHost reports a server URL that parses but names no host, such as a relative path.
 var errNoHost = errors.New("server URL has no host")
 
+// errUploadIncomplete reports a successful upload response that arrived before the server took the whole body.
+var errUploadIncomplete = errors.New("upload response arrived before the whole body was sent")
+
+// countingReader counts the bytes read through it. The HTTP transport reads a request body on its own goroutine,
+// so the count is atomic.
+type countingReader struct {
+	// reader is the wrapped reader.
+	reader io.Reader
+	// count is the number of bytes read so far.
+	count atomic.Int64
+}
+
+// Read reads from the wrapped reader and adds the bytes read to the count.
+//
+// Parameters:
+//   - buffer: the destination.
+//
+// Returns:
+//   - int: the number of bytes read.
+//   - error: the wrapped reader's error.
+func (r *countingReader) Read(buffer []byte) (int, error) {
+	read, err := r.reader.Read(buffer)
+	r.count.Add(int64(read))
+
+	return read, err //nolint:wrapcheck // io.Reader callers compare the error with io.EOF.
+}
+
 var (
 	// ErrServerNil is returned when the server is nil.
 	ErrServerNil = errors.New("server is nil")
@@ -327,9 +354,9 @@ func uploadRequest(ctx context.Context, server *Server, writer int) error {
 
 	size := ulSizes[writer]
 	chunkSize := int64(size*100-51) * 10
-	dc := server.Context.NewChunk().UploadHandler(chunkSize)
+	body := &countingReader{reader: server.Context.NewChunk().UploadHandler(chunkSize)}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, server.URL, io.NopCloser(dc))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, server.URL, io.NopCloser(body))
 	if err != nil {
 		return fmt.Errorf("failed to create upload HTTP request: %w", err)
 	}
@@ -343,9 +370,26 @@ func uploadRequest(ctx context.Context, server *Server, writer int) error {
 		return fmt.Errorf("failed to perform upload HTTP request: %w", err)
 	}
 
-	_, _ = io.Copy(io.Discard, resp.Body)
-
 	defer func() { _ = resp.Body.Close() }()
+
+	err = checkStatus(resp)
+	if err != nil {
+		return fmt.Errorf("upload request failed: %w", err)
+	}
+
+	_, err = io.Copy(io.Discard, resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read upload response: %w", err)
+	}
+
+	// A server can answer before reading the body, so the response confirms the upload only once the transport has
+	// taken the whole body.
+	sent := body.count.Load()
+	if sent != chunkSize {
+		return fmt.Errorf("%w: %d of %d bytes", errUploadIncomplete, sent, chunkSize)
+	}
+
+	server.Context.AddTotalUpload(chunkSize)
 
 	return nil
 }

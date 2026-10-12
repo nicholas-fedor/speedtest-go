@@ -2,6 +2,8 @@ package speedtest
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net"
 	"net/http"
 	"runtime"
@@ -699,6 +701,119 @@ func Test_downloadRequest_FakeServer(t *testing.T) {
 			"the error page must not count as downloaded data",
 		)
 		assert.Empty(t, *manager.Snapshot, "no chunk should be created for an error page")
+	})
+}
+
+// failingBody is a response body whose reads fail.
+type failingBody struct{}
+
+// Read reports a connection reset.
+func (failingBody) Read([]byte) (int, error) { return 0, errors.New("connection reset") }
+
+// Close does nothing.
+func (failingBody) Close() error { return nil }
+
+// roundTripFunc adapts a function to [http.RoundTripper].
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+// RoundTrip calls the function.
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
+
+// Test_uploadRequest_FakeServer checks that an upload counts its bytes only once the server confirms the request
+// with a successful response after taking the whole body, and that an error status, a response before the body was
+// read, or an unreadable response counts nothing.
+func Test_uploadRequest_FakeServer(t *testing.T) {
+	t.Parallel()
+
+	wantSize := int64(ulSizes[0]*100-51) * 10
+
+	t.Run("success", func(t *testing.T) {
+		t.Parallel()
+
+		api := testserver.NewAPI(t)
+		client, manager := runningClient(t)
+		server := &Server{URL: api.ServerUploadURL("1001"), Context: client}
+
+		require.NoError(t, uploadRequest(context.Background(), server, 0))
+		assert.Equal(t, wantSize, manager.GetTotalUpload())
+
+		require.NoError(t, uploadRequest(context.Background(), server, 0))
+		assert.Equal(t, 2*wantSize, manager.GetTotalUpload())
+	})
+
+	t.Run("error status", func(t *testing.T) {
+		t.Parallel()
+
+		api := testserver.NewAPI(t)
+		api.SetResponse(
+			testserver.PathUpload,
+			testserver.Response{Status: http.StatusInternalServerError, Body: "error page"},
+		)
+
+		client, manager := runningClient(t)
+		server := &Server{URL: api.ServerUploadURL("1001"), Context: client}
+
+		err := uploadRequest(context.Background(), server, 0)
+		require.ErrorIs(t, err, ErrUnexpectedStatus)
+		assert.Zero(
+			t,
+			manager.GetTotalUpload(),
+			"a rejected upload must not count as uploaded data",
+		)
+	})
+
+	t.Run("response before the body is read", func(t *testing.T) {
+		t.Parallel()
+
+		for _, read := range []int64{0, wantSize / 2} {
+			client, manager := runningClient(t)
+			client.doer = &http.Client{
+				Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+					_, _ = io.CopyN(io.Discard, req.Body, read)
+
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Body:       http.NoBody,
+						Request:    req,
+					}, nil
+				}),
+			}
+			server := &Server{URL: "http://upload.invalid/speedtest/upload.php", Context: client}
+
+			err := uploadRequest(context.Background(), server, 0)
+			require.ErrorIs(t, err, errUploadIncomplete)
+			assert.Zero(
+				t,
+				manager.GetTotalUpload(),
+				"an upload the server did not take must not count",
+			)
+		}
+	})
+
+	t.Run("unreadable response", func(t *testing.T) {
+		t.Parallel()
+
+		client, manager := runningClient(t)
+		client.doer = &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				_, _ = io.Copy(io.Discard, req.Body)
+
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       failingBody{},
+					Request:    req,
+				}, nil
+			}),
+		}
+		server := &Server{URL: "http://upload.invalid/speedtest/upload.php", Context: client}
+
+		err := uploadRequest(context.Background(), server, 0)
+		require.ErrorContains(t, err, "connection reset")
+		assert.Zero(
+			t,
+			manager.GetTotalUpload(),
+			"an unconfirmed upload must not count as uploaded data",
+		)
 	})
 }
 
