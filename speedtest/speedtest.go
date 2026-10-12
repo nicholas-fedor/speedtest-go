@@ -40,6 +40,18 @@ const (
 	ICMP
 )
 
+// TestMode selects the protocol that download and upload tests use.
+type TestMode int
+
+// Test modes.
+const (
+	// HTTPTest downloads files and posts uploads over HTTP. It is the default.
+	HTTPTest TestMode = iota
+	// TCPTest uses the speedtest.net TCP protocol on the server's TCP port, normally 8080. HTTP proxies do not
+	// apply to it.
+	TCPTest
+)
+
 // Speedtest is a speedtest client.
 type Speedtest struct {
 	Manager
@@ -73,6 +85,8 @@ type UserConfig struct {
 	DSCP     int
 	Debug    bool
 	PingMode Proto
+	// TestMode selects the protocol for download and upload tests. The ping method is set by PingMode.
+	TestMode TestMode
 
 	SavingMode     bool
 	MaxConnections int

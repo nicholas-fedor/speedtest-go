@@ -82,3 +82,37 @@ func TestParseProto(t *testing.T) {
 		})
 	}
 }
+
+// TestParseTestMode checks every protocol, case-insensitivity, the empty default, and that unknown protocols are
+// rejected.
+func TestParseTestMode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		wantErr error
+		name    string
+		str     string
+		want    speedtest.TestMode
+	}{
+		{name: "empty", str: "", want: speedtest.HTTPTest},
+		{name: "http", str: "http", want: speedtest.HTTPTest},
+		{name: "tcp", str: "tcp", want: speedtest.TCPTest},
+		{name: "upper case", str: "TCP", want: speedtest.TCPTest},
+		{name: "unknown", str: "quic", want: speedtest.HTTPTest, wantErr: ErrUnknownProtocol},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := ParseTestMode(tt.str)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				assert.Contains(t, err.Error(), tt.str)
+			} else {
+				require.NoError(t, err)
+			}
+
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

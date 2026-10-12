@@ -15,6 +15,8 @@ var (
 	ErrUnknownUnit = errors.New("unknown unit")
 	// ErrUnknownPingMode is returned for a ping mode that is not http, tcp, or icmp.
 	ErrUnknownPingMode = errors.New("unknown ping mode")
+	// ErrUnknownProtocol is returned for a test protocol that is not http or tcp.
+	ErrUnknownProtocol = errors.New("unknown protocol")
 )
 
 // ParseUnit parses a unit name, case-insensitively.
@@ -64,5 +66,24 @@ func ParseProto(str string) (speedtest.Proto, error) {
 		return speedtest.ICMP, nil
 	default:
 		return speedtest.HTTP, fmt.Errorf("%w %q: use http, tcp, or icmp", ErrUnknownPingMode, str)
+	}
+}
+
+// ParseTestMode parses the download and upload protocol, case-insensitively.
+//
+// Parameters:
+//   - str: the protocol. Empty means HTTP.
+//
+// Returns:
+//   - speedtest.TestMode: the test mode.
+//   - error: an error wrapping [ErrUnknownProtocol] that lists the accepted protocols.
+func ParseTestMode(str string) (speedtest.TestMode, error) {
+	switch strings.ToLower(str) {
+	case "", "http":
+		return speedtest.HTTPTest, nil
+	case "tcp":
+		return speedtest.TCPTest, nil
+	default:
+		return speedtest.HTTPTest, fmt.Errorf("%w %q: use http or tcp", ErrUnknownProtocol, str)
 	}
 }
