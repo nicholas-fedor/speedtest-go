@@ -138,3 +138,109 @@ func TestRetrieveServersPool(t *testing.T) {
 		assert.Len(t, targets, 1)
 	})
 }
+
+// TestFilterByCountry checks the country filter: explicit codes, auto from the user's country, auto from the
+// city, which takes precedence over the user's country, and the error when no server matches. Both fake servers
+// are in JP, so a match keeps the whole list in its order.
+func TestFilterByCountry(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		wantErr   error
+		name      string
+		city      string
+		codes     []string
+		wantCodes []string
+	}{
+		{name: "explicit", codes: []string{"JP"}, wantCodes: []string{"JP"}},
+		{name: "auto from user", codes: []string{"AUTO"}, wantCodes: []string{"JP"}},
+		{name: "auto from city", codes: []string{"AUTO"}, city: "tokyo", wantCodes: []string{"JP"}},
+		{
+			name:      "city over user",
+			codes:     []string{"AUTO"},
+			city:      "london",
+			wantCodes: []string{"GB"},
+			wantErr:   errNoServersInCountries,
+		},
+		{
+			name:      "no match",
+			codes:     []string{"FR", "DE"},
+			wantCodes: []string{"FR", "DE"},
+			wantErr:   errNoServersInCountries,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			api := testserver.NewAPI(t)
+			client := setupSpeedtestClient(config.Config{BaseURL: api.URL()})
+
+			servers, err := client.FetchServers()
+			require.NoError(t, err)
+
+			filtered, codes, err := filterByCountry(
+				client,
+				config.Config{CountryCodes: tt.codes, City: tt.city},
+				servers,
+			)
+			assert.Equal(t, tt.wantCodes, codes)
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				assert.Contains(t, err.Error(), tt.wantCodes[0])
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, serverIDs(servers), serverIDs(filtered))
+		})
+	}
+}
+
+// TestAutoCountryCity checks auto with a --city label: an unknown label is an error rather than a silent switch to
+// the user's country, and a label registered without a country falls back to the user's country.
+func TestAutoCountryCity(t *testing.T) {
+	t.Parallel()
+
+	api := testserver.NewAPI(t)
+	client := setupSpeedtestClient(config.Config{BaseURL: api.URL()})
+
+	_, err := autoCountry(client, config.Config{City: "atlantis"})
+	require.ErrorIs(t, err, errUnknownCountry)
+	require.ErrorIs(t, err, speedtest.ErrNotFoundLocation)
+	assert.Contains(t, err.Error(), `--city "atlantis"`)
+
+	speedtest.NewLocation("country-filter-no-cc", 35.6, 139.7)
+
+	country, err := autoCountry(client, config.Config{City: "country-filter-no-cc"})
+	require.NoError(t, err)
+	assert.Equal(t, "JP", country, "a label without a country uses the user's country")
+}
+
+// TestAutoCountryUnknown checks that auto fails clearly when speedtest.net reports no country for the user.
+func TestAutoCountryUnknown(t *testing.T) {
+	t.Parallel()
+
+	api := testserver.NewAPI(
+		t,
+		testserver.WithUser(testserver.User{IP: "203.0.113.7", Lat: "35.6", Lon: "139.7"}),
+	)
+	client := setupSpeedtestClient(config.Config{BaseURL: api.URL()})
+
+	_, err := autoCountry(client, config.Config{})
+	require.ErrorIs(t, err, errUnknownCountry)
+}
+
+// TestRetrieveServersCountryFilter checks that the speed test picks its target from the filtered servers.
+func TestRetrieveServersCountryFilter(t *testing.T) {
+	t.Parallel()
+
+	api := testserver.NewAPI(t)
+	cfg := config.Config{BaseURL: api.URL(), CountryCodes: []string{"JP"}}
+
+	pool, targets := retrieveServers(setupSpeedtestClient(cfg), cfg, task.NewManager(true, false))
+	assert.ElementsMatch(t, []string{"1001", "1002"}, serverIDs(pool))
+	assert.Len(t, targets, 1)
+}

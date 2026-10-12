@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -50,7 +51,13 @@ type Config struct {
 	DownloadSize int
 	// UploadSize is the upload block size in kB from the library's size table, or 0 for the default.
 	UploadSize int
+	// CountryCodes are the upper-case two-letter country codes servers must be in, with AUTO for the user's own
+	// country. Empty keeps every server.
+	CountryCodes []string
 }
+
+// CountryAuto is the country filter entry that stands for the user's own country.
+const CountryAuto = "AUTO"
 
 // EnvPrefix is the prefix of the environment variables that supply settings. A setting's variable is the prefix,
 // an underscore, and the setting name in upper case with hyphens as underscores, such as SPEEDTEST_GO_PING_MODE.
@@ -66,6 +73,12 @@ var (
 	errNegative = errors.New("negative")
 	// errUnknownSource rejects a source that is neither an IP address nor a network interface.
 	errUnknownSource = errors.New("neither an IP address nor a network interface")
+	// errInvalidCountryCode rejects a country filter entry that is neither a two-letter code nor auto.
+	errInvalidCountryCode = errors.New("not a two-letter country code or auto")
+	// errFilterWithServers rejects a country filter alongside servers that are already chosen.
+	errFilterWithServers = errors.New(
+		"--filter-cc cannot be used with --server or --custom-url, which choose the servers",
+	)
 	// errProxyWithTCP rejects a proxy with TCP tests, whose connections cannot go through an HTTP proxy.
 	errProxyWithTCP = errors.New(
 		"--proxy cannot be used with --protocol tcp, whose connections bypass HTTP proxies",
@@ -174,6 +187,11 @@ func Load() (Config, error) {
 		invalid("dscp", err)
 	}
 
+	countryCodes, err := parseCountryCodes(viper.GetStringSlice("filter-cc"))
+	if err != nil {
+		invalid("filter-cc", err)
+	}
+
 	downloadSize, err := parseTransferSize(viper.GetString("dl-size"), speedtest.CheckDownloadSize)
 	if err != nil {
 		invalid("dl-size", err)
@@ -211,6 +229,7 @@ func Load() (Config, error) {
 		DSCP:          dscp,
 		DownloadSize:  downloadSize,
 		UploadSize:    uploadSize,
+		CountryCodes:  countryCodes,
 	}
 
 	if cfg.BaseURL != "" {
@@ -223,6 +242,10 @@ func Load() (Config, error) {
 	err = checkOutputFormats(cfg)
 	if err != nil {
 		errs = append(errs, err)
+	}
+
+	if len(cfg.CountryCodes) > 0 && (len(cfg.ServerIDs) > 0 || cfg.CustomURL != "") {
+		errs = append(errs, fmt.Errorf("%w: %w", ErrInvalidSetting, errFilterWithServers))
 	}
 
 	if cfg.TestMode == speedtest.TCPTest && cfg.Proxy != "" {
@@ -291,6 +314,43 @@ func parseDSCP(raw string) (int, error) {
 	}
 
 	return dscp, nil
+}
+
+// parseCountryCodes normalizes the country filter.
+//
+// Entries may also hold comma-separated codes, as an environment variable does. Codes are upper-cased, blanks and
+// repeats are dropped, and the order is kept.
+//
+// Parameters:
+//   - entries: the setting values.
+//
+// Returns:
+//   - []string: the upper-case codes, with AUTO for the user's own country, or nil when there are none.
+//   - error: an error wrapping errInvalidCountryCode naming the first entry that is not a code or auto.
+func parseCountryCodes(entries []string) ([]string, error) {
+	var codes []string
+
+	for _, entry := range entries {
+		for code := range strings.SplitSeq(entry, ",") {
+			code = strings.ToUpper(strings.TrimSpace(code))
+			if code == "" || slices.Contains(codes, code) {
+				continue
+			}
+
+			if code != CountryAuto && !isCountryCode(code) {
+				return nil, fmt.Errorf("%q is %w", code, errInvalidCountryCode)
+			}
+
+			codes = append(codes, code)
+		}
+	}
+
+	return codes, nil
+}
+
+// isCountryCode reports whether code is two ASCII letters.
+func isCountryCode(code string) bool {
+	return len(code) == 2 && code[0] >= 'A' && code[0] <= 'Z' && code[1] >= 'A' && code[1] <= 'Z'
 }
 
 // parseTransferSize parses a download or upload block size.

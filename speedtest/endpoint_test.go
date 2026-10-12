@@ -204,7 +204,11 @@ func TestFetchUserInfoContext_BaseURL(t *testing.T) {
 	require.NoError(t, err)
 
 	want := testserver.DefaultUser()
-	assert.Equal(t, &User{IP: want.IP, Lat: want.Lat, Lon: want.Lon, Isp: want.ISP}, user)
+	assert.Equal(
+		t,
+		&User{IP: want.IP, Lat: want.Lat, Lon: want.Lon, Isp: want.ISP, Country: want.Country},
+		user,
+	)
 	assert.Equal(
 		t,
 		mirrorPrefix+testserver.PathUserConfig,

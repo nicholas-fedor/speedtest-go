@@ -41,7 +41,13 @@ func TestSpeedtest_FetchUserInfoContext(t *testing.T) {
 	}{
 		{
 			name: "reports and stores the user",
-			want: &User{IP: want.IP, Lat: want.Lat, Lon: want.Lon, Isp: want.ISP},
+			want: &User{
+				IP:      want.IP,
+				Lat:     want.Lat,
+				Lon:     want.Lon,
+				Isp:     want.ISP,
+				Country: want.Country,
+			},
 		},
 		{
 			name:     "response without a client element",

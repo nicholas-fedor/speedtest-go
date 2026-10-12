@@ -86,7 +86,21 @@ func retrieveServers(
 		default:
 			servers, err = speedtestClient.FetchServers()
 			task.CheckError(err)
-			task.Printf("Found %d Public Servers", len(servers))
+
+			if len(cfg.CountryCodes) > 0 {
+				var codes []string
+
+				servers, codes, err = filterByCountry(speedtestClient, cfg, servers)
+				task.CheckError(err)
+				task.Printf(
+					"Found %d Public Servers in %s",
+					len(servers),
+					strings.Join(codes, ", "),
+				)
+			} else {
+				task.Printf("Found %d Public Servers", len(servers))
+			}
+
 			targets, err = servers.FindServer(cfg.ServerIDs)
 			task.CheckError(err)
 		}

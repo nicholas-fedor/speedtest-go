@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/config"
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/output"
@@ -20,7 +21,19 @@ func RunList(cfg config.Config) error {
 		return fmt.Errorf("failed to fetch servers: %w", err)
 	}
 
-	log.Printf("Found %d Public Servers\n", len(servers))
+	if len(cfg.CountryCodes) > 0 {
+		var codes []string
+
+		servers, codes, err = filterByCountry(speedtestClient, cfg, servers)
+		if err != nil {
+			return err
+		}
+
+		log.Printf("Found %d Public Servers in %s\n", len(servers), strings.Join(codes, ", "))
+	} else {
+		log.Printf("Found %d Public Servers\n", len(servers))
+	}
+
 	output.ShowServerList(servers)
 
 	return nil
