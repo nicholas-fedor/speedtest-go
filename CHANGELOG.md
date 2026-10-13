@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module github.com/stretchr/objx to v0.7.0 by @renovate[bot] in [#483](https://github.com/nicholas-fedor/speedtest-go/pull/483)
 - Update nicholas-fedor/govulncheck-action action to v1.1.1 by @renovate[bot] in [#479](https://github.com/nicholas-fedor/speedtest-go/pull/479)
 - Update goreleaser/goreleaser-action action to v7.3.0 by @renovate[bot] in [#473](https://github.com/nicholas-fedor/speedtest-go/pull/473)
 - Lock file maintenance by @renovate[bot] in [#446](https://github.com/nicholas-fedor/speedtest-go/pull/446)
