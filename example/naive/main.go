@@ -10,16 +10,16 @@ import (
 
 func main() {
 	// _, _ = speedtest.FetchUserInfo()
-	// Get a list of servers near a specified location
-	// user.SetLocationByCity("Tokyo")
-	// user.SetLocation("Osaka", 34.6952, 135.5006)
 
-	// Select a network card as the data interface.
-	// speedtest.WithUserConfig(&speedtest.UserConfig{Source: "192.168.1.101"})(speedtestClient)
+	// Configure a client to choose servers near a city label or coordinates, or to send from an IP address or
+	// network interface, then use its methods instead of the package functions below.
+	// speedtestClient := speedtest.New(speedtest.WithUserConfig(&speedtest.UserConfig{CityFlag: "tokyo"}))
+	// speedtestClient := speedtest.New(speedtest.WithUserConfig(&speedtest.UserConfig{LocationFlag: "34.69,135.50"}))
+	// speedtestClient := speedtest.New(speedtest.WithUserConfig(&speedtest.UserConfig{Source: "192.168.1.101"}))
 
 	// Search server using serverID.
 	// eg: fetch server with ID 28910.
-	// speedtest.ErrEmptyServers will be returned if the server cannot be found.
+	// speedtest.ErrServerNotFound will be returned if the server cannot be found.
 	// server, err := speedtest.FetchServerByID("28910")
 	serverList, _ := speedtest.FetchServers()
 	targets, _ := serverList.FindServer([]int{})
