@@ -42,7 +42,7 @@ func main() {
 			// defer cancel()
 			defer waitGroup.Done()
 			// Note: Please call ctx.cancel at the appropriate time to release resources if you use analyzer.RunWithContext
-			// we using analyzer.Run() here.
+			// This example uses analyzer.Run(), which ends on its own after the sampling duration.
 			err = analyzer.Run(server.Host, func(packetLoss *transport.PLoss) {
 				_, _ = fmt.Fprintln(os.Stdout, packetLoss, server.Host, server.Name)
 			})

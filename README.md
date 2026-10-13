@@ -89,31 +89,25 @@ docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 -t nickfedor
 
 ##### Docker
 
-Run the container with default settings (interactive shell):
+The image runs `speedtest-go` as its entrypoint and contains nothing else, not even a shell, so flags go straight after the image name.
 
 ```bash
-docker run -it nickfedor/speedtest-go:latest
-```
+# Run a speed test with the default settings
+docker run --rm nickfedor/speedtest-go:latest
 
-Run a speedtest with specific arguments:
-
-```bash
-# Run a basic speedtest
-docker run nickfedor/speedtest-go:latest speedtest-go
-
-# Run with specific server
-docker run nickfedor/speedtest-go:latest speedtest-go --server 6691
+# Run with a specific server
+docker run --rm nickfedor/speedtest-go:latest --server 6691
 
 # Run with multiple servers and JSON output
-docker run nickfedor/speedtest-go:latest speedtest-go --server 6691 --server 6087 --json
+docker run --rm nickfedor/speedtest-go:latest --server 6691 --server 6087 --json
 
-# Run with custom location
-docker run nickfedor/speedtest-go:latest speedtest-go --location=60,-110
+# Run with a custom location
+docker run --rm nickfedor/speedtest-go:latest --location=60,-110
 ```
 
 ##### Kubernetes
 
-Here's an example Kubernetes pod specification that runs a speedtest:
+Here's an example Kubernetes pod specification that runs a speed test. The image's entrypoint is `speedtest-go`, so set only `args`. Setting `command` would replace the entrypoint.
 
 ```yaml
 apiVersion: v1
@@ -124,10 +118,8 @@ spec:
   containers:
   - name: speedtest
     image: nickfedor/speedtest-go:latest
-    # Base command to run bash
-    command: ["speedtest-go"]
-    # Or run with specific arguments
-    # args: ["--server", "6691", "--json"]
+    # Optional flags for speedtest-go
+    args: ["--server", "6691", "--json"]
   restartPolicy: Never
 ```
 
@@ -147,7 +139,6 @@ spec:
           containers:
           - name: speedtest
             image: nickfedor/speedtest-go:latest
-            command: ["speedtest-go"]
             args: ["--json"]
           restartPolicy: OnFailure
 ```
@@ -424,9 +415,9 @@ func main() {
  // Get user's network information
  // user, _ := speedtestClient.FetchUserInfo()
 
- // Get a list of servers near a specified location
- // user.SetLocationByCity("Tokyo")
- // user.SetLocation("Osaka", 34.6952, 135.5006)
+ // Choose servers near a city label or coordinates instead of your own location.
+ // speedtest.WithUserConfig(&speedtest.UserConfig{CityFlag: "tokyo"})(speedtestClient)
+ // speedtest.WithUserConfig(&speedtest.UserConfig{LocationFlag: "34.6952,135.5006"})(speedtestClient)
 
  // Search server using serverID.
  // eg: fetch server with ID 28910.
