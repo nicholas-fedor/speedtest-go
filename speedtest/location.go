@@ -3,6 +3,7 @@ package speedtest
 import (
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -110,27 +111,47 @@ func NewLocation(locationName string, latitude, longitude float64) *Location {
 
 // ParseLocation parse latitude and longitude string.
 func ParseLocation(locationName, coordinateStr string) (*Location, error) {
-	coordinates := strings.Split(coordinateStr, ",")
-	if len(coordinates) == coordinateCountForLatLon {
-		// parameters check
-		lat, err := betweenRange(coordinates[0], maxLatitude)
-		if err != nil {
-			return nil, err
-		}
-
-		lon, err := betweenRange(coordinates[1], maxLongitude)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(locationName) == 0 {
-			return NewLocation("Custom-Default", lat, lon), nil
-		}
-
-		return NewLocation("Custom-"+locationName, lat, lon), nil
+	lat, lon, err := ParseCoordinates(coordinateStr)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, fmt.Errorf("%w: %s", ErrInvalidLocationInput, coordinateStr)
+	if len(locationName) == 0 {
+		return NewLocation("Custom-Default", lat, lon), nil
+	}
+
+	return NewLocation("Custom-"+locationName, lat, lon), nil
+}
+
+// ParseCoordinates parses a "lat,lon" pair without registering a location.
+//
+// Parameters:
+//   - text: the latitude and longitude in decimal degrees, separated by a comma, such as "60,-110".
+//
+// Returns:
+//   - latitude: the latitude, from -90 to 90.
+//   - longitude: the longitude, from -180 to 180.
+//   - err: an error wrapping [ErrInvalidLocationInput] when text is not two values, or [ErrInvalidInput] when a value
+//     is not a number or is out of range.
+//
+//nolint:nonamedreturns // Same-type returns need names.
+func ParseCoordinates(text string) (latitude, longitude float64, err error) {
+	coordinates := strings.Split(text, ",")
+	if len(coordinates) != coordinateCountForLatLon {
+		return 0, 0, fmt.Errorf("%w: %s", ErrInvalidLocationInput, text)
+	}
+
+	latitude, err = betweenRange(strings.TrimSpace(coordinates[0]), maxLatitude)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	longitude, err = betweenRange(strings.TrimSpace(coordinates[1]), maxLongitude)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return latitude, longitude, nil
 }
 
 // String returns the string representation of the location.
@@ -145,7 +166,8 @@ func betweenRange(inputStrValue string, interval float64) (float64, error) {
 		return 0, fmt.Errorf("%w: %v", ErrInvalidInput, inputStrValue)
 	}
 
-	if value < -interval || interval < value {
+	// NaN fails every comparison, so it would pass the range check below unless rejected first.
+	if math.IsNaN(value) || value < -interval || interval < value {
 		return 0, fmt.Errorf("invalid input. got: %v, expected between -%v and %v: %w",
 			inputStrValue, interval, interval, ErrInvalidInput)
 	}

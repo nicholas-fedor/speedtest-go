@@ -19,6 +19,11 @@ func RegisterRootFlags(rootCmd *cobra.Command, cfgFile *string) {
 		Bool("dns-bind-source", false, "DNS request binding source (experimental).")
 	rootCmd.PersistentFlags().String("ua", "", "Set the user-agent header for the speedtest.")
 	rootCmd.PersistentFlags().
+		String("location", "", "Change the location with a precise coordinate (format: lat,lon).")
+	rootCmd.PersistentFlags().
+		String("city", "", "Change the location with a predefined city label.")
+	rootCmd.PersistentFlags().String("search", "", "Fuzzy search servers by a keyword.")
+	rootCmd.PersistentFlags().
 		StringSlice("filter-cc", nil, "Only use servers in these countries (two-letter codes, or auto for your own).")
 	rootCmd.PersistentFlags().
 		Int("dscp", 0, "Mark connections with a DSCP code point from 0 to 63 (Linux, macOS and BSD).")
@@ -56,6 +61,9 @@ func RegisterRootFlags(rootCmd *cobra.Command, cfgFile *string) {
 	_ = viper.BindPFlag("ua", rootCmd.PersistentFlags().Lookup("ua"))
 	_ = viper.BindPFlag("dscp", rootCmd.PersistentFlags().Lookup("dscp"))
 	_ = viper.BindPFlag("filter-cc", rootCmd.PersistentFlags().Lookup("filter-cc"))
+	_ = viper.BindPFlag("location", rootCmd.PersistentFlags().Lookup("location"))
+	_ = viper.BindPFlag("city", rootCmd.PersistentFlags().Lookup("city"))
+	_ = viper.BindPFlag("search", rootCmd.PersistentFlags().Lookup("search"))
 	_ = viper.BindPFlag("debug", rootCmd.PersistentFlags().Lookup("debug"))
 	_ = viper.BindPFlag("base-url", rootCmd.PersistentFlags().Lookup("base-url"))
 
@@ -74,16 +82,4 @@ func RegisterRootFlags(rootCmd *cobra.Command, cfgFile *string) {
 	_ = viper.BindPFlag("dl-size", rootCmd.Flags().Lookup("dl-size"))
 	_ = viper.BindPFlag("ul-size", rootCmd.Flags().Lookup("ul-size"))
 	_ = viper.BindPFlag("unit", rootCmd.Flags().Lookup("unit"))
-}
-
-// RegisterListFlags adds list subcommand flags and binds them to viper.
-func RegisterListFlags(listCmd *cobra.Command) {
-	listCmd.Flags().
-		String("location", "", "Change the location with a precise coordinate (format: lat,lon).")
-	listCmd.Flags().String("city", "", "Change the location with a predefined city label.")
-	listCmd.Flags().String("search", "", "Fuzzy search servers by a keyword.")
-
-	_ = viper.BindPFlag("location", listCmd.Flags().Lookup("location"))
-	_ = viper.BindPFlag("city", listCmd.Flags().Lookup("city"))
-	_ = viper.BindPFlag("search", listCmd.Flags().Lookup("search"))
 }

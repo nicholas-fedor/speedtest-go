@@ -79,6 +79,14 @@ var (
 	errFilterWithServers = errors.New(
 		"--filter-cc cannot be used with --server or --custom-url, which choose the servers",
 	)
+	// errUnknownCity rejects a city that is not one of the predefined labels.
+	errUnknownCity = errors.New("not a city label, run the cities command to list them")
+	// errCityWithLocation rejects a city and coordinates together, which set the location twice.
+	errCityWithLocation = errors.New("--city and --location both set the location, use one")
+	// errLocationWithServers rejects location settings alongside servers that are already chosen.
+	errLocationWithServers = errors.New(
+		"--city, --location, and --search cannot be used with --server or --custom-url, which choose the servers",
+	)
 	// errProxyWithTCP rejects a proxy with TCP tests, whose connections cannot go through an HTTP proxy.
 	errProxyWithTCP = errors.New(
 		"--proxy cannot be used with --protocol tcp, whose connections bypass HTTP proxies",
@@ -244,6 +252,8 @@ func Load() (Config, error) {
 		errs = append(errs, err)
 	}
 
+	errs = append(errs, checkLocation(cfg)...)
+
 	if len(cfg.CountryCodes) > 0 && (len(cfg.ServerIDs) > 0 || cfg.CustomURL != "") {
 		errs = append(errs, fmt.Errorf("%w: %w", ErrInvalidSetting, errFilterWithServers))
 	}
@@ -314,6 +324,45 @@ func parseDSCP(raw string) (int, error) {
 	}
 
 	return dscp, nil
+}
+
+// checkLocation rejects location settings the client could not honor.
+//
+// Parameters:
+//   - cfg: the settings to check.
+//
+// Returns:
+//   - []error: one error wrapping [ErrInvalidSetting] per problem, or none.
+func checkLocation(cfg Config) []error {
+	var errs []error
+
+	if cfg.City != "" {
+		_, err := speedtest.GetLocation(cfg.City)
+		if err != nil {
+			errs = append(
+				errs,
+				fmt.Errorf("%w --city: %q is %w", ErrInvalidSetting, cfg.City, errUnknownCity),
+			)
+		}
+	}
+
+	if cfg.Location != "" {
+		_, _, err := speedtest.ParseCoordinates(cfg.Location)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%w --location: %w", ErrInvalidSetting, err))
+		}
+	}
+
+	if cfg.City != "" && cfg.Location != "" {
+		errs = append(errs, fmt.Errorf("%w: %w", ErrInvalidSetting, errCityWithLocation))
+	}
+
+	choosesLocation := cfg.City != "" || cfg.Location != "" || cfg.Search != ""
+	if choosesLocation && (len(cfg.ServerIDs) > 0 || cfg.CustomURL != "") {
+		errs = append(errs, fmt.Errorf("%w: %w", ErrInvalidSetting, errLocationWithServers))
+	}
+
+	return errs
 }
 
 // parseCountryCodes normalizes the country filter.

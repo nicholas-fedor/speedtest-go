@@ -7,7 +7,6 @@ import (
 
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/app"
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/config"
-	"github.com/nicholas-fedor/speedtest-go/v2/internal/flags"
 )
 
 // newListCommand builds the list command with its flags.
@@ -28,8 +27,6 @@ func newListCommand() *cobra.Command {
 			return app.RunList(cfg)
 		},
 	}
-
-	flags.RegisterListFlags(listCmd)
 
 	return listCmd
 }

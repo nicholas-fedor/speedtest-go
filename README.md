@@ -171,6 +171,7 @@ Available Commands:
 
 Flags:
       --base-url string     Set the speedtest API base URL (default https://www.speedtest.net).
+      --city string         Change the location with a predefined city label.
       --config string       config file (default is $HOME/.speedtest-go.yaml)
       --custom-url string   Specify the url of the server instead of fetching from speedtest.net.
       --debug               Enable debug mode.
@@ -181,6 +182,7 @@ Flags:
   -h, --help                help for speedtest-go
       --json                Output results in json format.
       --jsonl               Output results in jsonl format (one json object per line).
+      --location string     Change the location with a precise coordinate (format: lat,lon).
   -m, --multi               Enable multi-server mode.
       --no-download         Disable download test.
       --no-upload           Disable upload test.
@@ -188,6 +190,7 @@ Flags:
       --protocol string     Select the download and upload protocol (http or tcp). (default "http")
       --proxy string        Set a proxy(http[s] or socks) for the speedtest.
       --saving-mode         Test with few resources, though low accuracy (especially > 30Mbps).
+      --search string       Fuzzy search servers by a keyword.
   -s, --server ints         Select server id to run speedtest.
       --source string       Send from a source IP address or network interface name.
   -t, --thread int          Set the number of concurrent connections.
@@ -348,7 +351,7 @@ A filter that leaves no servers is an error. `--filter-cc` cannot be combined wi
 
 #### Test with a virtual location
 
-You can test speed from a virtual location by first listing servers in a specific city or coordinates, then selecting server IDs to test against.
+`--city` and `--location` choose servers near another place, by a predefined city label or by coordinates, and `--search` narrows the servers by a keyword. They work for both the speed test and `list`. Use one of `--city` and `--location`, and leave all three out when `--server` or `--custom-url` already chooses the servers. An unknown city label or malformed coordinates are an invalid setting.
 
 ```bash
 $ speedtest-go cities
@@ -359,11 +362,13 @@ Available city labels (case insensitive):
 (sg)                  yishun    [1.4230218, 103.8404728]
 ...
 
-$ speedtest-go list --city=capetown
-$ speedtest-go --server <server_id_from_list>
+$ speedtest-go --city=capetown
 
 # Or with coordinates
-$ speedtest-go list --location=60,-110
+$ speedtest-go --location=60,-110
+
+# Or list the servers there first, then pick one
+$ speedtest-go list --city=capetown
 $ speedtest-go --server <server_id_from_list>
 ```
 
