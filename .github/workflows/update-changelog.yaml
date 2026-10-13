@@ -10,6 +10,11 @@ on:
 permissions:
   contents: read # Set default read-only permissions
 
+# Every run updates the same docs/update-changelog branch, so runs share one group whatever ref started them.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
 jobs:
   changelog:
     runs-on: ubuntu-latest
@@ -52,9 +57,16 @@ jobs:
           body: "Automated changelog update"
           delete-branch: true
 
-      - name: Enable auto-merge
+      - name: Merge the changelog pull request
         if: "${{ steps.create_pr.outputs.pull-request-number }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PULL_REQUEST_NUMBER: ${{ steps.create_pr.outputs.pull-request-number }}
-        run: gh pr merge --auto --squash "${PULL_REQUEST_NUMBER}"
+          HEAD_SHA: ${{ steps.create_pr.outputs.pull-request-head-sha }}
+        run: |
+          # GitHub refuses auto-merge for a pull request that is already mergeable, so merge it directly then.
+          # Both merges are pinned to the commit created above, so a later push is never merged unseen.
+          if ! gh pr merge --auto --squash --match-head-commit "${HEAD_SHA}" "${PULL_REQUEST_NUMBER}"; then
+            echo "Auto-merge is unavailable; merging the clean pull request directly"
+            gh pr merge --squash --match-head-commit "${HEAD_SHA}" "${PULL_REQUEST_NUMBER}"
+          fi
