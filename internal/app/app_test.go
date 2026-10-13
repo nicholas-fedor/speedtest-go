@@ -244,3 +244,59 @@ func TestRetrieveServersCountryFilter(t *testing.T) {
 	assert.ElementsMatch(t, []string{"1001", "1002"}, serverIDs(pool))
 	assert.Len(t, targets, 1)
 }
+
+// TestSetupSpeedtestClientLocation checks that the location and search settings reach the server list request, so
+// the speed test, not only list, honors them.
+func TestSetupSpeedtestClientLocation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		cfg     func(baseURL string) config.Config
+		name    string
+		wantLat string
+		wantLon string
+	}{
+		{
+			name: "city",
+			cfg: func(baseURL string) config.Config {
+				return config.Config{BaseURL: baseURL, City: "tokyo", Search: "fiber"}
+			},
+			wantLat: "35.680938",
+			wantLon: "139.7674114",
+		},
+		{
+			name: "coordinates",
+			cfg: func(baseURL string) config.Config {
+				return config.Config{BaseURL: baseURL, Location: "60,-110", Search: "fiber"}
+			},
+			wantLat: "60",
+			wantLon: "-110",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			api := testserver.NewAPI(t)
+
+			_, err := setupSpeedtestClient(tt.cfg(api.URL())).FetchServers()
+			require.NoError(t, err)
+
+			var found bool
+
+			for _, req := range api.Requests() {
+				if req.Endpoint != testserver.PathServers {
+					continue
+				}
+
+				found = true
+
+				assert.Equal(t, tt.wantLat, req.Query.Get("lat"))
+				assert.Equal(t, tt.wantLon, req.Query.Get("lon"))
+				assert.Equal(t, "fiber", req.Query.Get("search"))
+			}
+
+			assert.True(t, found, "the server list must be requested")
+		})
+	}
+}

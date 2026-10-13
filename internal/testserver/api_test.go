@@ -162,7 +162,8 @@ func TestAPI_ServerLookup(t *testing.T) {
 	}
 }
 
-// TestAPI_ServerEndpoints checks the latency, download, and upload endpoints, and that uploads record their size.
+// TestAPI_ServerEndpoints checks the latency, download, and upload endpoints, and that uploads record their read and
+// declared sizes.
 func TestAPI_ServerEndpoints(t *testing.T) {
 	t.Parallel()
 
@@ -183,6 +184,7 @@ func TestAPI_ServerEndpoints(t *testing.T) {
 	assert.Equal(t, PathDownload, requests[1].Endpoint)
 	assert.Equal(t, "/speedtest/random1000x1000.jpg", requests[1].Path)
 	assert.Equal(t, int64(1234), requests[2].BodySize)
+	assert.Equal(t, int64(1234), requests[2].ContentLength, "the declared size is recorded too")
 
 	for _, req := range requests {
 		assert.Empty(t, req.ServerID, "root server paths belong to no listed server")

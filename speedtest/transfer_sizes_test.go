@@ -5,6 +5,7 @@ package speedtest
 
 import (
 	"context"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -75,28 +76,32 @@ func requestedPaths(api *testserver.API, endpoint string) []string {
 	return paths
 }
 
-// uploadBodySizes returns the body sizes the fake API recorded for uploads.
-func uploadBodySizes(api *testserver.API) []int64 {
+// uploadDeclaredSizes returns the body size each upload POST the fake API recorded declared. An upload states its
+// full size before its body is sent, so the size is known even for an upload cut off when the test ends. The HEAD
+// requests that resolve upload redirects share the upload path and are left out.
+func uploadDeclaredSizes(api *testserver.API) []int64 {
 	var sizes []int64
 
 	for _, req := range api.Requests() {
-		if req.Endpoint == testserver.PathUpload {
-			sizes = append(sizes, req.BodySize)
+		if req.Endpoint == testserver.PathUpload && req.Method == http.MethodPost {
+			sizes = append(sizes, req.ContentLength)
 		}
 	}
 
 	return sizes
 }
 
-// assertUploadSize checks that some upload sent a full body of the expected size and none sent more. Uploads still
-// in flight when the test ends are cut off, so their bodies are shorter.
-func assertUploadSize(t *testing.T, sizes []int64, want int64) {
+// assertUploadSize checks that every upload declared the expected size. The fake records an upload once it stops
+// reading the body, which for an upload cut off at the end of the test can be just after the test returns, so it
+// first waits for at least one upload to be recorded.
+func assertUploadSize(t *testing.T, api *testserver.API, want int64) {
 	t.Helper()
 
-	require.Contains(t, sizes, want)
+	require.Eventually(t, func() bool { return len(uploadDeclaredSizes(api)) > 0 },
+		5*time.Second, 10*time.Millisecond, "the test must send at least one upload")
 
-	for _, size := range sizes {
-		assert.LessOrEqual(t, size, want)
+	for _, size := range uploadDeclaredSizes(api) {
+		assert.Equal(t, want, size)
 	}
 }
 
@@ -128,7 +133,7 @@ func TestHTTPTransferSizes(t *testing.T) {
 			assert.True(t, strings.HasSuffix(path, "/random2000x2000.jpg"), path)
 		}
 
-		assertUploadSize(t, uploadBodySizes(api), httpUpload(300))
+		assertUploadSize(t, api, httpUpload(300))
 	})
 
 	t.Run("multi-server defaults", func(t *testing.T) {
@@ -147,7 +152,7 @@ func TestHTTPTransferSizes(t *testing.T) {
 			assert.True(t, strings.HasSuffix(path, "/random1000x1000.jpg"), path)
 		}
 
-		assertUploadSize(t, uploadBodySizes(api), httpUpload(800))
+		assertUploadSize(t, api, httpUpload(800))
 	})
 }
 

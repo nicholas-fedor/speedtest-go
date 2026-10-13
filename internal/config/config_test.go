@@ -89,14 +89,11 @@ func TestLoadReadsViperState(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)
 
-	viper.Set("server", []int{1, 2})
-	viper.Set("custom-url", "http://example.com")
 	viper.Set("saving-mode", true)
 	viper.Set("json", true)
 	viper.Set("jsonl", false)
 	viper.Set("unix", false)
-	viper.Set("location", "40.7128,-74.0060")
-	viper.Set("city", "New York")
+	viper.Set("city", "newyork")
 	viper.Set("proxy", "http://proxy:8080")
 	viper.Set("source", "192.0.2.10")
 	viper.Set("dns-bind-source", true)
@@ -114,14 +111,11 @@ func TestLoadReadsViperState(t *testing.T) {
 	cfg, err := Load()
 	require.NoError(t, err)
 
-	assert.Equal(t, []int{1, 2}, cfg.ServerIDs)
-	assert.Equal(t, "http://example.com", cfg.CustomURL)
 	assert.True(t, cfg.SavingMode)
 	assert.True(t, cfg.JSONOutput)
 	assert.False(t, cfg.JSONLOutput)
 	assert.False(t, cfg.UnixOutput)
-	assert.Equal(t, "40.7128,-74.0060", cfg.Location)
-	assert.Equal(t, "New York", cfg.City)
+	assert.Equal(t, "newyork", cfg.City)
 	assert.Equal(t, "http://proxy:8080", cfg.Proxy)
 	assert.Equal(t, "192.0.2.10", cfg.Source)
 	assert.True(t, cfg.DNSBindSource)
@@ -464,6 +458,48 @@ func TestLoadRejectsInvalidSettings(t *testing.T) {
 			want:    "--filter-cc cannot be used with --server or --custom-url",
 		},
 		{
+			name:     "unknown city",
+			settings: map[string]any{"city": "atlantis"},
+			wantErr:  errUnknownCity,
+			want:     `--city: "atlantis" is not a city label, run the cities command to list them`,
+		},
+		{
+			name:     "malformed location",
+			settings: map[string]any{"location": "60"},
+			wantErr:  speedtest.ErrInvalidLocationInput,
+			want:     "--location",
+		},
+		{
+			name:     "location out of range",
+			settings: map[string]any{"location": "91,0"},
+			wantErr:  speedtest.ErrInvalidInput,
+			want:     "--location",
+		},
+		{
+			name:     "location not a number",
+			settings: map[string]any{"location": "NaN,0"},
+			wantErr:  speedtest.ErrInvalidInput,
+			want:     "--location",
+		},
+		{
+			name:     "city with location",
+			settings: map[string]any{"city": "tokyo", "location": "35,139"},
+			wantErr:  errCityWithLocation,
+			want:     "--city and --location both set the location",
+		},
+		{
+			name:     "search with servers",
+			settings: map[string]any{"search": "fiber", "server": []int{1001}},
+			wantErr:  errLocationWithServers,
+			want:     "cannot be used with --server or --custom-url",
+		},
+		{
+			name:     "city with a custom URL",
+			settings: map[string]any{"city": "tokyo", "custom-url": "http://speed.example"},
+			wantErr:  errLocationWithServers,
+			want:     "cannot be used with --server or --custom-url",
+		},
+		{
 			name:     "json and jsonl",
 			settings: map[string]any{"json": true, "jsonl": true},
 			wantErr:  ErrInvalidSetting,
@@ -786,4 +822,36 @@ func TestLoadCountryCodesFromEnv(t *testing.T) {
 	cfg, err := Load()
 	require.NoError(t, err)
 	assert.Equal(t, []string{"GB", "US"}, cfg.CountryCodes)
+}
+
+// TestLoadReadsServerChoice checks the settings that choose servers directly, which cannot be combined with the
+// location settings.
+//
+//nolint:paralleltest // mutates global viper
+func TestLoadReadsServerChoice(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	viper.Set("server", []int{1, 2})
+	viper.Set("custom-url", "http://example.com")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	assert.Equal(t, []int{1, 2}, cfg.ServerIDs)
+	assert.Equal(t, "http://example.com", cfg.CustomURL)
+}
+
+// TestLoadReadsCoordinates checks that a valid --location loads as given, including spaces after the comma.
+//
+//nolint:paralleltest // mutates global viper
+func TestLoadReadsCoordinates(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	viper.Set("location", "40.7128, -74.0060")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, "40.7128, -74.0060", cfg.Location)
 }

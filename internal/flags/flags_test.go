@@ -85,33 +85,24 @@ func TestRegisterRootFlagsBindsViper(t *testing.T) {
 	assert.Equal(t, "http://127.0.0.1:8080/mirror", viper.GetString("base-url"))
 }
 
+// TestRegisterRootFlagsLocation checks that the location flags are persistent, so the speed test and list both
+// accept them, and that they are bound to viper.
+//
 //nolint:paralleltest // mutates global viper
-func TestRegisterListFlagsAddsFlags(t *testing.T) {
+func TestRegisterRootFlagsLocation(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)
 
-	listCmd := &cobra.Command{Use: "list"}
+	rootCmd := &cobra.Command{Use: "test"}
 
-	RegisterListFlags(listCmd)
+	var cfgFile string
 
-	f := listCmd.Flags()
-	require.NotNil(t, f.Lookup("location"))
-	require.NotNil(t, f.Lookup("city"))
-	require.NotNil(t, f.Lookup("search"))
-}
+	RegisterRootFlags(rootCmd, &cfgFile)
 
-//nolint:paralleltest // mutates global viper
-func TestRegisterListFlagsBindsViper(t *testing.T) {
-	viper.Reset()
-	t.Cleanup(viper.Reset)
-
-	listCmd := &cobra.Command{Use: "list"}
-
-	RegisterListFlags(listCmd)
-
-	require.NoError(t, listCmd.Flags().Set("location", "60,-110"))
-	require.NoError(t, listCmd.Flags().Set("city", "capetown"))
-	require.NoError(t, listCmd.Flags().Set("search", "fiber"))
+	persistent := rootCmd.PersistentFlags()
+	require.NoError(t, persistent.Set("location", "60,-110"))
+	require.NoError(t, persistent.Set("city", "capetown"))
+	require.NoError(t, persistent.Set("search", "fiber"))
 
 	assert.Equal(t, "60,-110", viper.GetString("location"))
 	assert.Equal(t, "capetown", viper.GetString("city"))

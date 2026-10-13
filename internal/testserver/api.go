@@ -72,6 +72,9 @@ type Request struct {
 	ServerID string
 	// BodySize is the number of body bytes the fake read. Overridden responses read no body.
 	BodySize int64
+	// ContentLength is the body size the request declared, or -1 when it declared none. It is known even for a
+	// request whose body was cut off.
+	ContentLength int64
 }
 
 // Endpoint paths. The speedtest.net endpoints are served under the [WithPathPrefix] prefix. The per-server
@@ -311,13 +314,14 @@ func (api *API) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	api.mu.Unlock()
 
 	record := Request{
-		Query:    r.URL.Query(),
-		Header:   r.Header.Clone(),
-		Method:   r.Method,
-		Path:     r.URL.Path,
-		Endpoint: endpoint,
-		ServerID: serverID,
-		BodySize: 0,
+		Query:         r.URL.Query(),
+		Header:        r.Header.Clone(),
+		Method:        r.Method,
+		Path:          r.URL.Path,
+		Endpoint:      endpoint,
+		ServerID:      serverID,
+		BodySize:      0,
+		ContentLength: r.ContentLength,
 	}
 
 	if !overridden && endpoint == PathUpload {
