@@ -105,7 +105,17 @@ archives:
 nfpms:
   - id: "speedtest-go-packages"
     package_name: "speedtest-go"
-    file_name_template: "{{ .ConventionalFileName }}"
+    # The installer builds package names in this form, matching the archives.
+    file_name_template: >-
+      {{- .PackageName }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}amd64
+      {{- else if eq .Arch "386" }}i386
+      {{- else if eq .Arch "arm" }}armhf
+      {{- else if eq .Arch "arm64" }}arm64v8
+      {{- else if eq .Arch "riscv64" }}riscv64
+      {{- else }}{{ .Arch }}{{ end }}_
+      {{- .Version }}
     ids:
       - "speedtest-go-binary"
     vendor: "nicholas-fedor"
@@ -147,19 +157,6 @@ nfpms:
         dst: "/usr/share/doc/speedtest-go/README.md"
         file_info:
           mode: 0644
-
-    overrides:
-      deb:
-        dependencies:
-          - "curl (>= 7.0)"
-
-      rpm:
-        dependencies:
-          - "curl >= 7.0"
-
-      apk:
-        dependencies:
-          - "curl"
 
     rpm:
       summary: "Internet speed test CLI tool"

@@ -15,59 +15,38 @@ The project includes both a CLI and a public API that enables internet speed tes
 
 ### Installation
 
-#### Linux, Windows, etc
+#### Linux and macOS
 
-Please download the compatible package from [GitHub Releases](https://github.com/nicholas-fedor/speedtest-go/releases).
-
-#### Building Distribution Packages
-
-Linux distribution packages (`.deb`, `.rpm`, `.apk`, Arch Linux) can be built locally using [nFPM](https://nfpm.goreleaser.com/) via the Makefile.
-
-##### Prerequisites
-
-Install nFPM before running these targets.
-See the [nFPM installation docs](https://nfpm.goreleaser.com/install/) for all options, or use one of:
-
-- Homebrew:
+The install script downloads a release from [GitHub Releases](https://github.com/nicholas-fedor/speedtest-go/releases), verifies its checksum, and installs it:
 
 ```bash
-brew install goreleaser/tap/nfpm
+tmp=$(mktemp)
+curl -sSfL https://raw.githubusercontent.com/nicholas-fedor/speedtest-go/master/scripts/install.sh -o "$tmp" && sh "$tmp"
 ```
 
-- Go Install:
+Run `sh "$tmp" update` to update to the latest release, and `sh "$tmp" uninstall` to remove it.
+
+On Debian, Fedora, Alpine, Arch Linux, and their derivatives, the script installs the native package when it runs as root or can use `sudo`. Otherwise, it extracts the release archive into `$HOME/go/bin`. Either way, it verifies the signature of the checksums when [cosign](https://github.com/sigstore/cosign) is installed.
+
+These environment variables change what the script installs:
+
+| Variable  | Description                                       | Default                                                          |
+| --------- | ------------------------------------------------- | ---------------------------------------------------------------- |
+| `VERSION` | Release tag to install, such as `v2.0.0`          | The latest release                                               |
+| `PREFIX`  | Directory for archive installs                    | `$HOME/go/bin`, or the directory of the previous archive install |
+| `METHOD`  | `auto`, `package`, or `archive`                   | `auto`                                                           |
+
+For example, to install the archive into `~/.local/bin`:
 
 ```bash
-go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+METHOD=archive PREFIX="$HOME/.local/bin" sh "$tmp"
 ```
 
-- Debian/Ubuntu:
+Releases before v2.0.0 publish their packages under different names, so the script installs them from the archive. `METHOD=auto` falls back to the archive, and `METHOD=package` fails.
 
-```bash
-echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
-sudo apt update
-sudo apt install nfpm
-```
+#### Windows
 
-##### Run using the Makefile
-
-```bash
-# Build a specific package format
-make nfpm-deb    # Debian/Ubuntu (.deb)
-make nfpm-rpm    # Fedora/RHEL (.rpm)
-make nfpm-apk    # Alpine (.apk)
-make nfpm-arch   # Arch Linux (.pkg.tar.zst)
-
-# Build all package formats at once
-make nfpm-all
-```
-
-Packages are output to the `dist/` directory. The `VERSION` variable defaults to `dev` and must be set to a valid semver (e.g. `1.7.10`) before building:
-
-```bash
-VERSION=1.7.10 make nfpm-all
-```
-
-Signed release versions of packages are also built and published to [GitHub Releases](https://github.com/nicholas-fedor/speedtest-go/releases).
+Download the `.zip` for your architecture from [GitHub Releases](https://github.com/nicholas-fedor/speedtest-go/releases) and extract `speedtest-go.exe`.
 
 #### Docker Build
 

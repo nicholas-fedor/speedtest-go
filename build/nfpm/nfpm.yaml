@@ -84,20 +84,6 @@ contents:
     file_info:
       mode: 0644
 
-# Overrides per format.
-overrides:
-  deb:
-    depends:
-      - "curl (>= 7.0)"
-
-  rpm:
-    depends:
-      - "curl >= 7.0"
-
-  apk:
-    depends:
-      - "curl"
-
 # RPM-specific configuration.
 rpm:
   summary: "Internet speed test CLI tool"
