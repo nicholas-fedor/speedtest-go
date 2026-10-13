@@ -57,23 +57,32 @@ func maskValue(value string) string {
 // MaskedServerLine describes a server for --mask-isp, with its distance from the user masked, since distances to
 // servers at known coordinates reveal where the user is.
 //
+// It builds the line in the formats of [speedtest.Server.String] rather than editing that output, so a change to
+// those formats can never leave the distance unmasked.
+//
 // Parameters:
 //   - server: the server.
 //
 // Returns:
-//   - string: the description from [speedtest.Server.String], with the distance's digits masked.
+//   - string: the description, with the distance's digits masked.
 func MaskedServerLine(server *speedtest.Server) string {
-	line := server.String()
-	if server == nil {
-		return line
+	// A nil or custom server's description carries no distance.
+	if server == nil || server.Sponsor == "?" {
+		return server.String()
 	}
 
-	distance := fmt.Sprintf("%.2fkm", server.Distance)
+	distance := maskValue(fmt.Sprintf("%.2f", server.Distance)) + "km"
 
-	return strings.Replace(
-		line,
-		" "+distance+" ",
-		" "+maskValue(strings.TrimSuffix(distance, "km"))+"km ",
-		1,
+	if len(server.Country) == 0 {
+		return fmt.Sprintf("[%4s] %s %s by %s", server.ID, distance, server.Name, server.Sponsor)
+	}
+
+	return fmt.Sprintf(
+		"[%4s] %s %s (%s) by %s",
+		server.ID,
+		distance,
+		server.Name,
+		server.Country,
+		server.Sponsor,
 	)
 }

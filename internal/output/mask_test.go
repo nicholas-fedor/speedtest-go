@@ -4,6 +4,8 @@
 package output
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -112,7 +114,19 @@ func TestMaskedServerLine(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.want, MaskedServerLine(tt.server))
+			got := MaskedServerLine(tt.server)
+			assert.Equal(t, tt.want, got)
+
+			// Apart from the distance, the line must match the library's own description, so the two formats
+			// cannot drift apart unnoticed.
+			if tt.server != nil {
+				distance := fmt.Sprintf("%.2f", tt.server.Distance)
+				assert.Equal(
+					t,
+					tt.server.String(),
+					strings.Replace(got, maskValue(distance)+"km", distance+"km", 1),
+				)
+			}
 		})
 	}
 }
