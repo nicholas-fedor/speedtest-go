@@ -46,7 +46,7 @@ func (s *Server) uploadRequestFor() uploadFunc {
 
 // usesTCP reports whether the server's tests run over the TCP protocol.
 func (s *Server) usesTCP() bool {
-	return s.Context != nil && s.Context.config.TestMode == TCPTest
+	return s.Context != nil && s.Context.settings.testMode == TCPTest
 }
 
 // tcpHost returns the host:port of a server's TCP service.

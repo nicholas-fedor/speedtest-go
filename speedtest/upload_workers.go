@@ -4,6 +4,7 @@
 package speedtest
 
 import (
+	"context"
 	"math"
 	"time"
 )
@@ -80,8 +81,9 @@ func nextUploadWorkers(
 // confirmations can still remove workers for a large backlog, but never for its missing rate.
 //
 // Parameters:
+//   - ctx: the test's context, for debug messages.
 //   - stop: closed when the test ends.
-func (td *TestDirection) adaptUploadWorkers(stop <-chan struct{}) {
+func (td *TestDirection) adaptUploadWorkers(ctx context.Context, stop <-chan struct{}) {
 	ticker := time.NewTicker(uploadAdjustInterval)
 	defer ticker.Stop()
 
@@ -130,8 +132,14 @@ func (td *TestDirection) adaptUploadWorkers(stop <-chan struct{}) {
 
 			if changed {
 				td.workerCond.Broadcast()
-				dbg.Printf("Upload workers: %d/%d (confirmed: %.2f MB/s, backlog: %.2f MB)\n",
-					active, td.maxWorkers, rate/1e6, float64(backlog)/1e6)
+				td.manager.log().Debug(
+					ctx,
+					"upload workers",
+					logKeyWorkers, active,
+					logKeyLimit, td.maxWorkers,
+					logKeyRate, rate,
+					logKeyBacklog, backlog,
+				)
 			}
 		}
 	}

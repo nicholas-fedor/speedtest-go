@@ -51,16 +51,17 @@ func TestSizeIndex(t *testing.T) {
 	assert.Equal(t, defaultUploadIndex, sizeIndex(ulSizes[:], 123, defaultUploadIndex))
 }
 
-// TestNewUserConfigInvalidSizes checks that sizes outside the tables are dropped in favor of the defaults.
-func TestNewUserConfigInvalidSizes(t *testing.T) {
+// TestWithTransferSizes_Invalid checks that sizes outside the tables are rejected, and that both are reported.
+func TestWithTransferSizes_Invalid(t *testing.T) {
 	t.Parallel()
 
-	client := New(WithUserConfig(&UserConfig{DownloadSize: 800, UploadSize: 2000}))
+	client, err := New(WithTransferSizes(800, 2000))
 
-	assert.Zero(t, client.config.DownloadSize)
-	assert.Zero(t, client.config.UploadSize)
-	assert.Equal(t, defaultDownloadIndex, client.downloadIndex(defaultDownloadIndex))
-	assert.Equal(t, defaultUploadIndex, client.uploadIndex(defaultUploadIndex))
+	require.ErrorIs(t, err, ErrInvalidOption)
+	require.ErrorIs(t, err, ErrInvalidTransferSize)
+	assert.Nil(t, client)
+	assert.Contains(t, err.Error(), "download")
+	assert.Contains(t, err.Error(), "upload")
 }
 
 // requestedPaths returns the paths the fake API recorded for an endpoint.
@@ -116,10 +117,12 @@ func TestHTTPTransferSizes(t *testing.T) {
 		t.Parallel()
 
 		api := testserver.NewAPI(t)
-		client := New(
-			WithUserConfig(&UserConfig{MaxConnections: 1, DownloadSize: 2000, UploadSize: 300}),
+		client := newTestClient(
+			t,
+			WithConnections(1),
+			WithTransferSizes(2000, 300),
+			WithTestDuration(200*time.Millisecond),
 		)
-		client.SetCaptureTime(200 * time.Millisecond)
 
 		server := &Server{ID: "1001", URL: api.ServerUploadURL("1001"), Context: client}
 
@@ -140,7 +143,7 @@ func TestHTTPTransferSizes(t *testing.T) {
 		t.Parallel()
 
 		api := testserver.NewAPI(t)
-		client := New(WithUserConfig(&UserConfig{MaxConnections: 1}))
+		client := newTestClient(t, WithConnections(1))
 		client.SetCaptureTime(200 * time.Millisecond)
 
 		pool := Servers{{ID: "1001", URL: api.ServerUploadURL("1001"), Context: client}}
@@ -161,12 +164,12 @@ func TestTCPTransferSizes(t *testing.T) {
 	t.Parallel()
 
 	srv := testserver.NewTCPServer(t)
-	client := New(WithUserConfig(&UserConfig{
-		TestMode:       TCPTest,
-		MaxConnections: 1,
-		DownloadSize:   2000,
-		UploadSize:     300,
-	}))
+	client := newTestClient(
+		t,
+		WithProtocol(TCPTest),
+		WithConnections(1),
+		WithTransferSizes(2000, 300),
+	)
 	client.SetCaptureTime(200 * time.Millisecond)
 
 	server := &Server{ID: "1001", Host: srv.Addr(), Context: client}

@@ -17,8 +17,17 @@ import (
 const mirrorPrefix = "/mirror"
 
 // newBaseURLClient returns a client that talks to the given base URL.
-func newBaseURLClient(baseURL string) *Speedtest {
-	return New(WithUserConfig(&UserConfig{BaseURL: baseURL}))
+//
+// Parameters:
+//   - t: the test, which fails when the base URL is invalid.
+//   - baseURL: the base URL.
+//
+// Returns:
+//   - *Client: the client.
+func newBaseURLClient(t *testing.T, baseURL string) *Client {
+	t.Helper()
+
+	return newTestClient(t, WithBaseURL(baseURL))
 }
 
 // newMirrorAPI starts a fake API whose speedtest.net endpoints are served under mirrorPrefix.
@@ -121,12 +130,12 @@ func TestParseBaseURL(t *testing.T) {
 	}
 }
 
-// TestSpeedtest_endpoint checks that endpoints keep the base path and fall back to the default base URL.
-func TestSpeedtest_endpoint(t *testing.T) {
+// TestClient_endpoint checks that endpoints keep the base path and fall back to the default base URL.
+func TestClient_endpoint(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		client  *Speedtest
+		client  *Client
 		name    string
 		path    string
 		want    string
@@ -134,31 +143,31 @@ func TestSpeedtest_endpoint(t *testing.T) {
 	}{
 		{
 			name:   "no config uses the default",
-			client: &Speedtest{},
+			client: &Client{},
 			path:   serversPath,
 			want:   "https://www.speedtest.net/api/js/servers",
 		},
 		{
 			name:   "empty base URL uses the default",
-			client: &Speedtest{config: &UserConfig{}},
+			client: &Client{settings: settings{}},
 			path:   userConfigPath,
 			want:   "https://www.speedtest.net/speedtest-config.php",
 		},
 		{
 			name:   "path prefix is kept",
-			client: &Speedtest{config: &UserConfig{BaseURL: "https://mirror.example/speedtest"}},
+			client: &Client{settings: settings{baseURL: "https://mirror.example/speedtest"}},
 			path:   serversAdvancedPath,
 			want:   "https://mirror.example/speedtest/api/ios-config.php",
 		},
 		{
 			name:   "trailing slash is not doubled",
-			client: &Speedtest{config: &UserConfig{BaseURL: "https://mirror.example/speedtest/"}},
+			client: &Client{settings: settings{baseURL: "https://mirror.example/speedtest/"}},
 			path:   serversAlternativePath,
 			want:   "https://mirror.example/speedtest/speedtest-servers-static.php",
 		},
 		{
 			name:    "invalid base URL",
-			client:  &Speedtest{config: &UserConfig{BaseURL: "ftp://mirror.example"}},
+			client:  &Client{settings: settings{baseURL: "ftp://mirror.example"}},
 			path:    serversPath,
 			wantErr: true,
 		},
@@ -181,16 +190,15 @@ func TestSpeedtest_endpoint(t *testing.T) {
 	}
 }
 
-// TestNewUserConfig_BaseURL checks that clients default to DefaultBaseURL and keep a configured base URL.
-func TestNewUserConfig_BaseURL(t *testing.T) {
+// TestNew_BaseURL checks that clients default to DefaultBaseURL and keep a configured base URL.
+func TestNew_BaseURL(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, DefaultBaseURL, New().config.BaseURL)
-	assert.Equal(t, DefaultBaseURL, newBaseURLClient("").config.BaseURL)
+	assert.Equal(t, DefaultBaseURL, newTestClient(t).settings.baseURL)
 	assert.Equal(
 		t,
 		"http://127.0.0.1:8080/mirror",
-		newBaseURLClient("http://127.0.0.1:8080/mirror").config.BaseURL,
+		newBaseURLClient(t, "http://127.0.0.1:8080/mirror").settings.baseURL,
 	)
 }
 
@@ -200,7 +208,7 @@ func TestFetchUserInfoContext_BaseURL(t *testing.T) {
 
 	api := newMirrorAPI(t)
 
-	user, err := newBaseURLClient(api.URL()).FetchUserInfoContext(context.Background())
+	user, err := newBaseURLClient(t, api.URL()).FetchUserInfoContext(context.Background())
 	require.NoError(t, err)
 
 	want := testserver.DefaultUser()
@@ -222,7 +230,7 @@ func TestFetchServerListContext_BaseURL(t *testing.T) {
 	t.Parallel()
 
 	api := newMirrorAPI(t)
-	client := New(WithUserConfig(&UserConfig{BaseURL: api.URL(), Keyword: "fiber"}))
+	client := newTestClient(t, WithBaseURL(api.URL()), WithSearch("fiber"))
 
 	servers, err := client.FetchServerListContext(context.Background())
 	require.NoError(t, err)
@@ -244,7 +252,7 @@ func TestFetchServerListContext_BaseURLFallback(t *testing.T) {
 	api := newMirrorAPI(t)
 	api.SetResponse(testserver.PathServers, testserver.Response{})
 
-	servers, err := newBaseURLClient(api.URL()).FetchServerListContext(context.Background())
+	servers, err := newBaseURLClient(t, api.URL()).FetchServerListContext(context.Background())
 	require.NoError(t, err)
 	require.Len(t, servers, len(testserver.DefaultServers()))
 
@@ -258,7 +266,10 @@ func TestFetchServerByIDContext_BaseURL(t *testing.T) {
 
 	api := newMirrorAPI(t)
 
-	server, err := newBaseURLClient(api.URL()).FetchServerByIDContext(context.Background(), "1001")
+	server, err := newBaseURLClient(
+		t,
+		api.URL(),
+	).FetchServerByIDContext(context.Background(), "1001")
 	require.NoError(t, err)
 
 	assert.Equal(t, "1001", server.ID)
@@ -273,9 +284,9 @@ func TestFetchServerByIDContext_BaseURL(t *testing.T) {
 func TestFetchers_InvalidBaseURL(t *testing.T) {
 	t.Parallel()
 
-	client := &Speedtest{
-		config: &UserConfig{BaseURL: "ftp://mirror.example"},
-		doer:   http.DefaultClient,
+	client := &Client{
+		settings: settings{baseURL: "ftp://mirror.example"},
+		doer:     http.DefaultClient,
 	}
 
 	tests := []struct {
@@ -350,14 +361,14 @@ func TestFetchers_CacheBust(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		fetch    func(client *Speedtest) error
+		fetch    func(client *Client) error
 		name     string
 		endpoint string
 	}{
 		{
 			name:     "user info",
 			endpoint: testserver.PathUserConfig,
-			fetch: func(client *Speedtest) error {
+			fetch: func(client *Client) error {
 				_, err := client.FetchUserInfoContext(context.Background())
 
 				return err
@@ -366,7 +377,7 @@ func TestFetchers_CacheBust(t *testing.T) {
 		{
 			name:     "server by ID",
 			endpoint: testserver.PathServerLookup,
-			fetch: func(client *Speedtest) error {
+			fetch: func(client *Client) error {
 				_, err := client.FetchServerByIDContext(context.Background(), "1001")
 
 				return err
@@ -378,7 +389,7 @@ func TestFetchers_CacheBust(t *testing.T) {
 			t.Parallel()
 
 			api := newMirrorAPI(t)
-			client := newBaseURLClient(api.URL())
+			client := newBaseURLClient(t, api.URL())
 
 			require.NoError(t, tt.fetch(client))
 			require.NoError(t, tt.fetch(client))

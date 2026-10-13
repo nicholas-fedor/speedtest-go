@@ -28,14 +28,16 @@ const defaultPacketSendingTimeout = 5 * time.Second
 // PacketLossAnalyzer performs packet loss analysis on network connections.
 type PacketLossAnalyzer struct {
 	options *PacketLossAnalyzerOptions
+	// sourceErr is why SourceInterface did not resolve, returned by every run, or nil.
+	sourceErr error
 }
 
 // NewPacketLossAnalyzer creates a new packet loss analyzer with the given options.
 //
-// SourceInterface binds the default TCP and UDP dialers the same way [UserConfig.Source] binds the client's: an IP
+// SourceInterface binds the default TCP and UDP dialers the same way [WithSource] binds the client's: an IP
 // address or hostname sets their source address, and an interface name binds them to the device on Linux or sets
 // the interface's address elsewhere. A network prefix such as "udp://" is ignored. Dialers set in the options are
-// used as given.
+// used as given. A SourceInterface that does not resolve makes every run of the analyzer fail.
 func NewPacketLossAnalyzer(options *PacketLossAnalyzerOptions) *PacketLossAnalyzer {
 	if options == nil {
 		options = &PacketLossAnalyzerOptions{}
@@ -57,7 +59,7 @@ func NewPacketLossAnalyzer(options *PacketLossAnalyzerOptions) *PacketLossAnalyz
 		options.PacketSendingTimeout = defaultPacketSendingTimeout
 	}
 
-	source := resolveSource(options.SourceInterface)
+	source, sourceErr := resolveSource(options.SourceInterface)
 
 	if options.TCPDialer == nil {
 		options.TCPDialer = &net.Dialer{
@@ -80,7 +82,8 @@ func NewPacketLossAnalyzer(options *PacketLossAnalyzerOptions) *PacketLossAnalyz
 	}
 
 	return &PacketLossAnalyzer{
-		options: options,
+		options:   options,
+		sourceErr: sourceErr,
 	}
 }
 
@@ -96,7 +99,7 @@ func NewPacketLossAnalyzer(options *PacketLossAnalyzerOptions) *PacketLossAnalyz
 //
 // Returns:
 //   - *PacketLossAnalyzer: the analyzer.
-func (s *Speedtest) NewPacketLossAnalyzer(options *PacketLossAnalyzerOptions) *PacketLossAnalyzer {
+func (s *Client) NewPacketLossAnalyzer(options *PacketLossAnalyzerOptions) *PacketLossAnalyzer {
 	if options == nil {
 		options = &PacketLossAnalyzerOptions{}
 	}
@@ -153,6 +156,14 @@ func (pla *PacketLossAnalyzer) RunMultiWithContext(
 	ctx context.Context,
 	hosts []string,
 ) (*transport.PLoss, error) {
+	if pla.sourceErr != nil {
+		return nil, fmt.Errorf(
+			"source interface %q: %w",
+			pla.options.SourceInterface,
+			pla.sourceErr,
+		)
+	}
+
 	results := make(map[string]*transport.PLoss)
 	mutex := &sync.Mutex{}
 
@@ -215,13 +226,17 @@ func (pla *PacketLossAnalyzer) Run(host string, callback func(packetLoss *transp
 //   - callback: receives each sample.
 //
 // Returns:
-//   - error: [transport.ErrUnsupported] wrapping the cause when setup fails, the sampling error when the
-//     connection fails during the run, or nil when ctx ends the run.
+//   - error: the SourceInterface error when it did not resolve, [transport.ErrUnsupported] wrapping the cause when
+//     setup fails, the sampling error when the connection fails during the run, or nil when ctx ends the run.
 func (pla *PacketLossAnalyzer) RunWithContext(
 	ctx context.Context,
 	host string,
 	callback func(packetLoss *transport.PLoss),
 ) error {
+	if pla.sourceErr != nil {
+		return fmt.Errorf("source interface %q: %w", pla.options.SourceInterface, pla.sourceErr)
+	}
+
 	samplerClient, err := transport.NewClient(pla.options.TCPDialer)
 	if err != nil {
 		return fmt.Errorf("%w: %w", transport.ErrUnsupported, err)

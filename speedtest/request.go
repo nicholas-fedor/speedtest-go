@@ -115,7 +115,8 @@ func (s *Server) multiTestContext(
 		}
 
 		server := availableServer
-		dbg.Printf("Register %s Handler: %s\n", handlerName, server.URL)
+		s.log().
+			Debug(ctx, "registering transfer handler", logKeyDirection, handlerName, logKeyURL, server.URL)
 
 		testDirection = register(func() {
 			atomic.AddInt64(&requestTimes, 1)
@@ -338,7 +339,7 @@ func downloadRequest(ctx context.Context, server *Server, writer int) error {
 
 	u.Path = path.Dir(u.Path)
 	xdlURL := u.JoinPath(fmt.Sprintf("random%dx%d.jpg", size, size)).String()
-	dbg.Printf("XdlURL: %s\n", xdlURL)
+	server.log().Debug(ctx, "downloading", logKeyURL, xdlURL)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, xdlURL, nil)
 	if err != nil {
@@ -391,7 +392,7 @@ func (s *Server) resolveUploadURL(ctx context.Context) {
 
 	resp, err := s.Context.doer.Do(req)
 	if err != nil {
-		dbg.Printf("Upload URL not resolved: %v\n", err)
+		s.log().Debug(ctx, "upload URL not resolved", logKeyError, err)
 
 		return
 	}
@@ -404,7 +405,7 @@ func (s *Server) resolveUploadURL(ctx context.Context) {
 
 	resolved := resp.Request.URL.String()
 	if resolved != s.URL {
-		dbg.Printf("Resolved upload URL: %s -> %s\n", s.URL, resolved)
+		s.log().Debug(ctx, "resolved upload URL", logKeyURL, s.URL, logKeyResolved, resolved)
 		s.uploadURL = resolved
 	}
 }
@@ -467,7 +468,7 @@ func uploadRequest(ctx context.Context, server *Server, writer int) error {
 	}
 
 	req.ContentLength = chunkSize
-	dbg.Printf("Len=%d, XulURL: %s\n", req.ContentLength, target)
+	server.log().Debug(ctx, "uploading", logKeyURL, target, logKeyBytes, req.ContentLength)
 	req.Header.Set("Content-Type", "application/octet-stream")
 
 	// Following a redirect would replace the POST with a bodyless GET, whose success confirms nothing. A redirect
@@ -526,7 +527,7 @@ func (s *Server) PingTestContext(ctx context.Context, callback func(latency time
 		err              error
 	)
 
-	switch s.Context.config.PingMode {
+	switch s.Context.settings.pingMode {
 	case TCP:
 		vectorPingResult, err = s.TCPPing(ctx, 10, time.Millisecond*200, callback)
 	case ICMP:
@@ -547,7 +548,7 @@ func (s *Server) PingTestContext(ctx context.Context, callback func(latency time
 		return fmt.Errorf("ping ended by context: %w", err)
 	}
 
-	dbg.Printf("Before StandardDeviation: %v\n", vectorPingResult)
+	s.log().Debug(ctx, "measured latencies", logKeyLatencies, vectorPingResult)
 	mean, _, std, minLatency, maxLatency := StandardDeviation(vectorPingResult)
 	duration := time.Since(start)
 	s.Latency = time.Duration(mean) * time.Nanosecond
@@ -685,7 +686,7 @@ func (s *Server) HTTPPing(
 
 	u.Path = path.Dir(u.Path)
 	pingDst := u.JoinPath("latency.txt").String()
-	dbg.Printf("Echo: %s\n", pingDst)
+	s.log().Debug(ctx, "pinging over HTTP", logKeyURL, pingDst)
 
 	failTimes := 0
 	latencies := make([]int64, 0, echoTimes+1)
@@ -731,7 +732,7 @@ func (s *Server) HTTPPing(
 		if i > 0 {
 			latency := endTime.Nanoseconds()
 			latencies = append(latencies, latency)
-			dbg.Printf("RTT: %d\n", latency)
+			s.log().Debug(ctx, "measured latency", logKeyLatency, time.Duration(latency))
 
 			if callback != nil {
 				callback(endTime)
@@ -794,7 +795,7 @@ func (s *Server) ICMPPing(
 		return nil, fmt.Errorf("invalid server URL %q for ICMP ping: %w", s.URL, errNoHost)
 	}
 
-	dbg.Printf("Echo: %s\n", strings.Split(u.Host, ":")[0])
+	s.log().Debug(ctx, "pinging over ICMP", logKeyAddress, u.Hostname())
 
 	dialContext, err := s.Context.ipDialer.DialContext(
 		ctx,
@@ -836,7 +837,7 @@ func (s *Server) ICMPPing(
 		}
 
 		latencies = append(latencies, latency.Nanoseconds())
-		dbg.Printf("1RTT: %s\n", latency)
+		s.log().Debug(ctx, "measured latency", logKeyLatency, latency)
 
 		if callback != nil {
 			callback(latency)

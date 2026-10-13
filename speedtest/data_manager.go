@@ -141,6 +141,9 @@ type DataManager struct {
 
 	download *TestDirection
 	upload   *TestDirection
+
+	// logger receives debug messages, or is nil to discard them.
+	logger Logger
 }
 
 // TestDirection represents a direction of test (upload or download) with associated handlers.
@@ -315,9 +318,13 @@ func (td *TestDirection) StartContext(
 	td.activeWorkers = initialWorkers
 	td.workerMu.Unlock()
 
-	dbg.Printf("Available fns: %d\n", len(fns))
-	dbg.Printf("mainN: %d\n", mainN)
-	dbg.Printf("auxN: %d\n", auxN)
+	td.manager.log().Debug(
+		ctx,
+		"starting transfer workers",
+		logKeyHandlers, len(fns),
+		logKeyMainWorkers, mainN,
+		logKeyOtherWorkers, auxN,
+	)
 
 	waitGroup := sync.WaitGroup{}
 	td.manager.running = true
@@ -342,7 +349,7 @@ func (td *TestDirection) StartContext(
 			td.manager.runningRW.Unlock()
 			td.stopWorkers()
 			cancel()
-			dbg.Println("FuncGroup: Stop")
+			td.manager.log().Debug(ctx, "stopped transfer workers")
 		})
 	}
 
@@ -352,9 +359,10 @@ func (td *TestDirection) StartContext(
 	defer stopWatching()
 
 	if td.TestType == typeUpload && workerLimit > 1 {
-		dbg.Printf("Upload workers: %d/%d\n", initialWorkers, workerLimit)
+		td.manager.log().
+			Debug(ctx, "upload workers", logKeyWorkers, initialWorkers, logKeyLimit, workerLimit)
 
-		go td.adaptUploadWorkers(stopAdapting)
+		go td.adaptUploadWorkers(ctx, stopAdapting)
 	}
 
 	time.AfterFunc(td.manager.captureTime, td.closeFunc)
@@ -679,6 +687,18 @@ func (dm *DataManager) isRunning() bool {
 	return dm.running
 }
 
+// log returns the manager's logger, which discards messages when none is set.
+//
+// Returns:
+//   - Logger: the logger.
+func (dm *DataManager) log() Logger {
+	if dm == nil {
+		return noopLogger{}
+	}
+
+	return loggerOrNoop(dm.logger)
+}
+
 // DataChunk represents a chunk of data for speed tests.
 type DataChunk struct {
 	manager             *DataManager
@@ -877,10 +897,6 @@ func calcMAFilter(list []int64) float64 {
 }
 
 func pautaFilter(vector []int64) []int64 {
-	dbg.Println("Per capture unit")
-	dbg.Printf("Raw Sequence len: %d\n", len(vector))
-	dbg.Printf("Raw Sequence: %v\n", vector)
-
 	if len(vector) == 0 {
 		return vector
 	}
@@ -894,10 +910,6 @@ func pautaFilter(vector []int64) []int64 {
 			retVec = append(retVec, value)
 		}
 	}
-
-	dbg.Printf("Raw average: %dByte\n", mean)
-	dbg.Printf("Pauta Sequence len: %d\n", len(retVec))
-	dbg.Printf("Pauta Sequence: %v\n", retVec)
 
 	return retVec
 }

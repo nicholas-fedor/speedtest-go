@@ -18,7 +18,7 @@
 //
 // ## Core Types
 //
-//   - Speedtest: The main client structure that manages speedtest operations
+//   - Client: The main client structure that manages speedtest operations
 //   - Server: Represents a speedtest server with properties like URL, location, latency, speeds, and packet loss
 //   - User: Contains user information including IP, ISP, and coordinates
 //   - Manager/DataManager: Handles data collection and rate calculations during tests
@@ -27,7 +27,7 @@
 //
 // ## Main Functions
 //
-//   - New(): Creates a new speedtest client with optional configuration
+//   - New(): Creates a new speedtest client from options such as WithProxy, WithSource, and WithLogger
 //   - FetchUserInfo(): Retrieves user information from speedtest.net
 //   - FetchServers(): Discovers available speedtest servers
 //   - Server.PingTest(): Measures latency to a server
@@ -40,7 +40,7 @@
 //   - Multi-threaded Testing: Configurable concurrent connections for more accurate speed measurements
 //   - EWMA Rate Calculation: Uses Exponentially Weighted Moving Average for stable speed estimates
 //   - Multiple Ping Protocols: Supports HTTP, TCP, and ICMP ping methods
-//   - Flexible Configuration: Customizable timeouts, proxy settings, source addresses, and debug modes
+//   - Flexible Configuration: Validated options for proxy settings, source addresses, test sizes, and logging
 //   - Distance-based Server Selection: Automatically selects geographically optimal servers
 //   - Statistics: Comprehensive statistics including mean, standard deviation, and coefficient of variation
 //
@@ -56,7 +56,10 @@
 //
 // # Example Usage
 //
-//	client := speedtest.New()
+//	client, err := speedtest.New(speedtest.WithConnections(4))
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
 //	user, _ := client.FetchUserInfo()
 //	servers, _ := client.FetchServers()
 //	server := servers[0]

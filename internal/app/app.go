@@ -28,34 +28,126 @@ const (
 	percent                   = 100
 )
 
-// setupSpeedtestClient creates and configures the speedtest client.
-func setupSpeedtestClient(cfg config.Config) *speedtest.Speedtest {
-	return speedtest.New(speedtest.WithUserConfig(
-		&speedtest.UserConfig{
-			UserAgent:      cfg.UserAgent,
-			Proxy:          cfg.Proxy,
-			Source:         cfg.Source,
-			DNSBindSource:  cfg.DNSBindSource,
-			Debug:          cfg.Debug,
-			PingMode:       cfg.PingMode,
-			TestMode:       cfg.TestMode,
-			SavingMode:     cfg.SavingMode,
-			MaxConnections: cfg.Thread,
-			CityFlag:       cfg.City,
-			LocationFlag:   cfg.Location,
-			Keyword:        cfg.Search,
-			BaseURL:        cfg.BaseURL,
-			DSCP:           cfg.DSCP,
-			DownloadSize:   cfg.DownloadSize,
-			UploadSize:     cfg.UploadSize,
-		},
-	))
+// setupSpeedtestClient creates the speedtest client from the settings.
+//
+// Parameters:
+//   - cfg: the validated settings.
+//
+// Returns:
+//   - *speedtest.Client: the client.
+//   - error: an error wrapping [config.ErrInvalidSetting] when the client rejects a setting, such as a --source that
+//     does not resolve.
+func setupSpeedtestClient(cfg config.Config) (*speedtest.Client, error) {
+	opts, err := clientOptions(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", config.ErrInvalidSetting, err)
+	}
+
+	client, err := speedtest.New(opts...)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", config.ErrInvalidSetting, err)
+	}
+
+	return client, nil
+}
+
+// clientOptions translates the settings into speedtest client options.
+//
+// Settings left at their zero values add no option, so the client keeps its defaults.
+//
+// Parameters:
+//   - cfg: the validated settings.
+//
+// Returns:
+//   - []speedtest.Option: the options.
+//   - error: the error of a --city or --location value that names no location.
+func clientOptions(cfg config.Config) ([]speedtest.Option, error) {
+	opts := []speedtest.Option{
+		speedtest.WithPingMode(cfg.PingMode),
+		speedtest.WithProtocol(cfg.TestMode),
+		speedtest.WithDSCP(cfg.DSCP),
+		speedtest.WithTransferSizes(cfg.DownloadSize, cfg.UploadSize),
+	}
+
+	stringOptions := []struct {
+		option func(string) speedtest.Option
+		value  string
+	}{
+		{option: speedtest.WithUserAgent, value: cfg.UserAgent},
+		{option: speedtest.WithProxy, value: cfg.Proxy},
+		{option: speedtest.WithSource, value: cfg.Source},
+		{option: speedtest.WithSearch, value: cfg.Search},
+		{option: speedtest.WithBaseURL, value: cfg.BaseURL},
+	}
+
+	for _, setting := range stringOptions {
+		if setting.value != "" {
+			opts = append(opts, setting.option(setting.value))
+		}
+	}
+
+	if cfg.DNSBindSource {
+		opts = append(opts, speedtest.WithDNSBindSource())
+	}
+
+	switch {
+	case cfg.SavingMode:
+		opts = append(opts, speedtest.WithConnections(1))
+	case cfg.Thread > 0:
+		opts = append(opts, speedtest.WithConnections(cfg.Thread))
+	default:
+		// Without a connection count, the client uses one connection per CPU.
+	}
+
+	location, err := settingsLocation(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	if location != nil {
+		opts = append(opts, speedtest.WithLocation(location))
+	}
+
+	if cfg.Debug {
+		opts = append(opts, speedtest.WithLogger(newDebugLogger(os.Stderr)))
+	}
+
+	return opts, nil
+}
+
+// settingsLocation returns the location that --city or --location names.
+//
+// Parameters:
+//   - cfg: the validated settings.
+//
+// Returns:
+//   - *speedtest.Location: the location, or nil when neither setting is used.
+//   - error: the error of a value that names no location.
+func settingsLocation(cfg config.Config) (*speedtest.Location, error) {
+	switch {
+	case cfg.City != "":
+		location, err := speedtest.GetLocation(cfg.City)
+		if err != nil {
+			return nil, fmt.Errorf("--city %q: %w", cfg.City, err)
+		}
+
+		return location, nil
+	case cfg.Location != "":
+		location, err := speedtest.ParseLocation("", cfg.Location)
+		if err != nil {
+			return nil, fmt.Errorf("--location %q: %w", cfg.Location, err)
+		}
+
+		return location, nil
+	default:
+		return nil, nil //nolint:nilnil // No location setting means no location and no error.
+	}
 }
 
 // retrieveServers fetches and selects the target servers. It returns the pool for --multi and the targets.
 // Servers named with --custom-url or --server are their own pool.
 func retrieveServers(
-	speedtestClient *speedtest.Speedtest,
+	speedtestClient *speedtest.Client,
 	cfg config.Config,
 	taskManager *task.Manager,
 ) (speedtest.Servers, speedtest.Servers) {
@@ -121,7 +213,7 @@ func retrieveServers(
 //   - speedtest.Servers: the servers in the order of ids.
 //   - error: an error wrapping [speedtest.ErrServerNotFound] that lists every unknown ID, joined with any other
 //     lookup errors.
-func fetchServersByID(speedtestClient *speedtest.Speedtest, ids []int) (speedtest.Servers, error) {
+func fetchServersByID(speedtestClient *speedtest.Client, ids []int) (speedtest.Servers, error) {
 	found := make(speedtest.Servers, len(ids))
 	errs := make([]error, len(ids))
 
@@ -192,7 +284,7 @@ func runTest(
 
 // setCallback sets the appropriate callback for download or upload.
 func setCallback(
-	client *speedtest.Speedtest,
+	client *speedtest.Client,
 	isDownload bool,
 	accEcho *echo.AccompanyEcho,
 	task *task.Task,
@@ -230,7 +322,7 @@ func updateWithLatency(
 // runBandwidthTest performs download or upload bandwidth tests.
 func runBandwidthTest(
 	isDownload bool, server *speedtest.Server, cfg config.Config, taskManager *task.Manager,
-	accEcho *echo.AccompanyEcho, speedtestClient *speedtest.Speedtest, servers speedtest.Servers,
+	accEcho *echo.AccompanyEcho, speedtestClient *speedtest.Client, servers speedtest.Servers,
 ) {
 	taskName := "Download"
 	trigger := !cfg.NoDownload
@@ -282,7 +374,7 @@ func runBandwidthTest(
 // runServerTests performs tests for a single server.
 func runServerTests(
 	server *speedtest.Server, cfg config.Config, taskManager *task.Manager,
-	speedtestClient *speedtest.Speedtest, servers speedtest.Servers,
+	speedtestClient *speedtest.Client, servers speedtest.Servers,
 ) {
 	if !cfg.JSONOutput && !cfg.JSONLOutput {
 		fmt.Fprintln(os.Stdout)
@@ -380,7 +472,7 @@ func runServerTests(
 
 // runTests performs the actual speed tests on the selected servers.
 func runTests(
-	speedtestClient *speedtest.Speedtest, targets, servers speedtest.Servers,
+	speedtestClient *speedtest.Client, targets, servers speedtest.Servers,
 	cfg config.Config, taskManager *task.Manager,
 ) error {
 	// 3. test each selected server with ping, download and upload.
@@ -460,7 +552,10 @@ func RunSpeedtest(cfg config.Config) error {
 	cfg = config.Setup(cfg)
 
 	// Create the speedtest client.
-	speedtestClient := setupSpeedtestClient(cfg)
+	speedtestClient, err := setupSpeedtestClient(cfg)
+	if err != nil {
+		return err
+	}
 
 	// Print the application information.
 	output.AppInfo(cfg.JSONOutput, cfg.JSONLOutput)

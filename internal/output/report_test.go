@@ -176,12 +176,13 @@ func withoutTimestamp(t *testing.T, data []byte) map[string]any {
 	return decoded
 }
 
-// TestReportMatchesLibrary checks that the CLI's reports have the same content as the library's Speedtest.JSON and
-// Speedtest.JSONL, which they replace in the CLI.
+// TestReportMatchesLibrary checks that the CLI's reports have the same content as the library's Client.JSON and
+// Client.JSONL, which they replace in the CLI.
 func TestReportMatchesLibrary(t *testing.T) {
 	t.Parallel()
 
-	client := speedtest.New()
+	client, err := speedtest.New()
+	require.NoError(t, err)
 	client.SetUser(reportUser())
 
 	library, err := client.JSON(reportServers())

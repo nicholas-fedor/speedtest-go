@@ -46,12 +46,13 @@ type sourceBinding struct {
 //   - source: the configured source, possibly empty.
 //
 // Returns:
-//   - sourceBinding: the binding, empty when source is empty or does not resolve.
-func resolveSource(source string) sourceBinding {
+//   - sourceBinding: the binding, empty when source is empty.
+//   - error: an error when source names an interface without a usable address, or does not resolve.
+func resolveSource(source string) (sourceBinding, error) {
 	var binding sourceBinding
 
 	if len(source) == 0 {
-		return binding
+		return binding, nil
 	}
 
 	_, address := parseAddr(source)
@@ -60,42 +61,39 @@ func resolveSource(source string) sourceBinding {
 	if !errors.Is(err, ErrInterfaceNotFound) {
 		binding.control = bindToDevice(address)
 		if binding.control != nil {
-			return binding
+			return binding, nil
 		}
 
 		if err != nil {
-			dbg.Printf("Warning: skipping the source interface. err: %s\n", err.Error())
-
-			return binding
+			return sourceBinding{}, err
 		}
 
 		binding.tcp = &net.TCPAddr{IP: interfaceIP}
 		binding.ip = &net.IPAddr{IP: interfaceIP}
 		binding.sourceIP = interfaceIP
 
-		return binding
+		return binding, nil
 	}
 
 	tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("[%s]:0", address))
-	if err == nil {
-		binding.tcp = tcpAddr
-	} else {
-		dbg.Printf("Warning: skipping parse the source address. err: %s\n", err.Error())
+	if err != nil {
+		return sourceBinding{}, fmt.Errorf("failed to resolve the source address: %w", err)
 	}
 
 	ipAddr, err := net.ResolveIPAddr("ip", address)
-	if err == nil {
-		binding.ip = ipAddr
-	} else {
-		dbg.Printf("Warning: skipping parse the source address. err: %s\n", err.Error())
+	if err != nil {
+		return sourceBinding{}, fmt.Errorf("failed to resolve the source address: %w", err)
 	}
 
+	binding.tcp = tcpAddr
+	binding.ip = ipAddr
+
 	binding.sourceIP = net.ParseIP(address)
-	if binding.sourceIP == nil && tcpAddr != nil {
+	if binding.sourceIP == nil {
 		binding.sourceIP = tcpAddr.IP
 	}
 
-	return binding
+	return binding, nil
 }
 
 // ResolveInterface returns the source address of the network interface with the given name.

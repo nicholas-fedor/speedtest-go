@@ -29,7 +29,7 @@ func (t outputTime) MarshalJSON() ([]byte, error) {
 }
 
 // JSON marshals the speedtest results to JSON.
-func (s *Speedtest) JSON(servers Servers) ([]byte, error) {
+func (s *Client) JSON(servers Servers) ([]byte, error) {
 	data, err := json.Marshal(
 		fullOutput{
 			Timestamp: outputTime(time.Now()),
@@ -45,7 +45,7 @@ func (s *Speedtest) JSON(servers Servers) ([]byte, error) {
 }
 
 // JSONL outputs a single server result in JSON format.
-func (s *Speedtest) JSONL(server *Server) ([]byte, error) {
+func (s *Client) JSONL(server *Server) ([]byte, error) {
 	data, err := json.Marshal(
 		singleServerOutput{
 			Timestamp: outputTime(time.Now()),

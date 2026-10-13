@@ -11,22 +11,22 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/testserver"
 )
 
-// TestSpeedtest_FetchUserInfo checks the context-free wrapper against the fake API and with a nil client.
-func TestSpeedtest_FetchUserInfo(t *testing.T) {
+// TestClient_FetchUserInfo checks the context-free wrapper against the fake API and with a nil client.
+func TestClient_FetchUserInfo(t *testing.T) {
 	t.Parallel()
 
-	_, err := (*Speedtest)(nil).FetchUserInfo()
+	_, err := (*Client)(nil).FetchUserInfo()
 	require.ErrorIs(t, err, ErrInstanceNil)
 
 	api := testserver.NewAPI(t)
 
-	user, err := newBaseURLClient(api.URL()).FetchUserInfo()
+	user, err := newBaseURLClient(t, api.URL()).FetchUserInfo()
 	require.NoError(t, err)
 	assert.Equal(t, testserver.DefaultUser().IP, user.IP)
 }
 
-// TestSpeedtest_FetchUserInfoContext covers decoding the user info response, storing the user, and failures.
-func TestSpeedtest_FetchUserInfoContext(t *testing.T) {
+// TestClient_FetchUserInfoContext covers decoding the user info response, storing the user, and failures.
+func TestClient_FetchUserInfoContext(t *testing.T) {
 	t.Parallel()
 
 	want := testserver.DefaultUser()
@@ -83,7 +83,7 @@ func TestSpeedtest_FetchUserInfoContext(t *testing.T) {
 				api.SetResponse(testserver.PathUserConfig, *tt.override)
 			}
 
-			client := newBaseURLClient(api.URL())
+			client := newBaseURLClient(t, api.URL())
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -112,7 +112,7 @@ func TestSpeedtest_FetchUserInfoContext(t *testing.T) {
 	t.Run("nil client", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := (*Speedtest)(nil).FetchUserInfoContext(context.Background())
+		_, err := (*Client)(nil).FetchUserInfoContext(context.Background())
 		require.ErrorIs(t, err, ErrInstanceNil)
 	})
 }

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -63,58 +64,75 @@ func Test_parseAddr(t *testing.T) {
 	}
 }
 
-// TestSpeedtest_NewUserConfig checks that the dialers and transport are always built, and that the source address
-// and the source-bound resolver are applied only when configured.
-func TestSpeedtest_NewUserConfig(t *testing.T) {
+// newTestClient builds a client from options the test expects to be valid.
+//
+// Parameters:
+//   - t: the test, which fails when New returns an error.
+//   - opts: the options.
+//
+// Returns:
+//   - *Client: the client.
+func newTestClient(t *testing.T, opts ...Option) *Client {
+	t.Helper()
+
+	client, err := New(opts...)
+	require.NoError(t, err)
+
+	return client
+}
+
+// TestNew_Dialers checks that the dialers and transport are always built, and that the source address and the
+// source-bound resolver are applied only when configured.
+func TestNew_Dialers(t *testing.T) {
 	t.Parallel()
 
 	control := func(string, string, syscall.RawConn) error { return nil }
 
 	tests := []struct {
-		config       *UserConfig
 		wantLocalIP  net.IP
 		name         string
+		opts         []Option
 		wantResolver bool
 		wantControl  bool
 		wantLoopback bool
 	}{
-		{name: "no source", config: &UserConfig{}},
+		{name: "no source"},
 		{
 			name:        "source",
-			config:      &UserConfig{Source: "127.0.0.1"},
+			opts:        []Option{WithSource("127.0.0.1")},
 			wantLocalIP: net.IPv4(127, 0, 0, 1),
 		},
 		{
 			name:        "source with network prefix",
-			config:      &UserConfig{Source: "tcp://127.0.0.1"},
+			opts:        []Option{WithSource("tcp://127.0.0.1")},
 			wantLocalIP: net.IPv4(127, 0, 0, 1),
 		},
 		{
 			name:         "source with DNS binding",
-			config:       &UserConfig{Source: "127.0.0.1", DNSBindSource: true},
+			opts:         []Option{WithSource("127.0.0.1"), WithDNSBindSource()},
 			wantLocalIP:  net.IPv4(127, 0, 0, 1),
 			wantResolver: true,
 		},
-		{name: "DNS binding without source", config: &UserConfig{DNSBindSource: true}},
+		{name: "DNS binding without source", opts: []Option{WithDNSBindSource()}},
 		{
 			name:         "hostname source with DNS binding",
-			config:       &UserConfig{Source: "localhost", DNSBindSource: true},
+			opts:         []Option{WithSource("localhost"), WithDNSBindSource()},
 			wantResolver: true,
 			wantLoopback: true,
 		},
-		{name: "dialer control", config: &UserConfig{DialerControl: control}, wantControl: true},
+		{name: "dialer control", opts: []Option{WithDialerControl(control)}, wantControl: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := New(WithUserConfig(tt.config))
+			client := newTestClient(t, tt.opts...)
 
 			require.NotNil(t, client.tcpDialer)
 			require.NotNil(t, client.ipDialer)
-			require.NotNil(t, client.config.T)
-			assert.NotNil(t, client.config.T.Proxy)
+			require.NotNil(t, client.transport)
+			assert.NotNil(t, client.transport.Proxy)
 
 			switch {
 			case tt.wantLoopback:
@@ -148,23 +166,53 @@ func TestSpeedtest_NewUserConfig(t *testing.T) {
 	}
 }
 
-// Test_resolveSource checks the DNS binding IP for literal and hostname sources.
+// TestNew_DialerControlsChain checks that every control added with WithDialerControl runs, in the order added.
+func TestNew_DialerControlsChain(t *testing.T) {
+	t.Parallel()
+
+	var calls []string
+
+	record := func(name string) func(string, string, syscall.RawConn) error {
+		return func(string, string, syscall.RawConn) error {
+			calls = append(calls, name)
+
+			return nil
+		}
+	}
+
+	client := newTestClient(
+		t,
+		WithDialerControl(record("first")),
+		WithDialerControl(record("second")),
+	)
+
+	require.NotNil(t, client.tcpDialer.Control)
+	require.NoError(t, client.tcpDialer.Control("tcp4", "127.0.0.1:80", nil))
+	assert.Equal(t, []string{"first", "second"}, calls)
+}
+
+// Test_resolveSource checks the DNS binding IP for literal and hostname sources, and the error of a source that does
+// not resolve.
 func Test_resolveSource(t *testing.T) {
 	t.Parallel()
 
-	literal := resolveSource("tcp://127.0.0.1")
+	literal, err := resolveSource("tcp://127.0.0.1")
+	require.NoError(t, err)
 	assert.True(t, net.IPv4(127, 0, 0, 1).Equal(literal.sourceIP), "a literal keeps its parsed IP")
 	assert.Nil(t, literal.control, "an address is not bound to a device")
 
-	hostname := resolveSource("localhost").sourceIP
-	require.NotNil(t, hostname, "a hostname binds DNS to the address it resolves to")
-	assert.True(t, hostname.IsLoopback())
+	hostname, err := resolveSource("localhost")
+	require.NoError(t, err)
+	require.NotNil(t, hostname.sourceIP, "a hostname binds DNS to the address it resolves to")
+	assert.True(t, hostname.sourceIP.IsLoopback())
 
-	assert.Equal(t, sourceBinding{}, resolveSource(""))
+	empty, err := resolveSource("")
+	require.NoError(t, err)
+	assert.Equal(t, sourceBinding{}, empty)
 
-	unresolved := resolveSource("bad host")
-	assert.Nil(t, unresolved.sourceIP, "a source that does not resolve leaves DNS unbound")
-	assert.Nil(t, unresolved.tcp)
+	unresolved, err := resolveSource("bad host")
+	require.Error(t, err)
+	assert.Equal(t, sourceBinding{}, unresolved)
 }
 
 // Test_sourceBoundResolver checks that the resolver dials DNS servers from the source IP.
@@ -194,9 +242,9 @@ func Test_localAddrFor(t *testing.T) {
 	assert.Nil(t, localAddrFor("unix", ip))
 }
 
-// Test_proxyFunc checks that a configured proxy is used for every request, and that an empty or unparsable proxy
-// selects the same proxy as the environment.
-func Test_proxyFunc(t *testing.T) {
+// TestNew_ProxySelection checks that a configured proxy is used for every request, and that without one the
+// transport selects the same proxy as the environment.
+func TestNew_ProxySelection(t *testing.T) {
 	t.Parallel()
 
 	req, err := http.NewRequestWithContext(
@@ -207,18 +255,15 @@ func Test_proxyFunc(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	proxyURL, err := proxyFunc("http://127.0.0.1:3128")(req)
+	proxyURL, err := newTestClient(t, WithProxy("http://127.0.0.1:3128")).transport.Proxy(req)
 	require.NoError(t, err)
 	assert.Equal(t, "http://127.0.0.1:3128", proxyURL.String())
 
 	wantURL, wantErr := http.ProxyFromEnvironment(req)
+	gotURL, gotErr := newTestClient(t).transport.Proxy(req)
 
-	for _, proxy := range []string{"", "http://bad host"} {
-		gotURL, gotErr := proxyFunc(proxy)(req)
-
-		assert.Equal(t, wantURL, gotURL, "proxy %q should fall back to the environment", proxy)
-		assert.Equal(t, wantErr, gotErr, "proxy %q should fall back to the environment", proxy)
-	}
+	assert.Equal(t, wantURL, gotURL)
+	assert.Equal(t, wantErr, gotErr)
 }
 
 // TestNew_LeavesProcessDefaults checks that building clients never modifies the process-wide HTTP client or DNS
@@ -229,27 +274,32 @@ func TestNew_LeavesProcessDefaults(t *testing.T) {
 	transport := http.DefaultClient.Transport
 	dial := reflect.ValueOf(net.DefaultResolver.Dial).Pointer()
 
-	client := New(WithUserConfig(&UserConfig{
-		Source:        "127.0.0.1",
-		DNSBindSource: true,
-		Proxy:         "http://127.0.0.1:3128",
-	}))
+	client := newTestClient(
+		t,
+		WithSource("127.0.0.1"),
+		WithDNSBindSource(),
+		WithProxy("http://127.0.0.1:3128"),
+	)
 
 	assert.NotSame(t, http.DefaultClient, client.doer)
 	assert.Equal(t, transport, http.DefaultClient.Transport)
 	assert.Equal(t, dial, reflect.ValueOf(net.DefaultResolver.Dial).Pointer())
 }
 
-// TestSpeedtest_UserAgent checks that requests carry the configured User-Agent exactly once, or the default.
-func TestSpeedtest_UserAgent(t *testing.T) {
+// TestClient_UserAgent checks that requests carry the configured User-Agent exactly once, or the default.
+func TestClient_UserAgent(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		userAgent string
-		want      string
+		name string
+		want string
+		opts []Option
 	}{
-		{name: "configured", userAgent: "speedtest-go-test/1.0", want: "speedtest-go-test/1.0"},
+		{
+			name: "configured",
+			opts: []Option{WithUserAgent("speedtest-go-test/1.0")},
+			want: "speedtest-go-test/1.0",
+		},
 		{name: "default", want: DefaultUserAgent()},
 	}
 
@@ -258,7 +308,7 @@ func TestSpeedtest_UserAgent(t *testing.T) {
 			t.Parallel()
 
 			api := testserver.NewAPI(t)
-			client := New(WithUserConfig(&UserConfig{BaseURL: api.URL(), UserAgent: tt.userAgent}))
+			client := newTestClient(t, append([]Option{WithBaseURL(api.URL())}, tt.opts...)...)
 
 			_, err := client.FetchUserInfoContext(context.Background())
 			require.NoError(t, err)
@@ -270,27 +320,33 @@ func TestSpeedtest_UserAgent(t *testing.T) {
 	}
 }
 
-// TestSpeedtest_Proxy checks that requests go through the configured proxy in absolute form.
-func TestSpeedtest_Proxy(t *testing.T) {
-	t.Parallel()
+// proxyRecorder starts an HTTP proxy that answers every request with user info and records each target URL and
+// User-Agent.
+//
+// Parameters:
+//   - t: the test, which closes the proxy when it ends.
+//
+// Returns:
+//   - string: the proxy URL.
+//   - func() []string: returns the targets requested so far, without their queries, each followed by its
+//     User-Agent after a space.
+func proxyRecorder(t *testing.T) (string, func() []string) {
+	t.Helper()
 
 	var (
 		mu   sync.Mutex
 		seen []string
 	)
 
-	record := func(target string) {
-		mu.Lock()
-		defer mu.Unlock()
-
-		seen = append(seen, target)
-	}
-
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// The query is left out because it carries a random cache-busting value.
 		target := *r.URL
 		target.RawQuery = ""
-		record(target.String())
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		seen = append(seen, target.String()+" "+r.Header.Get("User-Agent"))
 
 		_, _ = io.WriteString(
 			w,
@@ -299,205 +355,184 @@ func TestSpeedtest_Proxy(t *testing.T) {
 	}))
 	t.Cleanup(proxy.Close)
 
-	client := New(
-		WithUserConfig(&UserConfig{BaseURL: "http://speedtest.invalid", Proxy: proxy.URL}),
-	)
+	return proxy.URL, func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return slices.Clone(seen)
+	}
+}
+
+// TestClient_Proxy checks that requests go through the configured proxy in absolute form.
+func TestClient_Proxy(t *testing.T) {
+	t.Parallel()
+
+	proxy, seen := proxyRecorder(t)
+	client := newTestClient(t, WithBaseURL("http://speedtest.invalid"), WithProxy(proxy))
 
 	user, err := client.FetchUserInfoContext(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "Proxied ISP", user.Isp)
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	assert.Equal(t, []string{"http://speedtest.invalid/speedtest-config.php"}, seen)
+	assert.Equal(
+		t,
+		[]string{"http://speedtest.invalid/speedtest-config.php " + DefaultUserAgent()},
+		seen(),
+	)
 }
 
-// closeBody closes a response body when there is a response.
-func closeBody(resp *http.Response) {
-	if resp != nil {
-		_ = resp.Body.Close()
+// TestUserAgentTransport checks that a request is sent with the User-Agent without changing the caller's request.
+func TestUserAgentTransport(t *testing.T) {
+	t.Parallel()
+
+	api := testserver.NewAPI(t)
+	transport := &userAgentTransport{
+		base:      http.DefaultTransport,
+		userAgent: "speedtest-go-test/1.0",
 	}
+
+	req, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		api.URL()+testserver.PathLatency,
+		nil,
+	)
+	require.NoError(t, err)
+	req.Header.Set("User-Agent", "caller")
+
+	resp, err := transport.RoundTrip(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	assert.Equal(t, "caller", req.Header.Get("User-Agent"), "the caller's request must not change")
+
+	requests := api.Requests()
+	require.Len(t, requests, 1)
+	assert.Equal(t, []string{"speedtest-go-test/1.0"}, requests[0].Header.Values("User-Agent"))
 }
 
-// TestSpeedtest_RoundTrip checks the nil guards, and that a request is sent with the configured User-Agent without
-// changing the caller's request.
-func TestSpeedtest_RoundTrip(t *testing.T) {
+// TestWithHTTPClient checks that a caller's HTTP client is copied rather than modified, keeps its settings, and
+// sends requests through the client's transport unless it has its own Transport.
+func TestWithHTTPClient(t *testing.T) {
 	t.Parallel()
-
-	t.Run("nil client", func(t *testing.T) {
-		t.Parallel()
-
-		resp, err := (*Speedtest)(nil).RoundTrip(&http.Request{})
-		closeBody(resp)
-
-		require.ErrorIs(t, err, ErrClientNil)
-		assert.Nil(t, resp)
-	})
-
-	t.Run("nil request", func(t *testing.T) {
-		t.Parallel()
-
-		resp, err := (&Speedtest{}).RoundTrip(nil)
-		closeBody(resp)
-
-		require.ErrorIs(t, err, ErrRequestNil)
-		assert.Nil(t, resp)
-	})
-
-	t.Run("sends a copy with the User-Agent", func(t *testing.T) {
-		t.Parallel()
-
-		api := testserver.NewAPI(t)
-		client := New(WithUserConfig(&UserConfig{UserAgent: "speedtest-go-test/1.0"}))
-
-		req, err := http.NewRequestWithContext(
-			context.Background(),
-			http.MethodGet,
-			api.URL()+testserver.PathLatency,
-			nil,
-		)
-		require.NoError(t, err)
-		req.Header.Set("User-Agent", "caller")
-
-		resp, err := client.RoundTrip(req)
-		require.NoError(t, err)
-		require.NoError(t, resp.Body.Close())
-
-		assert.Equal(
-			t,
-			"caller",
-			req.Header.Get("User-Agent"),
-			"the caller's request must not change",
-		)
-
-		requests := api.Requests()
-		require.Len(t, requests, 1)
-		assert.Equal(t, []string{"speedtest-go-test/1.0"}, requests[0].Header.Values("User-Agent"))
-	})
-}
-
-// TestWithDoer checks that a caller's HTTP client is copied rather than modified, keeps its settings, and sends
-// requests through the speedtest round tripper unless it has its own Transport.
-func TestWithDoer(t *testing.T) {
-	t.Parallel()
-
-	t.Run("nil client is ignored", func(t *testing.T) {
-		t.Parallel()
-
-		client := New(WithDoer(nil))
-
-		require.NotNil(t, client.doer)
-		assert.Same(t, client, client.doer.Transport)
-	})
 
 	t.Run("client is copied", func(t *testing.T) {
 		t.Parallel()
 
 		custom := &http.Client{Timeout: 7 * time.Second}
-		client := New(WithDoer(custom))
+		client := newTestClient(t, WithHTTPClient(custom))
 
 		assert.NotSame(t, custom, client.doer)
 		assert.Nil(t, custom.Transport, "the caller's client must not change")
 		assert.Equal(t, 7*time.Second, client.doer.Timeout)
-		assert.Same(t, client, client.doer.Transport)
+
+		transport, ok := client.doer.Transport.(*userAgentTransport)
+		require.True(t, ok)
+		assert.Same(t, client.transport, transport.base)
 	})
 
 	t.Run("own transport is kept", func(t *testing.T) {
 		t.Parallel()
 
 		transport := &http.Transport{}
-		client := New(WithDoer(&http.Client{Transport: transport}))
+		client := newTestClient(t, WithHTTPClient(&http.Client{Transport: transport}))
 
 		assert.Same(t, transport, client.doer.Transport)
 	})
 
-	for _, order := range []string{"doer first", "config first"} {
-		t.Run("user agent applies with "+order, func(t *testing.T) {
+	// Options are collected before the client is built, so the HTTP client gets the user agent and proxy whichever
+	// order they come in.
+	for _, order := range []string{"HTTP client first", "HTTP client last"} {
+		t.Run("settings apply with "+order, func(t *testing.T) {
 			t.Parallel()
 
-			api := testserver.NewAPI(t)
-			doer := WithDoer(&http.Client{Timeout: 7 * time.Second})
-			config := WithUserConfig(
-				&UserConfig{BaseURL: api.URL(), UserAgent: "speedtest-go-test/1.0"},
-			)
-
-			opts := []Option{doer, config}
-			if order == "config first" {
-				opts = []Option{config, doer}
+			proxy, seen := proxyRecorder(t)
+			httpClient := WithHTTPClient(&http.Client{Timeout: 7 * time.Second})
+			others := []Option{
+				WithBaseURL("http://speedtest.invalid"),
+				WithUserAgent("speedtest-go-test/1.0"),
+				WithProxy(proxy),
 			}
 
-			_, err := New(opts...).FetchUserInfoContext(context.Background())
+			opts := slices.Concat([]Option{httpClient}, others)
+			if order == "HTTP client last" {
+				opts = slices.Concat(others, []Option{httpClient})
+			}
+
+			_, err := newTestClient(t, opts...).FetchUserInfoContext(context.Background())
 			require.NoError(t, err)
-
-			requests := api.Requests()
-			require.Len(t, requests, 1)
-			assert.Equal(t, "speedtest-go-test/1.0", requests[0].Header.Get("User-Agent"))
+			assert.Equal(
+				t,
+				[]string{"http://speedtest.invalid/speedtest-config.php speedtest-go-test/1.0"},
+				seen(),
+			)
 		})
 	}
 }
 
-func TestWithUserConfig(t *testing.T) {
-	t.Parallel()
-
-	type args struct {
-		userConfig *UserConfig
-	}
-
-	tests := []struct {
-		name string
-		args args
-	}{
-		{
-			name: "valid user config",
-			args: args{userConfig: &UserConfig{}},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			opt := WithUserConfig(tt.args.userConfig)
-			assert.NotNil(t, opt) // Option function should not be nil
-
-			st := &Speedtest{Manager: NewDataManager()}
-			opt(st)
-			assert.Equal(t, tt.args.userConfig, st.config) // Verify config field was set
-		})
-	}
-}
-
+// TestNew checks that New builds a client from default settings, and reports every invalid option at once.
 func TestNew(t *testing.T) {
 	t.Parallel()
 
-	type args struct {
-		opts []Option
-	}
+	t.Run("defaults", func(t *testing.T) {
+		t.Parallel()
 
-	tests := []struct {
-		name string
-		args args
-		want *Speedtest
-	}{
-		{
-			name: "no options",
-			args: args{opts: nil},
-			want: &Speedtest{}, // Should return a Speedtest instance
-		},
-		{
-			name: "with options",
-			args: args{opts: []Option{WithUserConfig(&UserConfig{})}},
-			want: &Speedtest{}, // Should return a Speedtest instance
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+		client := newTestClient(t)
 
-			got := New(tt.args.opts...)
-			assert.NotNil(t, got) // Should return a valid Speedtest instance
-		})
-	}
+		assert.Equal(t, DefaultUserAgent(), client.settings.userAgent)
+		assert.Equal(t, DefaultBaseURL, client.settings.baseURL)
+		assert.Equal(t, HTTP, client.settings.pingMode)
+		assert.Equal(t, HTTPTest, client.settings.testMode)
+		assert.IsType(t, noopLogger{}, client.log())
+	})
+
+	t.Run("invalid options", func(t *testing.T) {
+		t.Parallel()
+
+		client, err := New(WithUserAgent(""), nil, WithConnections(0), WithUserAgent("valid"))
+
+		require.ErrorIs(t, err, ErrInvalidOption)
+		assert.Nil(t, client)
+		assert.Contains(t, err.Error(), "the user agent is empty")
+		assert.Contains(t, err.Error(), "the option is nil")
+		assert.Contains(t, err.Error(), "connections must be at least 1")
+	})
+}
+
+// recordingLogger records the messages of a client's Logger.
+type recordingLogger struct {
+	// mu guards messages.
+	mu sync.Mutex
+	// messages are the messages logged so far.
+	messages []string
+}
+
+// Debug records the message.
+func (l *recordingLogger) Debug(_ context.Context, msg string, _ ...any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	l.messages = append(l.messages, msg)
+}
+
+// TestWithLogger checks that the client and its data manager send debug messages to the logger.
+func TestWithLogger(t *testing.T) {
+	t.Parallel()
+
+	logger := &recordingLogger{}
+	api := testserver.NewAPI(t)
+	client := newTestClient(t, WithBaseURL(api.URL()), WithLogger(logger))
+
+	_, err := client.FetchUserInfoContext(context.Background())
+	require.NoError(t, err)
+
+	dataManager, ok := client.Manager.(*DataManager)
+	require.True(t, ok)
+	assert.Same(t, logger, dataManager.log())
+
+	logger.mu.Lock()
+	defer logger.mu.Unlock()
+
+	assert.Equal(t, []string{"client settings", "retrieving user info"}, logger.messages)
 }
 
 // TestVersion checks that Version resolves to a usable, normalized string from the real build info.

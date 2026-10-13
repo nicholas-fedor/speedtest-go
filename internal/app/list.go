@@ -13,7 +13,10 @@ import (
 func RunList(cfg config.Config) error {
 	cfg = config.Setup(cfg)
 
-	speedtestClient := setupSpeedtestClient(cfg)
+	speedtestClient, err := setupSpeedtestClient(cfg)
+	if err != nil {
+		return err
+	}
 
 	// retrieving servers
 	servers, err := speedtestClient.FetchServers()

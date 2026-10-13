@@ -6,12 +6,10 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"runtime"
 	"runtime/debug"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -20,13 +18,6 @@ const modulePath = "github.com/nicholas-fedor/speedtest-go/v2"
 
 // version is set via ldflags; empty means resolve from build info.
 var version string
-
-var (
-	// ErrClientNil is returned when the speedtest client is nil.
-	ErrClientNil = errors.New("speedtest client is nil")
-	// ErrRequestNil is returned when the request is nil.
-	ErrRequestNil = errors.New("request is nil")
-)
 
 // Proto represents the protocol type for ping operations.
 type Proto int
@@ -52,61 +43,28 @@ const (
 	TCPTest
 )
 
-// Speedtest is a speedtest client.
-type Speedtest struct {
+// Client is a speedtest client. [New] builds one from options.
+type Client struct {
 	Manager
 
-	userMu sync.RWMutex
-	User   *User
+	// User is the caller's information from the last user info request. Use GetUser and SetUser to access it.
+	User *User
 
-	doer      *http.Client
-	config    *UserConfig
+	// doer sends HTTP requests.
+	doer *http.Client
+	// transport is the client's HTTP transport, built from its settings.
+	transport *http.Transport
+	// tcpDialer dials TCP connections, including those of the transport.
 	tcpDialer *net.Dialer
+	// udpDialer dials the UDP sockets of packet loss tests.
 	udpDialer *net.Dialer
-	ipDialer  *net.Dialer
-}
+	// ipDialer dials ICMP sockets.
+	ipDialer *net.Dialer
+	// settings is the configuration the client was built from.
+	settings settings
 
-// UserConfig holds configuration options for speedtest.
-type UserConfig struct {
-	// T is the HTTP transport built from this configuration. NewUserConfig replaces any value set here.
-	T         *http.Transport
-	UserAgent string
-	Proxy     string
-	// Source is where connections leave from: an IP address, a network interface name, or a hostname, optionally
-	// with a network prefix such as "tcp://". On Linux, an interface name binds each socket to the interface, which
-	// then supplies an address of the destination's family. Elsewhere it uses the address [ResolveInterface] picks.
-	Source        string
-	DNSBindSource bool
-	// DialerControl runs on each socket the client dials before it connects, after any binding to a source
-	// interface and any DSCP marking. With DNSBindSource, it also runs on DNS sockets.
-	DialerControl func(network, address string, c syscall.RawConn) error
-	// DSCP marks each socket the client dials with a Differentiated Services code point from 0 to 63, where 0 leaves
-	// sockets unmarked. A value that [CheckDSCP] rejects is ignored.
-	DSCP     int
-	Debug    bool
-	PingMode Proto
-	// TestMode selects the protocol for download and upload tests. The ping method is set by PingMode.
-	TestMode TestMode
-	// DownloadSize selects the download block size from 350, 500, 750, 1000, 1500, 2000, 2500, 3000, 3500, or 4000.
-	// Over HTTP it is the side of the requested image, and over TCP the size in kB. 0 keeps the default of 1000, and
-	// a value that [CheckDownloadSize] rejects is ignored.
-	DownloadSize int
-	// UploadSize selects the upload block size in kB from 100, 300, 500, 800, 1000, 1500, 2500, 3000, 3500, or 4000.
-	// 0 keeps the defaults of 1000 for single-server and 800 for multi-server tests, and a value that
-	// [CheckUploadSize] rejects is ignored.
-	UploadSize int
-
-	SavingMode     bool
-	MaxConnections int
-
-	CityFlag     string
-	LocationFlag string
-	Location     *Location
-
-	Keyword string // Fuzzy search
-
-	// BaseURL is the speedtest API base URL. Empty means [DefaultBaseURL].
-	BaseURL string
+	// userMu guards User.
+	userMu sync.RWMutex
 }
 
 // Network timeouts used by the dialers and the HTTP transport.
@@ -136,128 +94,30 @@ func parseAddr(addr string) (string, string) {
 	return "", addr // ignore address network prefix
 }
 
-// NewUserConfig sets the user configuration for the speedtest instance.
-//
-// It always builds the TCP, UDP, and ICMP dialers and the HTTP transport from the configuration, so the user agent,
-// proxy, source address, and dialer control apply whether or not a source address is set. The client's own HTTP
-// client sends requests through that transport. Process-wide defaults such as [http.DefaultClient] and
-// [net.DefaultResolver] are never modified.
-func (s *Speedtest) NewUserConfig(userConfig *UserConfig) {
-	if userConfig.Debug {
-		dbg.Enable()
-	}
-
-	if userConfig.SavingMode {
-		userConfig.MaxConnections = 1 // Set the number of concurrent connections to 1
-	}
-
-	s.SetNThread(userConfig.MaxConnections)
-
-	if len(userConfig.CityFlag) > 0 {
-		var err error
-
-		userConfig.Location, err = GetLocation(userConfig.CityFlag)
-		if err != nil {
-			dbg.Printf("Warning: skipping command line arguments: --city. err: %v\n", err.Error())
-		}
-	}
-
-	if len(userConfig.LocationFlag) > 0 {
-		var err error
-
-		userConfig.Location, err = ParseLocation(userConfig.CityFlag, userConfig.LocationFlag)
-		if err != nil {
-			dbg.Printf(
-				"Warning: skipping command line arguments: --location. err: %v\n",
-				err.Error(),
-			)
-		}
-	}
-
-	s.config = userConfig
-	if len(s.config.UserAgent) == 0 {
-		s.config.UserAgent = DefaultUserAgent()
-	}
-
-	if len(s.config.BaseURL) == 0 {
-		s.config.BaseURL = DefaultBaseURL
-	}
-
-	err := CheckDownloadSize(s.config.DownloadSize)
-	if err != nil {
-		dbg.Printf("Warning: skipping the download size. err: %s\n", err.Error())
-
-		s.config.DownloadSize = 0
-	}
-
-	err = CheckUploadSize(s.config.UploadSize)
-	if err != nil {
-		dbg.Printf("Warning: skipping the upload size. err: %s\n", err.Error())
-
-		s.config.UploadSize = 0
-	}
-
-	source := resolveSource(userConfig.Source)
-	control := chainControl(source.control, dscpControl(userConfig.DSCP), userConfig.DialerControl)
-
-	var resolver *net.Resolver
-	if userConfig.DNSBindSource && (source.sourceIP != nil || control != nil) {
-		resolver = sourceBoundResolver(source.sourceIP, control)
-	}
-
-	s.tcpDialer = &net.Dialer{
-		LocalAddr: source.tcp,
-		Timeout:   dialTimeout,
-		KeepAlive: dialKeepAlive,
-		Control:   control,
-		Resolver:  resolver,
-	}
-
-	s.udpDialer = &net.Dialer{
-		Timeout:  dialTimeout,
-		Control:  control,
-		Resolver: resolver,
-	}
-	if source.sourceIP != nil {
-		s.udpDialer.LocalAddr = &net.UDPAddr{IP: source.sourceIP}
-	}
-
-	s.ipDialer = &net.Dialer{
-		LocalAddr: source.ip,
-		Timeout:   dialTimeout,
-		KeepAlive: dialKeepAlive,
-		Control:   control,
-		Resolver:  resolver,
-	}
-
-	s.config.T = &http.Transport{
-		Proxy:                 proxyFunc(userConfig.Proxy),
-		DialContext:           s.tcpDialer.DialContext,
-		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          maxIdleConns,
-		IdleConnTimeout:       idleConnTimeout,
-		TLSHandshakeTimeout:   tlsHandshakeTimeout,
-		ExpectContinueTimeout: expectContinueTimeout,
-	}
+// userAgentTransport sends requests with a fixed User-Agent header.
+type userAgentTransport struct {
+	// base sends the requests.
+	base http.RoundTripper
+	// userAgent is the header value.
+	userAgent string
 }
 
-// RoundTrip executes a single HTTP request using the speedtest client's round tripper.
+var _ http.RoundTripper = (*userAgentTransport)(nil)
+
+// RoundTrip sends a copy of the request with the User-Agent header set, so the caller's request is never modified
+// and the header is never sent twice.
 //
-// It sends a copy of req with the configured User-Agent, so the caller's request is never modified and the header
-// is never sent twice.
-func (s *Speedtest) RoundTrip(req *http.Request) (*http.Response, error) {
-	if s == nil {
-		return nil, ErrClientNil
-	}
-
-	if req == nil {
-		return nil, ErrRequestNil
-	}
-
+// Parameters:
+//   - req: the request.
+//
+// Returns:
+//   - *http.Response: the response.
+//   - error: the error of the base transport.
+func (t *userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	out := req.Clone(req.Context())
-	out.Header.Set("User-Agent", s.config.UserAgent)
+	out.Header.Set("User-Agent", t.userAgent)
 
-	resp, err := s.config.T.RoundTrip(out)
+	resp, err := t.base.RoundTrip(out)
 	if err != nil {
 		return nil, fmt.Errorf("failed to round trip request: %w", err)
 	}
@@ -265,63 +125,137 @@ func (s *Speedtest) RoundTrip(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-// Option is a function that can be passed to New to modify the Client.
-type Option func(*Speedtest)
-
-// WithDoer sets the http.Client used to make requests.
+// New creates a speedtest client.
 //
-// The client is copied, so the caller's client is never modified. When the copy has no Transport, requests go
-// through the speedtest client's own round tripper, which applies the user agent, proxy, and dialers from the user
-// configuration. A copy with its own Transport keeps it and bypasses those settings. A nil client is ignored.
-func WithDoer(doer *http.Client) Option {
-	return func(s *Speedtest) {
-		if doer == nil {
-			return
-		}
-
-		client := *doer
-		if client.Transport == nil {
-			client.Transport = s
-		}
-
-		s.doer = &client
-	}
-}
-
-// WithUserConfig adds a custom user config for speedtest.
+// Every option is validated, and an error lists each invalid one. The client owns its HTTP client, dialers, and
+// transport, so it never shares or modifies [http.DefaultClient] or [net.DefaultResolver].
 //
-// The configuration applies to requests sent through the speedtest client's round tripper, which includes the
-// default HTTP client and any client given to [WithDoer] without its own Transport.
-func WithUserConfig(userConfig *UserConfig) Option {
-	return func(s *Speedtest) {
-		s.NewUserConfig(userConfig)
-		dbg.Printf("Source: %s\n", s.config.Source)
-		dbg.Printf("Proxy: %s\n", s.config.Proxy)
-		dbg.Printf("BaseURL: %s\n", s.config.BaseURL)
-		dbg.Printf("SavingMode: %v\n", s.config.SavingMode)
-		dbg.Printf("Keyword: %v\n", s.config.Keyword)
-		dbg.Printf("PingType: %v\n", s.config.PingMode)
-		dbg.Printf("OS: %s, ARCH: %s, NumCPU: %d\n", runtime.GOOS, runtime.GOARCH, runtime.NumCPU())
-	}
-}
-
-// New creates a new speedtest client.
+// Parameters:
+//   - opts: the options, applied in order.
 //
-// The client owns its HTTP client, so it never shares or modifies [http.DefaultClient].
-func New(opts ...Option) *Speedtest {
-	s := &Speedtest{
-		Manager: NewDataManager(),
-	}
-	s.doer = &http.Client{Transport: s}
+// Returns:
+//   - *Client: the client.
+//   - error: an error wrapping [ErrInvalidOption] for each invalid option.
+func New(opts ...Option) (*Client, error) {
+	cfg := defaultSettings()
 
-	// load default config
-	s.NewUserConfig(&UserConfig{})
+	var errs []error
 
 	for _, opt := range opts {
-		opt(s)
+		if opt == nil {
+			errs = append(errs, fmt.Errorf("%w: the option is nil", ErrInvalidOption))
+
+			continue
+		}
+
+		err := opt(&cfg)
+		if err != nil {
+			errs = append(errs, err)
+		}
 	}
 
-	return s
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+
+	client := newClient(cfg)
+	client.logSettings()
+
+	return client, nil
+}
+
+// defaultSettings returns the settings of a client built without options.
+//
+// Returns:
+//   - settings: the default settings.
+func defaultSettings() settings {
+	return settings{
+		userAgent: DefaultUserAgent(),
+		baseURL:   DefaultBaseURL,
+	}
+}
+
+// newClient builds a client from validated settings.
+//
+// It always builds the TCP, UDP, and ICMP dialers and the HTTP transport, so the user agent, proxy, source, DSCP
+// marking, and dialer controls apply whether or not a source is set.
+//
+// Parameters:
+//   - cfg: the settings, which the options have validated.
+//
+// Returns:
+//   - *Client: the client.
+func newClient(cfg settings) *Client {
+	manager := NewDataManager()
+	manager.logger = cfg.logger
+	manager.SetNThread(cfg.connections)
+
+	if cfg.testDuration > 0 {
+		manager.SetCaptureTime(cfg.testDuration)
+	}
+
+	controls := append([]dialControl{cfg.source.control, dscpControl(cfg.dscp)}, cfg.controls...)
+	control := chainControl(controls...)
+
+	var resolver *net.Resolver
+	if cfg.dnsBindSource && (cfg.source.sourceIP != nil || control != nil) {
+		resolver = sourceBoundResolver(cfg.source.sourceIP, control)
+	}
+
+	client := &Client{
+		Manager:  manager,
+		settings: cfg,
+		tcpDialer: &net.Dialer{
+			LocalAddr: cfg.source.tcp,
+			Timeout:   dialTimeout,
+			KeepAlive: dialKeepAlive,
+			Control:   control,
+			Resolver:  resolver,
+		},
+		udpDialer: &net.Dialer{
+			Timeout:  dialTimeout,
+			Control:  control,
+			Resolver: resolver,
+		},
+		ipDialer: &net.Dialer{
+			LocalAddr: cfg.source.ip,
+			Timeout:   dialTimeout,
+			KeepAlive: dialKeepAlive,
+			Control:   control,
+			Resolver:  resolver,
+		},
+	}
+
+	if cfg.source.sourceIP != nil {
+		client.udpDialer.LocalAddr = &net.UDPAddr{IP: cfg.source.sourceIP}
+	}
+
+	proxy := http.ProxyFromEnvironment
+	if cfg.proxy != nil {
+		proxy = http.ProxyURL(cfg.proxy)
+	}
+
+	client.transport = &http.Transport{
+		Proxy:                 proxy,
+		DialContext:           client.tcpDialer.DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          maxIdleConns,
+		IdleConnTimeout:       idleConnTimeout,
+		TLSHandshakeTimeout:   tlsHandshakeTimeout,
+		ExpectContinueTimeout: expectContinueTimeout,
+	}
+
+	ownTransport := &userAgentTransport{base: client.transport, userAgent: cfg.userAgent}
+
+	client.doer = &http.Client{Transport: ownTransport}
+	if cfg.httpClient != nil {
+		client.doer = cfg.httpClient
+		if client.doer.Transport == nil {
+			client.doer.Transport = ownTransport
+		}
+	}
+
+	return client
 }
 
 // sourceBoundResolver returns a DNS resolver whose queries leave from the source.
@@ -369,29 +303,6 @@ func localAddrFor(network string, ip net.IP) net.Addr {
 	default:
 		return nil
 	}
-}
-
-// proxyFunc returns the proxy selector for the HTTP transport.
-//
-// Parameters:
-//   - proxy: the configured proxy URL, possibly empty.
-//
-// Returns:
-//   - func(*http.Request) (*url.URL, error): a selector that always uses the configured proxy, or
-//     [http.ProxyFromEnvironment] when none is set or it does not parse.
-func proxyFunc(proxy string) func(*http.Request) (*url.URL, error) {
-	if len(proxy) == 0 {
-		return http.ProxyFromEnvironment
-	}
-
-	proxyURL, err := url.Parse(proxy)
-	if err != nil {
-		dbg.Printf("Warning: skipping parse the proxy host. err: %s\n", err.Error())
-
-		return http.ProxyFromEnvironment
-	}
-
-	return http.ProxyURL(proxyURL)
 }
 
 // DefaultUserAgent returns the default user agent string for speedtest requests.
@@ -467,10 +378,11 @@ func usableModuleVersion(raw string) string {
 	return normalizeVersion(raw)
 }
 
-var defaultClient = New()
+// defaultClient serves the package-level functions. Default settings are always valid, so it is built directly.
+var defaultClient = newClient(defaultSettings())
 
 // GetUser returns the user information in a thread-safe manner.
-func (s *Speedtest) GetUser() *User {
+func (s *Client) GetUser() *User {
 	s.userMu.RLock()
 	defer s.userMu.RUnlock()
 
@@ -478,9 +390,44 @@ func (s *Speedtest) GetUser() *User {
 }
 
 // SetUser sets the user information in a thread-safe manner.
-func (s *Speedtest) SetUser(u *User) {
+func (s *Client) SetUser(u *User) {
 	s.userMu.Lock()
 	defer s.userMu.Unlock()
 
 	s.User = u
+}
+
+// logSettings records the client's settings as a debug message.
+func (s *Client) logSettings() {
+	proxy := ""
+	if s.settings.proxy != nil {
+		proxy = s.settings.proxy.Redacted()
+	}
+
+	s.log().Debug(
+		context.Background(),
+		"client settings",
+		logKeySource, s.settings.sourceName,
+		logKeyProxy, proxy,
+		logKeyBaseURL, s.settings.baseURL,
+		logKeyConnections, s.settings.connections,
+		logKeySearch, s.settings.search,
+		logKeyPingMode, s.settings.pingMode,
+		logKeyProtocol, s.settings.testMode,
+		logKeyOS, runtime.GOOS,
+		logKeyArch, runtime.GOARCH,
+		logKeyCPUs, runtime.NumCPU(),
+	)
+}
+
+// log returns the client's logger, which discards messages when none is set.
+//
+// Returns:
+//   - Logger: the logger.
+func (s *Client) log() Logger {
+	if s == nil {
+		return noopLogger{}
+	}
+
+	return loggerOrNoop(s.settings.logger)
 }
