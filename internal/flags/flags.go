@@ -27,6 +27,8 @@ func RegisterRootFlags(rootCmd *cobra.Command, cfgFile *string) {
 		StringSlice("filter-cc", nil, "Only use servers in these countries (two-letter codes, or auto for your own).")
 	rootCmd.PersistentFlags().
 		Int("dscp", 0, "Mark connections with a DSCP code point from 0 to 63 (Linux, macOS and BSD).")
+	rootCmd.PersistentFlags().
+		Bool("mask-isp", false, "Mask your IP address, coordinates, and distances to servers in all output.")
 	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode.")
 	rootCmd.PersistentFlags().
 		String("base-url", "", "Set the speedtest API base URL (default https://www.speedtest.net).")
@@ -64,6 +66,7 @@ func RegisterRootFlags(rootCmd *cobra.Command, cfgFile *string) {
 	_ = viper.BindPFlag("location", rootCmd.PersistentFlags().Lookup("location"))
 	_ = viper.BindPFlag("city", rootCmd.PersistentFlags().Lookup("city"))
 	_ = viper.BindPFlag("search", rootCmd.PersistentFlags().Lookup("search"))
+	_ = viper.BindPFlag("mask-isp", rootCmd.PersistentFlags().Lookup("mask-isp"))
 	_ = viper.BindPFlag("debug", rootCmd.PersistentFlags().Lookup("debug"))
 	_ = viper.BindPFlag("base-url", rootCmd.PersistentFlags().Lookup("base-url"))
 

@@ -300,3 +300,52 @@ func TestSetupSpeedtestClientLocation(t *testing.T) {
 		})
 	}
 }
+
+// TestReportedUser checks that --mask-isp masks the reported user and its ISP line, while the client's stored user
+// keeps its real values for anything else that reads it.
+func TestReportedUser(t *testing.T) {
+	t.Parallel()
+
+	client := speedtest.New()
+	client.SetUser(
+		&speedtest.User{IP: "203.0.113.7", Lat: "35.6812", Lon: "139.7671", Isp: "Example ISP"},
+	)
+
+	plain := reportedUser(client.GetUser(), config.Config{})
+	assert.Same(t, client.GetUser(), plain, "without --mask-isp the user is reported as is")
+
+	masked := reportedUser(client.GetUser(), config.Config{MaskISP: true})
+	assert.Equal(t, "***.*.***.* (Example ISP) [**.****, ***.****] ", masked.String())
+	assert.Equal(
+		t,
+		"203.0.113.7",
+		client.GetUser().IP,
+		"the client's user must keep its real address",
+	)
+
+	assert.Nil(t, reportedUser(nil, config.Config{MaskISP: true}))
+}
+
+// TestServerLine checks that --mask-isp masks the distance in the Test Server line.
+func TestServerLine(t *testing.T) {
+	t.Parallel()
+
+	server := &speedtest.Server{
+		ID:       "6691",
+		Distance: 9.03,
+		Name:     "Shizuoka",
+		Country:  "Japan",
+		Sponsor:  "sudosan",
+	}
+
+	assert.Equal(
+		t,
+		"[6691] 9.03km Shizuoka (Japan) by sudosan",
+		serverLine(server, config.Config{}),
+	)
+	assert.Equal(
+		t,
+		"[6691] *.**km Shizuoka (Japan) by sudosan",
+		serverLine(server, config.Config{MaskISP: true}),
+	)
+}

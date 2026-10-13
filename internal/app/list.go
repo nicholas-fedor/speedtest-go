@@ -34,7 +34,11 @@ func RunList(cfg config.Config) error {
 		log.Printf("Found %d Public Servers\n", len(servers))
 	}
 
-	output.ShowServerList(servers)
+	if cfg.MaskISP {
+		output.ShowMaskedServerList(servers)
+	} else {
+		output.ShowServerList(servers)
+	}
 
 	return nil
 }

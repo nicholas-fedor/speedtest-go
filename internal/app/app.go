@@ -288,7 +288,7 @@ func runServerTests(
 		fmt.Fprintln(os.Stdout)
 	}
 
-	taskManager.Println("Test Server: " + server.String())
+	taskManager.Println("Test Server: " + serverLine(server, cfg))
 	taskManager.Run("Latency: --", func(task *task.Task) {
 		task.CheckError(server.PingTest(func(latency time.Duration) {
 			task.Updatef("Latency: %v", latency)
@@ -390,8 +390,16 @@ func runTests(
 
 	taskManager.Stop()
 
+	user := speedtestClient.GetUser()
+	now := time.Now()
+
+	jsonReport, jsonlReport := output.JSONReport, output.JSONLReport
+	if cfg.MaskISP {
+		jsonReport, jsonlReport = output.MaskedJSONReport, output.MaskedJSONLReport
+	}
+
 	if cfg.JSONOutput {
-		json, errMarshal := speedtestClient.JSON(targets)
+		json, errMarshal := jsonReport(now, user, targets)
 		if errMarshal != nil {
 			return fmt.Errorf("failed to marshal JSON: %w", errMarshal)
 		}
@@ -399,7 +407,7 @@ func runTests(
 		fmt.Fprintf(os.Stdout, "%s", json)
 	} else if cfg.JSONLOutput {
 		for _, server := range targets {
-			json, errMarshal := speedtestClient.JSONL(server)
+			json, errMarshal := jsonlReport(now, user, server)
 			if errMarshal != nil {
 				return fmt.Errorf(
 					"failed to marshal JSONL: %w",
@@ -412,6 +420,38 @@ func runTests(
 	}
 
 	return nil
+}
+
+// reportedUser returns the user details to show, masked when --mask-isp is set.
+//
+// Parameters:
+//   - user: the user details from speedtest.net, or nil when unknown.
+//   - cfg: the settings.
+//
+// Returns:
+//   - *speedtest.User: user, or a masked copy of it. The client's stored user is never changed.
+func reportedUser(user *speedtest.User, cfg config.Config) *speedtest.User {
+	if cfg.MaskISP {
+		return output.MaskUser(user)
+	}
+
+	return user
+}
+
+// serverLine describes a server, with its distance masked when --mask-isp is set.
+//
+// Parameters:
+//   - server: the server.
+//   - cfg: the settings.
+//
+// Returns:
+//   - string: the description.
+func serverLine(server *speedtest.Server, cfg config.Config) string {
+	if cfg.MaskISP {
+		return output.MaskedServerLine(server)
+	}
+
+	return server.String()
 }
 
 // RunSpeedtest executes the full speedtest on selected servers.
@@ -437,7 +477,7 @@ func RunSpeedtest(cfg config.Config) error {
 		func(t *task.Task) {
 			u, err := speedtestClient.FetchUserInfo()
 			t.CheckError(err)
-			t.Printf("ISP: %s", u.String())
+			t.Printf("ISP: %s", reportedUser(u, cfg).String())
 			t.Complete()
 		},
 	)
