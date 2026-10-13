@@ -119,7 +119,7 @@ func TestAdaptUploadWorkers(t *testing.T) {
 
 		var done sync.WaitGroup
 
-		done.Go(func() { td.adaptUploadWorkers(stop) })
+		done.Go(func() { td.adaptUploadWorkers(context.Background(), stop) })
 
 		// Volumes change halfway between adjustments, so no change races a tick.
 		time.Sleep(uploadAdjustInterval / 2)
@@ -170,7 +170,7 @@ func TestAdaptUploadWorkersStalled(t *testing.T) {
 
 		var done sync.WaitGroup
 
-		done.Go(func() { td.adaptUploadWorkers(stop) })
+		done.Go(func() { td.adaptUploadWorkers(context.Background(), stop) })
 
 		time.Sleep(uploadAdjustInterval / 2)
 

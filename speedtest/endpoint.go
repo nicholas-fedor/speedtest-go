@@ -7,7 +7,7 @@ import (
 	"net/url"
 )
 
-// DefaultBaseURL is the speedtest.net API base URL, used when [UserConfig] sets no BaseURL.
+// DefaultBaseURL is the speedtest.net API base URL, used unless [WithBaseURL] sets another.
 const DefaultBaseURL = "https://www.speedtest.net"
 
 // API endpoint paths, relative to the base URL.
@@ -71,7 +71,7 @@ func ParseBaseURL(raw string) (*url.URL, error) {
 
 // endpoint resolves an API path against the client's base URL.
 //
-// It falls back to [DefaultBaseURL] when the client has no configuration or no base URL, and keeps any path
+// It falls back to [DefaultBaseURL] when the client has no base URL, and keeps any path
 // prefix of the base URL.
 //
 // Parameters:
@@ -80,10 +80,10 @@ func ParseBaseURL(raw string) (*url.URL, error) {
 // Returns:
 //   - *url.URL: the endpoint URL.
 //   - error: an error wrapping [ErrInvalidBaseURL] when the configured base URL is invalid.
-func (s *Speedtest) endpoint(path string) (*url.URL, error) {
+func (s *Client) endpoint(path string) (*url.URL, error) {
 	raw := DefaultBaseURL
-	if s.config != nil && s.config.BaseURL != "" {
-		raw = s.config.BaseURL
+	if s.settings.baseURL != "" {
+		raw = s.settings.baseURL
 	}
 
 	base, err := ParseBaseURL(raw)

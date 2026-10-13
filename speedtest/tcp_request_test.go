@@ -82,11 +82,11 @@ func TestRequestFor(t *testing.T) {
 
 	pointer := func(fn any) uintptr { return reflect.ValueOf(fn).Pointer() }
 
-	httpServer := &Server{Context: New()}
+	httpServer := &Server{Context: newTestClient(t)}
 	assert.Equal(t, pointer(downloadRequest), pointer(httpServer.downloadRequestFor()))
 	assert.Equal(t, pointer(uploadRequest), pointer(httpServer.uploadRequestFor()))
 
-	tcpServer := &Server{Context: New(WithUserConfig(&UserConfig{TestMode: TCPTest}))}
+	tcpServer := &Server{Context: newTestClient(t, WithProtocol(TCPTest))}
 	assert.Equal(t, pointer(tcpDownloadRequest), pointer(tcpServer.downloadRequestFor()))
 	assert.Equal(t, pointer(tcpUploadRequest), pointer(tcpServer.uploadRequestFor()))
 }
@@ -106,11 +106,21 @@ func uploadURLWatcher(t *testing.T) (string, *atomic.Int32) {
 }
 
 // tcpClient returns a client in TCP test mode with a short capture time.
-func tcpClient() *Speedtest {
-	client := New(WithUserConfig(&UserConfig{TestMode: TCPTest, MaxConnections: 2}))
-	client.SetCaptureTime(300 * time.Millisecond)
+//
+// Parameters:
+//   - t: the test.
+//
+// Returns:
+//   - *Client: the client.
+func tcpClient(t *testing.T) *Client {
+	t.Helper()
 
-	return client
+	return newTestClient(
+		t,
+		WithProtocol(TCPTest),
+		WithConnections(2),
+		WithTestDuration(300*time.Millisecond),
+	)
 }
 
 // TestServer_TCPTests checks single-server download and upload tests in TCP mode: both measure a rate over the
@@ -120,7 +130,7 @@ func TestServer_TCPTests(t *testing.T) {
 
 	srv := testserver.NewTCPServer(t)
 	uploadURL, httpRequests := uploadURLWatcher(t)
-	client := tcpClient()
+	client := tcpClient(t)
 	server := &Server{ID: "1001", Host: srv.Addr(), URL: uploadURL, Context: client}
 
 	require.NoError(t, server.DownloadTestContext(context.Background()))
@@ -142,7 +152,7 @@ func TestServer_TCPMultiTests(t *testing.T) {
 
 	first, second := testserver.NewTCPServer(t), testserver.NewTCPServer(t)
 	uploadURL, httpRequests := uploadURLWatcher(t)
-	client := tcpClient()
+	client := tcpClient(t)
 
 	pool := Servers{
 		{ID: "1001", Host: first.Addr(), URL: uploadURL, Context: client},

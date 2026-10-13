@@ -41,7 +41,7 @@ func Test_outputTime_MarshalJSON(t *testing.T) {
 	}
 }
 
-func TestSpeedtest_JSON(t *testing.T) {
+func TestClient_JSON(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
@@ -50,13 +50,13 @@ func TestSpeedtest_JSON(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		s       *Speedtest
+		s       *Client
 		args    args
 		wantErr bool
 	}{
 		{
 			name: "json output with servers",
-			s: &Speedtest{
+			s: &Client{
 				User: &User{},
 			},
 			args: args{
@@ -86,7 +86,7 @@ func TestSpeedtest_JSON(t *testing.T) {
 	}
 }
 
-func TestSpeedtest_JSONL(t *testing.T) {
+func TestClient_JSONL(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
@@ -95,13 +95,13 @@ func TestSpeedtest_JSONL(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		s       *Speedtest
+		s       *Client
 		args    args
 		wantErr bool
 	}{
 		{
 			name: "jsonl output with server",
-			s: &Speedtest{
+			s: &Client{
 				User: &User{},
 			},
 			args: args{

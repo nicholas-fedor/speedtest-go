@@ -101,24 +101,25 @@ func TestMarkDSCPUnknownFamily(t *testing.T) {
 	require.ErrorIs(t, err, errUnknownFamily)
 }
 
-// TestNewUserConfigDSCP checks that the client's TCP and UDP dialers mark their sockets, and that the user Control
+// TestNew_DSCP checks that the client's TCP and UDP dialers mark their sockets, and that the user Control
 // function runs after the marking.
-func TestNewUserConfigDSCP(t *testing.T) {
+func TestNew_DSCP(t *testing.T) {
 	t.Parallel()
 
 	listener := loopbackListener(t, 4)
 
 	var seen []int
 
-	client := New(WithUserConfig(&UserConfig{
-		DSCP: testDSCP,
-		DialerControl: func(_, _ string, raw syscall.RawConn) error {
+	client := newTestClient(
+		t,
+		WithDSCP(testDSCP),
+		WithDialerControl(func(_, _ string, raw syscall.RawConn) error {
 			return raw.Control(func(fd uintptr) {
 				value, _ := unix.GetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_TOS)
 				seen = append(seen, value)
 			})
-		},
-	}))
+		}),
+	)
 
 	tcpConn, err := client.tcpDialer.DialContext(
 		context.Background(),

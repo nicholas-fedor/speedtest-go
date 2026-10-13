@@ -55,7 +55,7 @@ type Server struct {
 	ULSpeed      ByteRate        `json:"ulSpeed"      xml:"-"`
 	TestDuration TestDuration    `json:"testDuration" xml:"-"`
 	PacketLoss   transport.PLoss `json:"packetLoss"   xml:"-"`
-	Context      *Speedtest      `json:"-"            xml:"-"`
+	Context      *Client         `json:"-"            xml:"-"`
 	// uploadURL is where uploads go once redirects from URL are resolved, or empty to use URL.
 	uploadURL string
 }
@@ -76,7 +76,7 @@ func CustomServer(host string) (*Server, error) {
 
 // CustomServer given a URL string, return a new Server object, with as much
 // filled in as we can.
-func (s *Speedtest) CustomServer(host string) (*Server, error) {
+func (s *Client) CustomServer(host string) (*Server, error) {
 	if s == nil {
 		return nil, errSpeedtestClientNil
 	}
@@ -195,7 +195,7 @@ func (b ByDistance) Less(i, j int) bool {
 }
 
 // FetchServerByID retrieves a server by given serverID.
-func (s *Speedtest) FetchServerByID(serverID string) (*Server, error) {
+func (s *Client) FetchServerByID(serverID string) (*Server, error) {
 	return s.FetchServerByIDContext(context.Background(), serverID)
 }
 
@@ -205,7 +205,7 @@ func FetchServerByID(serverID string) (*Server, error) {
 }
 
 // FetchServerByIDContext retrieves a server by given serverID, observing the given context.
-func (s *Speedtest) FetchServerByIDContext(ctx context.Context, serverID string) (*Server, error) {
+func (s *Client) FetchServerByIDContext(ctx context.Context, serverID string) (*Server, error) {
 	if s == nil {
 		return nil, errSpeedtestClientNil
 	}
@@ -272,8 +272,6 @@ func pingServers(ctx context.Context, servers Servers, pingMode Proto) {
 
 	pCtx, cancelFunc := context.WithTimeout(ctx, time.Second*4)
 
-	dbg.Println("Echo each server...")
-
 	for _, server := range servers {
 		waitGroup.Add(1)
 
@@ -309,7 +307,7 @@ func pingServers(ctx context.Context, servers Servers, pingMode Proto) {
 }
 
 // FetchServers retrieves a list of available servers.
-func (s *Speedtest) FetchServers() (Servers, error) {
+func (s *Client) FetchServers() (Servers, error) {
 	return s.FetchServerListContext(context.Background())
 }
 
@@ -319,24 +317,23 @@ func FetchServers() (Servers, error) {
 }
 
 // buildServerListURL constructs the URL for fetching server list.
-func (s *Speedtest) buildServerListURL() (*url.URL, error) {
+func (s *Client) buildServerListURL() (*url.URL, error) {
 	parsedURL, err := s.endpoint(serversPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build server list URL: %w", err)
 	}
 
 	query := parsedURL.Query()
-	if len(s.config.Keyword) > 0 {
-		query.Set("search", s.config.Keyword)
+	if len(s.settings.search) > 0 {
+		query.Set("search", s.settings.search)
 	}
 
-	if s.config.Location != nil {
-		query.Set("lat", strconv.FormatFloat(s.config.Location.Lat, 'f', -1, 64))
-		query.Set("lon", strconv.FormatFloat(s.config.Location.Lon, 'f', -1, 64))
+	if s.settings.location != nil {
+		query.Set("lat", strconv.FormatFloat(s.settings.location.Lat, 'f', -1, 64))
+		query.Set("lon", strconv.FormatFloat(s.settings.location.Lon, 'f', -1, 64))
 	}
 
 	parsedURL.RawQuery = query.Encode()
-	dbg.Printf("Retrieving servers: %s\n", parsedURL.String())
 
 	return parsedURL, nil
 }
@@ -345,10 +342,12 @@ func (s *Speedtest) buildServerListURL() (*url.URL, error) {
 //
 // The XML list is used when the JSON list comes back empty or with a status outside 2xx. An error status from the
 // XML list is returned as a *StatusError.
-func (s *Speedtest) fetchServerListResponse(
+func (s *Client) fetchServerListResponse(
 	ctx context.Context,
 	reqURL *url.URL,
 ) (*http.Response, payloadType, error) {
+	s.log().Debug(ctx, "retrieving servers", logKeyURL, reqURL.String())
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to create HTTP request: %w", err)
@@ -366,7 +365,8 @@ func (s *Speedtest) fetchServerListResponse(
 		_ = resp.Body.Close()
 
 		if statusErr != nil {
-			dbg.Printf("Server list failed, trying the alternative list: %v\n", statusErr)
+			s.log().
+				Debug(ctx, "server list failed, trying the alternative list", logKeyError, statusErr)
 		}
 
 		alternativeURL, err := s.endpoint(serversAlternativePath)
@@ -403,7 +403,7 @@ func (s *Speedtest) fetchServerListResponse(
 }
 
 // decodeServerList decodes the server list from the HTTP response based on payload type.
-func (s *Speedtest) decodeServerList(resp *http.Response, pType payloadType) (Servers, error) {
+func (s *Client) decodeServerList(resp *http.Response, pType payloadType) (Servers, error) {
 	var servers Servers
 
 	switch pType {
@@ -429,13 +429,11 @@ func (s *Speedtest) decodeServerList(resp *http.Response, pType payloadType) (Se
 		return servers, errPayloadDecode
 	}
 
-	dbg.Printf("Servers Num: %d\n", len(servers))
-
 	return servers, nil
 }
 
 // FetchServerListContext retrieves a list of available servers, observing the given context.
-func (s *Speedtest) FetchServerListContext(ctx context.Context) (Servers, error) {
+func (s *Client) FetchServerListContext(ctx context.Context) (Servers, error) {
 	if s == nil {
 		return Servers{}, errSpeedtestClientNil
 	}
@@ -462,8 +460,9 @@ func (s *Speedtest) FetchServerListContext(ctx context.Context) (Servers, error)
 		server.Context = s
 	}
 
-	// ping servers
-	pingServers(ctx, servers, s.config.PingMode)
+	s.log().Debug(ctx, "pinging servers", logKeyCount, len(servers))
+
+	pingServers(ctx, servers, s.settings.pingMode)
 
 	// Calculate distance
 	// If we don't call FetchUserInfo() before FetchServers(),
@@ -639,4 +638,16 @@ func (s *Server) getNotNullValue(time *time.Duration) time.Duration {
 	}
 
 	return *time
+}
+
+// log returns the logger of the server's client, which discards messages when there is none.
+//
+// Returns:
+//   - Logger: the logger.
+func (s *Server) log() Logger {
+	if s == nil {
+		return noopLogger{}
+	}
+
+	return s.Context.log()
 }

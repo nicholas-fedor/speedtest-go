@@ -32,7 +32,7 @@ var (
 //   - []string: the country codes used, with auto resolved.
 //   - error: the error resolving auto, or an error wrapping errNoServersInCountries when no server matches.
 func filterByCountry(
-	client *speedtest.Speedtest,
+	client *speedtest.Client,
 	cfg config.Config,
 	servers speedtest.Servers,
 ) (speedtest.Servers, []string, error) {
@@ -70,7 +70,7 @@ func filterByCountry(
 //   - string: the upper-case country code.
 //   - error: an error wrapping errUnknownCountry and the lookup's error when the city label is unknown or the user
 //     lookup fails, or errUnknownCountry when no country is known.
-func autoCountry(client *speedtest.Speedtest, cfg config.Config) (string, error) {
+func autoCountry(client *speedtest.Client, cfg config.Config) (string, error) {
 	if cfg.City != "" {
 		location, err := speedtest.GetLocation(cfg.City)
 		if err != nil {

@@ -73,9 +73,9 @@ for _, s := range targets {
 The code includes commented examples for additional configurations:
 
 - Fetch user information: `speedtest.FetchUserInfo()`
-- Set location by city: `user.SetLocationByCity("Tokyo")`
-- Set custom location: `user.SetLocation("Osaka", 34.6952, 135.5006)`
-- Select network interface: `speedtest.WithUserConfig(&speedtest.UserConfig{Source: "192.168.1.101"})`
+- Choose servers near a city: `speedtest.New(speedtest.WithLocation(tokyo))`, with `tokyo` from `speedtest.GetLocation("tokyo")`
+- Choose servers near coordinates: `speedtest.ParseLocation("osaka", "34.69,135.50")` gives a location for `speedtest.WithLocation`
+- Send from an IP address or network interface: `speedtest.New(speedtest.WithSource("192.168.1.101"))`
 - Fetch specific server by ID: `speedtest.FetchServerByID("28910")`
 
 Uncomment and modify these lines as needed for more targeted testing.

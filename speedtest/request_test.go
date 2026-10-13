@@ -654,10 +654,10 @@ func Test_checkSum(t *testing.T) {
 }
 
 // runningClient returns a client whose data manager accepts transferred bytes, as it does during a test.
-func runningClient(t *testing.T) (*Speedtest, *DataManager) {
+func runningClient(t *testing.T) (*Client, *DataManager) {
 	t.Helper()
 
-	client := New()
+	client := newTestClient(t)
 
 	manager, ok := client.Manager.(*DataManager)
 	require.True(t, ok)
@@ -860,7 +860,7 @@ func TestServer_DownloadTestContext_ErrorStatus(t *testing.T) {
 		testserver.Response{Status: http.StatusInternalServerError, Body: "error page"},
 	)
 
-	client := New(WithUserConfig(&UserConfig{MaxConnections: 2}))
+	client := newTestClient(t, WithConnections(2))
 	client.SetCaptureTime(300 * time.Millisecond)
 
 	server := &Server{URL: api.ServerUploadURL("1001"), Context: client}
@@ -888,7 +888,7 @@ func TestServer_HTTPPing_ErrorStatus(t *testing.T) {
 		testserver.Response{Status: http.StatusInternalServerError},
 	)
 
-	server := &Server{URL: api.ServerUploadURL("1001"), Context: New()}
+	server := &Server{URL: api.ServerUploadURL("1001"), Context: newTestClient(t)}
 
 	latencies, err := server.HTTPPing(context.Background(), 2, time.Millisecond, nil)
 
@@ -902,7 +902,7 @@ func TestServer_HTTPPing_ErrorStatus(t *testing.T) {
 func TestServer_Ping_NoHost(t *testing.T) {
 	t.Parallel()
 
-	server := &Server{URL: "/speedtest/upload.php", Context: New()}
+	server := &Server{URL: "/speedtest/upload.php", Context: newTestClient(t)}
 
 	tests := []struct {
 		ping func() error
@@ -958,7 +958,7 @@ func TestServer_HTTPPing_Success(t *testing.T) {
 	t.Parallel()
 
 	api := testserver.NewAPI(t)
-	server := &Server{URL: api.ServerUploadURL("1001"), Context: New()}
+	server := &Server{URL: api.ServerUploadURL("1001"), Context: newTestClient(t)}
 
 	latencies, err := server.HTTPPing(context.Background(), 3, time.Millisecond, nil)
 	require.NoError(t, err)
@@ -1016,7 +1016,11 @@ func TestServer_Ping_CancelBetweenEchoes(t *testing.T) {
 
 			tcp := testserver.NewTCPServer(t)
 			api := testserver.NewAPI(t)
-			server := &Server{URL: api.ServerUploadURL("1001"), Host: tcp.Addr(), Context: New()}
+			server := &Server{
+				URL:     api.ServerUploadURL("1001"),
+				Host:    tcp.Addr(),
+				Context: newTestClient(t),
+			}
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -1050,7 +1054,7 @@ func TestServer_PingTestContext_Cancelled(t *testing.T) {
 	server := &Server{
 		URL:     api.ServerUploadURL("1001"),
 		Latency: 42 * time.Millisecond,
-		Context: New(),
+		Context: newTestClient(t),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1068,7 +1072,7 @@ func TestServer_PingTestContext_Cancelled(t *testing.T) {
 func TestServer_ICMPPing_CancelDuringRead(t *testing.T) {
 	t.Parallel()
 
-	server := &Server{URL: "http://127.0.0.1/speedtest/upload.php", Context: New()}
+	server := &Server{URL: "http://127.0.0.1/speedtest/upload.php", Context: newTestClient(t)}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1119,7 +1123,7 @@ func TestServer_SpeedTests_Cancel(t *testing.T) {
 			t.Parallel()
 
 			api := testserver.NewAPI(t)
-			client := New(WithUserConfig(&UserConfig{MaxConnections: 2}))
+			client := newTestClient(t, WithConnections(2))
 			server := &Server{
 				ID:      "1001",
 				URL:     api.ServerUploadURL("1001"),
@@ -1175,7 +1179,7 @@ func TestServer_TCPPing_FakeServer(t *testing.T) {
 	t.Parallel()
 
 	tcp := testserver.NewTCPServer(t)
-	server := &Server{Host: tcp.Addr(), Context: New()}
+	server := &Server{Host: tcp.Addr(), Context: newTestClient(t)}
 
 	var callbacks int
 
@@ -1209,7 +1213,7 @@ func TestServer_TCPPing_ClosesConnection(t *testing.T) {
 	t.Parallel()
 
 	tcp := testserver.NewTCPServer(t)
-	server := &Server{Host: tcp.Addr(), Context: New()}
+	server := &Server{Host: tcp.Addr(), Context: newTestClient(t)}
 
 	_, err := server.TCPPing(context.Background(), 1, time.Millisecond, nil)
 	require.NoError(t, err)
@@ -1239,7 +1243,7 @@ func TestServer_TCPPing_Refused(t *testing.T) {
 	addr := listener.Addr().String()
 	require.NoError(t, listener.Close())
 
-	server := &Server{Host: addr, Context: New()}
+	server := &Server{Host: addr, Context: newTestClient(t)}
 
 	_, err = server.TCPPing(context.Background(), 1, time.Millisecond, nil)
 	require.Error(t, err)
@@ -1251,7 +1255,7 @@ func TestServer_TCPPing_Refused(t *testing.T) {
 func TestServer_ICMPPing_Loopback(t *testing.T) {
 	t.Parallel()
 
-	server := &Server{URL: "http://127.0.0.1/speedtest/upload.php", Context: New()}
+	server := &Server{URL: "http://127.0.0.1/speedtest/upload.php", Context: newTestClient(t)}
 
 	var (
 		latencies []int64
@@ -1463,7 +1467,7 @@ func TestServer_resolveUploadURLFallsBack(t *testing.T) {
 		t.Parallel()
 
 		api := testserver.NewAPI(t)
-		server := &Server{URL: api.ServerUploadURL("1001"), Context: New()}
+		server := &Server{URL: api.ServerUploadURL("1001"), Context: newTestClient(t)}
 
 		server.resolveUploadURL(context.Background())
 
@@ -1479,7 +1483,7 @@ func TestServer_resolveUploadURLFallsBack(t *testing.T) {
 
 		server := &Server{
 			URL:       closed.URL + "/speedtest/upload.php",
-			Context:   New(),
+			Context:   newTestClient(t),
 			uploadURL: "http://stale.invalid/upload.php",
 		}
 
@@ -1507,7 +1511,7 @@ func TestServer_UploadTestContext_Redirect(t *testing.T) {
 	api := testserver.NewAPI(t)
 	moved := newRedirector(t, api.ServerUploadURL("1001"), http.StatusTemporaryRedirect)
 
-	client := New(WithUserConfig(&UserConfig{MaxConnections: 2}))
+	client := newTestClient(t, WithConnections(2))
 	client.SetCaptureTime(300 * time.Millisecond)
 
 	server := &Server{URL: moved.URL(), Context: client}
@@ -1528,7 +1532,7 @@ func TestServer_MultiUploadTestContext_Redirect(t *testing.T) {
 	movedA := newRedirector(t, api.ServerUploadURL("1001"), http.StatusTemporaryRedirect)
 	movedB := newRedirector(t, api.ServerUploadURL("1002"), http.StatusFound)
 
-	client := New(WithUserConfig(&UserConfig{MaxConnections: 2}))
+	client := newTestClient(t, WithConnections(2))
 	client.SetCaptureTime(300 * time.Millisecond)
 
 	pool := Servers{
@@ -1579,7 +1583,7 @@ func TestResolveUploadURLs(t *testing.T) {
 	}))
 	t.Cleanup(moved.Close)
 
-	client := New()
+	client := newTestClient(t)
 	servers := make(Servers, 0, 6)
 
 	for index := range 6 {
@@ -1612,7 +1616,7 @@ func TestServer_testContextFinalRate(t *testing.T) {
 	}
 
 	synctest.Test(t, func(t *testing.T) {
-		client := New(WithUserConfig(&UserConfig{MaxConnections: 1}))
+		client := newTestClient(t, WithConnections(1))
 		client.SetCaptureTime(1050 * time.Millisecond)
 
 		server := &Server{Context: client}

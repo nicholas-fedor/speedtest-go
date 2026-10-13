@@ -103,7 +103,8 @@ func TestPickInterfaceAddress(t *testing.T) {
 func TestResolveSourceInterface(t *testing.T) {
 	t.Parallel()
 
-	binding := resolveSource("tcp://" + loopbackInterface(t))
+	binding, err := resolveSource("tcp://" + loopbackInterface(t))
+	require.NoError(t, err)
 
 	if runtime.GOOS == "linux" {
 		assert.NotNil(t, binding.control)
@@ -184,46 +185,48 @@ func TestChainControl(t *testing.T) {
 	assert.Equal(t, []string{"device"}, calls, "a failure stops the chain")
 }
 
-// TestNewUserConfigSourceInterface checks that a client with an interface source reaches a server through it, and
+// TestNew_SourceInterface checks that a client with an interface source reaches a server through it, and
 // that a user Control function still runs alongside the device binding.
-func TestNewUserConfigSourceInterface(t *testing.T) {
+func TestNew_SourceInterface(t *testing.T) {
 	t.Parallel()
 
 	api := testserver.NewAPI(t)
 
 	var userControls atomic.Int32
 
-	client := New(WithUserConfig(&UserConfig{
-		BaseURL: api.URL(),
-		Source:  loopbackInterface(t),
-		DialerControl: func(string, string, syscall.RawConn) error {
+	client := newTestClient(
+		t,
+		WithBaseURL(api.URL()),
+		WithSource(loopbackInterface(t)),
+		WithDialerControl(func(string, string, syscall.RawConn) error {
 			userControls.Add(1)
 
 			return nil
-		},
-	}))
+		}),
+	)
 
 	_, err := client.FetchUserInfoContext(context.Background())
 	require.NoError(t, err)
 	assert.Positive(t, userControls.Load(), "the user Control function should run")
 }
 
-// TestNewUserConfigSourceInterfaceDNS checks that with DNSBindSource, DNS sockets for an interface source run the
+// TestNew_SourceInterfaceDNS checks that with WithDNSBindSource, DNS sockets for an interface source run the
 // client's whole Control chain, including the user's function.
-func TestNewUserConfigSourceInterfaceDNS(t *testing.T) {
+func TestNew_SourceInterfaceDNS(t *testing.T) {
 	t.Parallel()
 
 	var userControls atomic.Int32
 
-	client := New(WithUserConfig(&UserConfig{
-		Source:        loopbackInterface(t),
-		DNSBindSource: true,
-		DialerControl: func(string, string, syscall.RawConn) error {
+	client := newTestClient(
+		t,
+		WithSource(loopbackInterface(t)),
+		WithDNSBindSource(),
+		WithDialerControl(func(string, string, syscall.RawConn) error {
 			userControls.Add(1)
 
 			return nil
-		},
-	}))
+		}),
+	)
 
 	require.NotNil(t, client.tcpDialer.Resolver)
 
@@ -234,21 +237,22 @@ func TestNewUserConfigSourceInterfaceDNS(t *testing.T) {
 	assert.Positive(t, userControls.Load(), "DNS sockets should run the user Control function")
 }
 
-// TestNewUserConfigDialerControlDNS checks that with DNSBindSource, DNS sockets run a user Control function even
+// TestNew_DialerControlDNS checks that with WithDNSBindSource, DNS sockets run a user Control function even
 // without a source, as its documentation states.
-func TestNewUserConfigDialerControlDNS(t *testing.T) {
+func TestNew_DialerControlDNS(t *testing.T) {
 	t.Parallel()
 
 	var userControls atomic.Int32
 
-	client := New(WithUserConfig(&UserConfig{
-		DNSBindSource: true,
-		DialerControl: func(string, string, syscall.RawConn) error {
+	client := newTestClient(
+		t,
+		WithDNSBindSource(),
+		WithDialerControl(func(string, string, syscall.RawConn) error {
 			userControls.Add(1)
 
 			return nil
-		},
-	}))
+		}),
+	)
 
 	require.NotNil(t, client.tcpDialer.Resolver)
 
@@ -257,24 +261,25 @@ func TestNewUserConfigDialerControlDNS(t *testing.T) {
 	require.NoError(t, conn.Close())
 
 	assert.Positive(t, userControls.Load(), "DNS sockets should run the user Control function")
-	assert.Nil(t, New(WithUserConfig(&UserConfig{DNSBindSource: true})).tcpDialer.Resolver,
+	assert.Nil(t, newTestClient(t, WithDNSBindSource()).tcpDialer.Resolver,
 		"without a source or a Control function, DNS keeps the default resolver")
 }
 
-// TestNewUserConfigUDPDialer checks that the client's UDP dialer leaves from the source and runs its Control chain.
-func TestNewUserConfigUDPDialer(t *testing.T) {
+// TestNew_UDPDialer checks that the client's UDP dialer leaves from the source and runs its Control chain.
+func TestNew_UDPDialer(t *testing.T) {
 	t.Parallel()
 
 	var userControls atomic.Int32
 
-	client := New(WithUserConfig(&UserConfig{
-		Source: "127.0.0.1",
-		DialerControl: func(string, string, syscall.RawConn) error {
+	client := newTestClient(
+		t,
+		WithSource("127.0.0.1"),
+		WithDialerControl(func(string, string, syscall.RawConn) error {
 			userControls.Add(1)
 
 			return nil
-		},
-	}))
+		}),
+	)
 
 	assert.Equal(t, &net.UDPAddr{IP: net.ParseIP("127.0.0.1")}, client.udpDialer.LocalAddr)
 
@@ -283,5 +288,9 @@ func TestNewUserConfigUDPDialer(t *testing.T) {
 	require.NoError(t, conn.Close())
 
 	assert.Positive(t, userControls.Load())
-	assert.Nil(t, New().udpDialer.LocalAddr, "without a source the system picks the address")
+	assert.Nil(
+		t,
+		newTestClient(t).udpDialer.LocalAddr,
+		"without a source the system picks the address",
+	)
 }

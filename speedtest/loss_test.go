@@ -496,22 +496,25 @@ func TestPacketLossAnalyzer_RunWithContext_ConnectionDropped(t *testing.T) {
 	assert.Less(t, time.Since(start), time.Second)
 }
 
-// TestSpeedtest_NewPacketLossAnalyzer checks that the analyzer gets copies of the client's dialers with its own
+// TestClient_NewPacketLossAnalyzer checks that the analyzer gets copies of the client's dialers with its own
 // timeout, that dialers given in the options are kept, and that the client's dialers are left as they were.
-func TestSpeedtest_NewPacketLossAnalyzer(t *testing.T) {
+func TestClient_NewPacketLossAnalyzer(t *testing.T) {
 	t.Parallel()
 
-	newClient := func() *Speedtest {
-		return New(WithUserConfig(&UserConfig{
-			Source:        "127.0.0.1",
-			DialerControl: func(string, string, syscall.RawConn) error { return nil },
-		}))
+	lossClient := func(t *testing.T) *Client {
+		t.Helper()
+
+		return newTestClient(
+			t,
+			WithSource("127.0.0.1"),
+			WithDialerControl(func(string, string, syscall.RawConn) error { return nil }),
+		)
 	}
 
 	t.Run("copies the client's dialers", func(t *testing.T) {
 		t.Parallel()
 
-		client := newClient()
+		client := lossClient(t)
 		options := client.NewPacketLossAnalyzer(nil).options
 
 		require.NotSame(t, client.tcpDialer, options.TCPDialer)
@@ -541,7 +544,7 @@ func TestSpeedtest_NewPacketLossAnalyzer(t *testing.T) {
 	t.Run("uses the sending timeout", func(t *testing.T) {
 		t.Parallel()
 
-		options := newClient().NewPacketLossAnalyzer(&PacketLossAnalyzerOptions{
+		options := lossClient(t).NewPacketLossAnalyzer(&PacketLossAnalyzerOptions{
 			PacketSendingTimeout: time.Second,
 		}).options
 
@@ -553,7 +556,7 @@ func TestSpeedtest_NewPacketLossAnalyzer(t *testing.T) {
 		t.Parallel()
 
 		udpDialer := &net.Dialer{}
-		client := newClient()
+		client := lossClient(t)
 		options := client.NewPacketLossAnalyzer(
 			&PacketLossAnalyzerOptions{UDPDialer: udpDialer},
 		).options
@@ -567,7 +570,7 @@ func TestSpeedtest_NewPacketLossAnalyzer(t *testing.T) {
 
 		var options *PacketLossAnalyzerOptions
 
-		require.NotPanics(t, func() { options = (&Speedtest{}).NewPacketLossAnalyzer(nil).options })
+		require.NotPanics(t, func() { options = (&Client{}).NewPacketLossAnalyzer(nil).options })
 		require.NotNil(t, options.TCPDialer)
 		require.NotNil(t, options.UDPDialer)
 		assert.Equal(t, defaultPacketSendingTimeout, options.TCPDialer.Timeout)
@@ -577,16 +580,16 @@ func TestSpeedtest_NewPacketLossAnalyzer(t *testing.T) {
 	t.Run("nil client", func(t *testing.T) {
 		t.Parallel()
 
-		options := (*Speedtest)(nil).NewPacketLossAnalyzer(nil).options
+		options := (*Client)(nil).NewPacketLossAnalyzer(nil).options
 
 		assert.NotNil(t, options.TCPDialer)
 		assert.NotNil(t, options.UDPDialer)
 	})
 }
 
-// TestSpeedtest_NewPacketLossAnalyzer_Control checks that a run from a client's analyzer sends both its TCP sampler
+// TestClient_NewPacketLossAnalyzer_Control checks that a run from a client's analyzer sends both its TCP sampler
 // and its UDP sender through the client's Control function.
-func TestSpeedtest_NewPacketLossAnalyzer_Control(t *testing.T) {
+func TestClient_NewPacketLossAnalyzer_Control(t *testing.T) {
 	t.Parallel()
 
 	var (
@@ -594,15 +597,13 @@ func TestSpeedtest_NewPacketLossAnalyzer_Control(t *testing.T) {
 		networks []string
 	)
 
-	client := New(WithUserConfig(&UserConfig{
-		DialerControl: func(network, _ string, _ syscall.RawConn) error {
-			mu.Lock()
-			defer mu.Unlock()
+	client := newTestClient(t, WithDialerControl(func(network, _ string, _ syscall.RawConn) error {
+		mu.Lock()
+		defer mu.Unlock()
 
-			networks = append(networks, network)
+		networks = append(networks, network)
 
-			return nil
-		},
+		return nil
 	}))
 
 	srv := testserver.NewTCPServer(t)
@@ -639,4 +640,19 @@ func TestSpeedtest_NewPacketLossAnalyzer_Control(t *testing.T) {
 		"the sender should dial through the client's Control: %v",
 		networks,
 	)
+}
+
+// TestPacketLossAnalyzer_UnresolvedSource checks that a SourceInterface that does not resolve fails every run,
+// instead of the analyzer sending from the default source.
+func TestPacketLossAnalyzer_UnresolvedSource(t *testing.T) {
+	t.Parallel()
+
+	analyzer := NewPacketLossAnalyzer(&PacketLossAnalyzerOptions{SourceInterface: "bad host"})
+
+	err := analyzer.RunWithContext(context.Background(), "127.0.0.1:9", func(*transport.PLoss) {})
+	require.ErrorContains(t, err, `source interface "bad host"`)
+
+	loss, err := analyzer.RunMultiWithContext(context.Background(), []string{"127.0.0.1:9"})
+	require.ErrorContains(t, err, `source interface "bad host"`)
+	assert.Nil(t, loss)
 }

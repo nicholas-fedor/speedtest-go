@@ -379,24 +379,24 @@ package main
 
 import (
  "fmt"
+ "log"
+
  "github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
 
 func main() {
- var speedtestClient = speedtest.New()
-
- // Use a proxy for the speedtest. eg: socks://127.0.0.1:7890
- // speedtest.WithUserConfig(&speedtest.UserConfig{Proxy: "socks://127.0.0.1:7890"})(speedtestClient)
-
- // Send from a source IP address or network interface name, such as "192.168.1.101" or "eth0".
- // speedtest.WithUserConfig(&speedtest.UserConfig{Source: "eth0"})(speedtestClient)
+ // Options configure the client, and New reports every invalid one. For example:
+ //  - speedtest.WithProxy("socks5://127.0.0.1:7890") uses a proxy.
+ //  - speedtest.WithSource("eth0") sends from a source IP address or network interface name.
+ //  - speedtest.WithLocation(tokyo), with tokyo from speedtest.GetLocation("tokyo"), chooses servers near a city
+ //    label instead of your own location. speedtest.ParseLocation("osaka", "34.6952,135.5006") takes coordinates.
+ speedtestClient, err := speedtest.New()
+ if err != nil {
+  log.Fatal(err)
+ }
 
  // Get user's network information
  // user, _ := speedtestClient.FetchUserInfo()
-
- // Choose servers near a city label or coordinates instead of your own location.
- // speedtest.WithUserConfig(&speedtest.UserConfig{CityFlag: "tokyo"})(speedtestClient)
- // speedtest.WithUserConfig(&speedtest.UserConfig{LocationFlag: "34.6952,135.5006"})(speedtestClient)
 
  // Search server using serverID.
  // eg: fetch server with ID 28910.
@@ -442,7 +442,8 @@ func checkError(err error) {
 // This means we cannot get packet loss through a proxy.
 func main() {
  // Retrieve available servers
- var speedtestClient = speedtest.New()
+ speedtestClient, err := speedtest.New()
+ checkError(err)
  serverList, _ := speedtestClient.FetchServers()
  targets, _ := serverList.FindServer([]int{})
 

@@ -22,7 +22,7 @@ var (
 	errUnknownFamily = errors.New("cannot tell the IP version of network")
 )
 
-// CheckDSCP reports whether a value can be used as [UserConfig.DSCP] on this platform.
+// CheckDSCP reports whether a value can be given to [WithDSCP] on this platform.
 //
 // Parameters:
 //   - dscp: the Differentiated Services code point, where 0 leaves sockets unmarked.
@@ -44,22 +44,13 @@ func CheckDSCP(dscp int) error {
 
 // dscpControl returns a dialer Control function that marks each socket with a DSCP value.
 //
-// The client has no way to report a configuration error yet, so an unusable value is logged and ignored.
-//
 // Parameters:
-//   - dscp: the Differentiated Services code point.
+//   - dscp: the Differentiated Services code point, which [CheckDSCP] has accepted.
 //
 // Returns:
-//   - dialControl: the Control function, or nil when dscp is 0 or cannot be used.
+//   - dialControl: the Control function, or nil when dscp is 0.
 func dscpControl(dscp int) dialControl {
 	if dscp == 0 {
-		return nil
-	}
-
-	err := CheckDSCP(dscp)
-	if err != nil {
-		dbg.Printf("Warning: skipping DSCP. err: %s\n", err.Error())
-
 		return nil
 	}
 

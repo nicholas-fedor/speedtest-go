@@ -13,6 +13,35 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
 
+// newTestClient builds the client the CLI builds from the settings.
+//
+// Parameters:
+//   - t: the test, which fails when the settings are rejected.
+//   - cfg: the settings.
+//
+// Returns:
+//   - *speedtest.Client: the client.
+func newTestClient(t *testing.T, cfg config.Config) *speedtest.Client {
+	t.Helper()
+
+	client, err := setupSpeedtestClient(cfg)
+	require.NoError(t, err)
+
+	return client
+}
+
+// TestSetupSpeedtestClient_InvalidSetting checks that a setting only the client checks, such as a proxy without a
+// scheme, is an invalid setting, so the CLI exits with code 2.
+func TestSetupSpeedtestClient_InvalidSetting(t *testing.T) {
+	t.Parallel()
+
+	client, err := setupSpeedtestClient(config.Config{Proxy: "127.0.0.1:3128"})
+
+	require.ErrorIs(t, err, config.ErrInvalidSetting)
+	require.ErrorIs(t, err, speedtest.ErrInvalidOption)
+	assert.Nil(t, client)
+}
+
 // serverIDs returns the IDs of servers, in order.
 func serverIDs(servers speedtest.Servers) []string {
 	ids := make([]string, 0, len(servers))
@@ -41,7 +70,7 @@ func TestFetchServersByID(t *testing.T) {
 			t.Parallel()
 
 			api := testserver.NewAPI(t)
-			client := setupSpeedtestClient(config.Config{BaseURL: api.URL()})
+			client := newTestClient(t, config.Config{BaseURL: api.URL()})
 
 			servers, err := fetchServersByID(client, tt.ids)
 			require.NoError(t, err)
@@ -56,7 +85,7 @@ func TestFetchServersByIDReportsMissingIDs(t *testing.T) {
 	t.Parallel()
 
 	api := testserver.NewAPI(t)
-	client := setupSpeedtestClient(config.Config{BaseURL: api.URL()})
+	client := newTestClient(t, config.Config{BaseURL: api.URL()})
 
 	servers, err := fetchServersByID(client, []int{9999, 1001, 8888})
 	require.ErrorIs(t, err, speedtest.ErrServerNotFound)
@@ -70,7 +99,7 @@ func TestFetchServersByIDReportsLookupFailures(t *testing.T) {
 
 	api := testserver.NewAPI(t)
 	api.SetResponse(testserver.PathServerLookup, testserver.Response{Status: http.StatusBadGateway})
-	client := setupSpeedtestClient(config.Config{BaseURL: api.URL()})
+	client := newTestClient(t, config.Config{BaseURL: api.URL()})
 
 	_, err := fetchServersByID(client, []int{1001})
 	require.ErrorIs(t, err, speedtest.ErrUnexpectedStatus)
@@ -114,7 +143,7 @@ func TestRetrieveServersPool(t *testing.T) {
 			cfg := tt.cfg(api)
 
 			pool, targets := retrieveServers(
-				setupSpeedtestClient(cfg),
+				newTestClient(t, cfg),
 				cfg,
 				task.NewManager(true, false),
 			)
@@ -130,7 +159,7 @@ func TestRetrieveServersPool(t *testing.T) {
 		cfg := config.Config{BaseURL: api.URL()}
 
 		pool, targets := retrieveServers(
-			setupSpeedtestClient(cfg),
+			newTestClient(t, cfg),
 			cfg,
 			task.NewManager(true, false),
 		)
@@ -174,7 +203,7 @@ func TestFilterByCountry(t *testing.T) {
 			t.Parallel()
 
 			api := testserver.NewAPI(t)
-			client := setupSpeedtestClient(config.Config{BaseURL: api.URL()})
+			client := newTestClient(t, config.Config{BaseURL: api.URL()})
 
 			servers, err := client.FetchServers()
 			require.NoError(t, err)
@@ -205,7 +234,7 @@ func TestAutoCountryCity(t *testing.T) {
 	t.Parallel()
 
 	api := testserver.NewAPI(t)
-	client := setupSpeedtestClient(config.Config{BaseURL: api.URL()})
+	client := newTestClient(t, config.Config{BaseURL: api.URL()})
 
 	_, err := autoCountry(client, config.Config{City: "atlantis"})
 	require.ErrorIs(t, err, errUnknownCountry)
@@ -227,7 +256,7 @@ func TestAutoCountryUnknown(t *testing.T) {
 		t,
 		testserver.WithUser(testserver.User{IP: "203.0.113.7", Lat: "35.6", Lon: "139.7"}),
 	)
-	client := setupSpeedtestClient(config.Config{BaseURL: api.URL()})
+	client := newTestClient(t, config.Config{BaseURL: api.URL()})
 
 	_, err := autoCountry(client, config.Config{})
 	require.ErrorIs(t, err, errUnknownCountry)
@@ -240,7 +269,7 @@ func TestRetrieveServersCountryFilter(t *testing.T) {
 	api := testserver.NewAPI(t)
 	cfg := config.Config{BaseURL: api.URL(), CountryCodes: []string{"JP"}}
 
-	pool, targets := retrieveServers(setupSpeedtestClient(cfg), cfg, task.NewManager(true, false))
+	pool, targets := retrieveServers(newTestClient(t, cfg), cfg, task.NewManager(true, false))
 	assert.ElementsMatch(t, []string{"1001", "1002"}, serverIDs(pool))
 	assert.Len(t, targets, 1)
 }
@@ -279,7 +308,7 @@ func TestSetupSpeedtestClientLocation(t *testing.T) {
 
 			api := testserver.NewAPI(t)
 
-			_, err := setupSpeedtestClient(tt.cfg(api.URL())).FetchServers()
+			_, err := newTestClient(t, tt.cfg(api.URL())).FetchServers()
 			require.NoError(t, err)
 
 			var found bool
@@ -306,7 +335,7 @@ func TestSetupSpeedtestClientLocation(t *testing.T) {
 func TestReportedUser(t *testing.T) {
 	t.Parallel()
 
-	client := speedtest.New()
+	client := newTestClient(t, config.Config{})
 	client.SetUser(
 		&speedtest.User{IP: "203.0.113.7", Lat: "35.6812", Lon: "139.7671", Isp: "Example ISP"},
 	)

@@ -29,13 +29,12 @@ func TestCheckDSCP(t *testing.T) {
 	}
 }
 
-// TestDSCPControl checks that unset and unusable values add no Control function.
+// TestDSCPControl checks that an unset value adds no Control function, and that a set one does where marking is
+// supported. WithDSCP rejects unusable values before they get here.
 func TestDSCPControl(t *testing.T) {
 	t.Parallel()
 
 	assert.Nil(t, dscpControl(0))
-	assert.Nil(t, dscpControl(64))
-	assert.Nil(t, dscpControl(-1))
 	assert.Equal(t, dscpSupported, dscpControl(46) != nil)
 }
 

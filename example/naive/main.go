@@ -13,9 +13,11 @@ func main() {
 
 	// Configure a client to choose servers near a city label or coordinates, or to send from an IP address or
 	// network interface, then use its methods instead of the package functions below.
-	// speedtestClient := speedtest.New(speedtest.WithUserConfig(&speedtest.UserConfig{CityFlag: "tokyo"}))
-	// speedtestClient := speedtest.New(speedtest.WithUserConfig(&speedtest.UserConfig{LocationFlag: "34.69,135.50"}))
-	// speedtestClient := speedtest.New(speedtest.WithUserConfig(&speedtest.UserConfig{Source: "192.168.1.101"}))
+	// tokyo, _ := speedtest.GetLocation("tokyo")
+	// speedtestClient, err := speedtest.New(speedtest.WithLocation(tokyo))
+	// osaka, _ := speedtest.ParseLocation("osaka", "34.69,135.50")
+	// speedtestClient, err := speedtest.New(speedtest.WithLocation(osaka))
+	// speedtestClient, err := speedtest.New(speedtest.WithSource("192.168.1.101"))
 
 	// Search server using serverID.
 	// eg: fetch server with ID 28910.

@@ -18,7 +18,8 @@ const packetSendingInterval = 100 * time.Millisecond
 // This means we cannot get packet loss through a proxy.
 func main() {
 	// 0. Fetching servers
-	speedtestClient := speedtest.New()
+	speedtestClient, err := speedtest.New()
+	checkError(err)
 
 	serverList, err := speedtestClient.FetchServers()
 	checkError(err)

@@ -24,7 +24,7 @@ const (
 // ErrInvalidTransferSize is returned for a download or upload size that is not in its size table.
 var ErrInvalidTransferSize = errors.New("invalid transfer size")
 
-// CheckDownloadSize reports whether a value can be used as [UserConfig.DownloadSize].
+// CheckDownloadSize reports whether a value can be given to [WithTransferSizes] as the download size.
 //
 // Parameters:
 //   - size: the download size, or 0 for the default.
@@ -35,7 +35,7 @@ func CheckDownloadSize(size int) error {
 	return checkSize(dlSizes[:], size, "download")
 }
 
-// CheckUploadSize reports whether a value can be used as [UserConfig.UploadSize].
+// CheckUploadSize reports whether a value can be given to [WithTransferSizes] as the upload size.
 //
 // Parameters:
 //   - size: the upload size in kB, or 0 for the default.
@@ -94,8 +94,8 @@ func sizeIndex(table []int, size, fallback int) int {
 //
 // Returns:
 //   - int: the index into the download sizes.
-func (s *Speedtest) downloadIndex(fallback int) int {
-	return sizeIndex(dlSizes[:], s.config.DownloadSize, fallback)
+func (s *Client) downloadIndex(fallback int) int {
+	return sizeIndex(dlSizes[:], s.settings.downloadSize, fallback)
 }
 
 // uploadIndex returns the upload size index for a request.
@@ -105,6 +105,6 @@ func (s *Speedtest) downloadIndex(fallback int) int {
 //
 // Returns:
 //   - int: the index into the upload sizes.
-func (s *Speedtest) uploadIndex(fallback int) int {
-	return sizeIndex(ulSizes[:], s.config.UploadSize, fallback)
+func (s *Client) uploadIndex(fallback int) int {
+	return sizeIndex(ulSizes[:], s.settings.uploadSize, fallback)
 }
