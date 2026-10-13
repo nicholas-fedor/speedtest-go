@@ -29,11 +29,19 @@ func (t outputTime) MarshalJSON() ([]byte, error) {
 }
 
 // JSON marshals the speedtest results to JSON.
-func (s *Client) JSON(servers Servers) ([]byte, error) {
+//
+// Parameters:
+//   - user: the caller's information from [Client.FetchUserInfo], or nil.
+//   - servers: the tested servers.
+//
+// Returns:
+//   - []byte: the JSON document.
+//   - error: the marshalling error.
+func JSON(user *User, servers Servers) ([]byte, error) {
 	data, err := json.Marshal(
 		fullOutput{
 			Timestamp: outputTime(time.Now()),
-			UserInfo:  s.GetUser(),
+			UserInfo:  user,
 			Servers:   servers,
 		},
 	)
@@ -44,12 +52,20 @@ func (s *Client) JSON(servers Servers) ([]byte, error) {
 	return data, nil
 }
 
-// JSONL outputs a single server result in JSON format.
-func (s *Client) JSONL(server *Server) ([]byte, error) {
+// JSONL marshals a single server result to one line of JSON.
+//
+// Parameters:
+//   - user: the caller's information from [Client.FetchUserInfo], or nil.
+//   - server: the tested server.
+//
+// Returns:
+//   - []byte: the JSON line, without a trailing newline.
+//   - error: the marshalling error.
+func JSONL(user *User, server *Server) ([]byte, error) {
 	data, err := json.Marshal(
 		singleServerOutput{
 			Timestamp: outputTime(time.Now()),
-			UserInfo:  s.GetUser(),
+			UserInfo:  user,
 			Server:    server,
 		},
 	)

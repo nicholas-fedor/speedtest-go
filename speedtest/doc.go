@@ -28,8 +28,11 @@
 // ## Main Functions
 //
 //   - New(): Creates a new speedtest client from options such as WithProxy, WithSource, and WithLogger
-//   - FetchUserInfo(): Retrieves user information from speedtest.net
-//   - FetchServers(): Discovers available speedtest servers
+//   - Client.FetchUserInfo(): Retrieves user information from speedtest.net
+//   - Client.FetchServers(): Discovers available speedtest servers, sorted by distance
+//   - JSON() and JSONL(): Marshal results with the user information
+//   - ByteRate.Format(): Formats a rate in a chosen unit
+//   - Cities(): Lists the predefined city labels for GetLocation
 //   - Server.PingTest(): Measures latency to a server
 //   - Server.DownloadTest(): Performs download speed test
 //   - Server.UploadTest(): Performs upload speed test

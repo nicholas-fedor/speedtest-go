@@ -1,29 +1,35 @@
 package speedtest
 
 import (
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestPrintCityList(t *testing.T) {
+// TestCities checks that the city labels come sorted, each with a country code, and as copies of the table.
+func TestCities(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name string
-	}{
-		{
-			name: "print city list",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	cities := Cities()
 
-			PrintCityList() // Just ensure no panic
-		})
+	require.Len(t, cities, len(locations))
+	assert.True(
+		t,
+		slices.IsSortedFunc(
+			cities,
+			func(a, b Location) int { return strings.Compare(a.Name, b.Name) },
+		),
+	)
+
+	for _, city := range cities {
+		assert.NotEmpty(t, city.CC, "%s needs a country code for --filter-cc auto", city.Name)
 	}
+
+	cities[0].Lat = 1000
+	assert.NotEqual(t, 1000.0, Cities()[0].Lat, "changing the result must not change the table")
 }
 
 func TestGetLocation(t *testing.T) {
@@ -67,6 +73,19 @@ func TestGetLocation(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+
+	t.Run("returns a copy", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := GetLocation("Tokyo")
+		require.NoError(t, err)
+
+		got.Lat = 1000
+
+		again, err := GetLocation("tokyo")
+		require.NoError(t, err)
+		assert.InDelta(t, 35.680938, again.Lat, 1e-9)
+	})
 }
 
 func TestNewLocation(t *testing.T) {
@@ -103,6 +122,9 @@ func TestNewLocation(t *testing.T) {
 
 			got := NewLocation(tt.args.locationName, tt.args.latitude, tt.args.longitude)
 			assert.Equal(t, tt.want, got)
+
+			_, err := GetLocation(tt.args.locationName)
+			require.ErrorIs(t, err, ErrNotFoundLocation, "a new location is not a city label")
 		})
 	}
 }

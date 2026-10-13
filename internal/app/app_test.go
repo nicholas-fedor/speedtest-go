@@ -229,7 +229,7 @@ func TestFilterByCountry(t *testing.T) {
 }
 
 // TestAutoCountryCity checks auto with a --city label: an unknown label is an error rather than a silent switch to
-// the user's country, and a label registered without a country falls back to the user's country.
+// the user's country.
 func TestAutoCountryCity(t *testing.T) {
 	t.Parallel()
 
@@ -240,12 +240,11 @@ func TestAutoCountryCity(t *testing.T) {
 	require.ErrorIs(t, err, errUnknownCountry)
 	require.ErrorIs(t, err, speedtest.ErrNotFoundLocation)
 	assert.Contains(t, err.Error(), `--city "atlantis"`)
-
-	speedtest.NewLocation("country-filter-no-cc", 35.6, 139.7)
-
-	country, err := autoCountry(client, config.Config{City: "country-filter-no-cc"})
-	require.NoError(t, err)
-	assert.Equal(t, "JP", country, "a label without a country uses the user's country")
+	assert.False(
+		t,
+		api.Requested(testserver.PathUserConfig),
+		"an unknown label must not fall back to the user",
+	)
 }
 
 // TestAutoCountryUnknown checks that auto fails clearly when speedtest.net reports no country for the user.
@@ -330,27 +329,19 @@ func TestSetupSpeedtestClientLocation(t *testing.T) {
 	}
 }
 
-// TestReportedUser checks that --mask-isp masks the reported user and its ISP line, while the client's stored user
-// keeps its real values for anything else that reads it.
+// TestReportedUser checks that --mask-isp masks the reported user and its ISP line, while the given user keeps its
+// real values for anything else that reads it.
 func TestReportedUser(t *testing.T) {
 	t.Parallel()
 
-	client := newTestClient(t, config.Config{})
-	client.SetUser(
-		&speedtest.User{IP: "203.0.113.7", Lat: "35.6812", Lon: "139.7671", Isp: "Example ISP"},
-	)
+	user := &speedtest.User{IP: "203.0.113.7", Lat: "35.6812", Lon: "139.7671", Isp: "Example ISP"}
 
-	plain := reportedUser(client.GetUser(), config.Config{})
-	assert.Same(t, client.GetUser(), plain, "without --mask-isp the user is reported as is")
+	plain := reportedUser(user, config.Config{})
+	assert.Same(t, user, plain, "without --mask-isp the user is reported as is")
 
-	masked := reportedUser(client.GetUser(), config.Config{MaskISP: true})
+	masked := reportedUser(user, config.Config{MaskISP: true})
 	assert.Equal(t, "***.*.***.* (Example ISP) [**.****, ***.****] ", masked.String())
-	assert.Equal(
-		t,
-		"203.0.113.7",
-		client.GetUser().IP,
-		"the client's user must keep its real address",
-	)
+	assert.Equal(t, "203.0.113.7", user.IP, "the given user must keep its real address")
 
 	assert.Nil(t, reportedUser(nil, config.Config{MaskISP: true}))
 }

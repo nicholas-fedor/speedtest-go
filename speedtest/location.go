@@ -3,11 +3,11 @@ package speedtest
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"math"
-	"os"
+	"slices"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 const (
@@ -33,8 +33,8 @@ type Location struct {
 	Lon  float64
 }
 
-// locations contains predefined location data for cities.
-var locations = map[string]*Location{
+// locations are the predefined city labels, keyed by lower-case label. Nothing changes them, so they need no lock.
+var locations = map[string]Location{
 	"brasilia":     {"brasilia", "br", -15.793876, -47.8835327},
 	"hongkong":     {"hongkong", "hk", 22.3106806, 114.1700546},
 	"tokyo":        {"tokyo", "jp", 35.680938, 139.7674114},
@@ -63,53 +63,56 @@ var locations = map[string]*Location{
 	"bangkok":      {"bangkok", "th", 13.7248936, 100.493026},
 }
 
-var locationsMu sync.RWMutex
+// Cities returns the predefined city labels that [GetLocation] accepts.
+//
+// Returns:
+//   - []Location: a copy of each predefined location, sorted by label.
+func Cities() []Location {
+	cities := slices.Collect(maps.Values(locations))
+	slices.SortFunc(cities, func(a, b Location) int { return strings.Compare(a.Name, b.Name) })
 
-// PrintCityList prints the list of available cities.
-func PrintCityList() {
-	_, _ = fmt.Fprintln(os.Stdout, "Available city labels (case insensitive): ")
-	_, _ = fmt.Fprintln(os.Stdout, " CC\t\tCityLabel\tLocation")
-
-	locationsMu.RLock()
-
-	for k, v := range locations {
-		_, _ = fmt.Fprintf(os.Stdout, "(%v)\t%20s\t[%v, %v]\n", v.CC, k, v.Lat, v.Lon)
-	}
-
-	locationsMu.RUnlock()
+	return cities
 }
 
-// GetLocation retrieves a location by name.
+// GetLocation returns a predefined city by its label.
+//
+// Parameters:
+//   - locationName: the label, in any case, such as "tokyo".
+//
+// Returns:
+//   - *Location: a copy of the city's location.
+//   - error: [ErrNotFoundLocation] for a label that is not predefined.
 func GetLocation(locationName string) (*Location, error) {
-	locationsMu.RLock()
-
 	loc, ok := locations[strings.ToLower(locationName)]
-
-	locationsMu.RUnlock()
-
-	if ok {
-		return loc, nil
+	if !ok {
+		return nil, ErrNotFoundLocation
 	}
 
-	return nil, ErrNotFoundLocation
+	return &loc, nil
 }
 
-// NewLocation new a Location.
+// NewLocation returns a location with a name and coordinates and no country code. It does not add a city label.
+//
+// Parameters:
+//   - locationName: the name.
+//   - latitude: the latitude in decimal degrees.
+//   - longitude: the longitude in decimal degrees.
+//
+// Returns:
+//   - *Location: the location.
 func NewLocation(locationName string, latitude, longitude float64) *Location {
-	var loc Location
-
-	loc.Lat = latitude
-	loc.Lon = longitude
-	loc.Name = locationName
-
-	locationsMu.Lock()
-	locations[locationName] = &loc
-	locationsMu.Unlock()
-
-	return &loc
+	return &Location{Name: locationName, Lat: latitude, Lon: longitude}
 }
 
-// ParseLocation parse latitude and longitude string.
+// ParseLocation returns a location at the coordinates in a "lat,lon" string, named "Custom-" and the given name.
+//
+// Parameters:
+//   - locationName: the name, or empty for "Custom-Default".
+//   - coordinateStr: the latitude and longitude, as [ParseCoordinates] accepts them.
+//
+// Returns:
+//   - *Location: the location.
+//   - error: the [ParseCoordinates] error.
 func ParseLocation(locationName, coordinateStr string) (*Location, error) {
 	lat, lon, err := ParseCoordinates(coordinateStr)
 	if err != nil {
@@ -123,7 +126,7 @@ func ParseLocation(locationName, coordinateStr string) (*Location, error) {
 	return NewLocation("Custom-"+locationName, lat, lon), nil
 }
 
-// ParseCoordinates parses a "lat,lon" pair without registering a location.
+// ParseCoordinates parses a "lat,lon" pair.
 //
 // Parameters:
 //   - text: the latitude and longitude in decimal degrees, separated by a comma, such as "60,-110".

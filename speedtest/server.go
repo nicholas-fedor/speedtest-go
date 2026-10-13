@@ -68,12 +68,6 @@ type TestDuration struct {
 	Total    *time.Duration `json:"total"`
 }
 
-// CustomServer use defaultClient, given a URL string, return a new Server object, with as much
-// filled in as we can.
-func CustomServer(host string) (*Server, error) {
-	return defaultClient.CustomServer(host)
-}
-
 // CustomServer given a URL string, return a new Server object, with as much
 // filled in as we can.
 func (s *Client) CustomServer(host string) (*Server, error) {
@@ -199,11 +193,6 @@ func (s *Client) FetchServerByID(serverID string) (*Server, error) {
 	return s.FetchServerByIDContext(context.Background(), serverID)
 }
 
-// FetchServerByID retrieves a server by given serverID.
-func FetchServerByID(serverID string) (*Server, error) {
-	return defaultClient.FetchServerByID(serverID)
-}
-
 // FetchServerByIDContext retrieves a server by given serverID, observing the given context.
 func (s *Client) FetchServerByIDContext(ctx context.Context, serverID string) (*Server, error) {
 	if s == nil {
@@ -219,7 +208,7 @@ func (s *Client) FetchServerByIDContext(ctx context.Context, serverID string) (*
 	query.Set(strings.ToLower("serverID"), serverID)
 	parsedURL.RawQuery = query.Encode()
 
-	// The response also describes the caller, whose coordinates set the server's distance.
+	// The response also describes the caller, whose coordinates set the server's distance unless a location is set.
 	cacheBust(parsedURL)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsedURL.String(), nil)
@@ -251,13 +240,24 @@ func (s *Client) FetchServerByIDContext(ctx context.Context, serverID string) (*
 	for serverIndex := range list.Servers {
 		if list.Servers[serverIndex].ID == serverID {
 			list.Servers[serverIndex].Context = s
-			if len(list.Users) > 0 {
-				sLat, _ := strconv.ParseFloat(list.Servers[serverIndex].Lat, 64)
-				sLon, _ := strconv.ParseFloat(list.Servers[serverIndex].Lon, 64)
-				uLat, _ := strconv.ParseFloat(list.Users[0].Lat, 64)
-				uLon, _ := strconv.ParseFloat(list.Users[0].Lon, 64)
-				list.Servers[serverIndex].Distance = distance(sLat, sLon, uLat, uLon)
+
+			// Distances are measured from the location set with WithLocation, as for the server list, and otherwise
+			// from the caller.
+			var originLat, originLon float64
+
+			switch {
+			case s.settings.location != nil:
+				originLat, originLon = s.settings.location.Lat, s.settings.location.Lon
+			case len(list.Users) > 0:
+				originLat, _ = strconv.ParseFloat(list.Users[0].Lat, 64)
+				originLon, _ = strconv.ParseFloat(list.Users[0].Lon, 64)
+			default:
+				return list.Servers[serverIndex], nil
 			}
+
+			sLat, _ := strconv.ParseFloat(list.Servers[serverIndex].Lat, 64)
+			sLon, _ := strconv.ParseFloat(list.Servers[serverIndex].Lon, 64)
+			list.Servers[serverIndex].Distance = distance(sLat, sLon, originLat, originLon)
 
 			return list.Servers[serverIndex], nil
 		}
@@ -309,11 +309,6 @@ func pingServers(ctx context.Context, servers Servers, pingMode Proto) {
 // FetchServers retrieves a list of available servers.
 func (s *Client) FetchServers() (Servers, error) {
 	return s.FetchServerListContext(context.Background())
-}
-
-// FetchServers retrieves a list of available servers.
-func FetchServers() (Servers, error) {
-	return defaultClient.FetchServers()
 }
 
 // buildServerListURL constructs the URL for fetching server list.
@@ -464,33 +459,28 @@ func (s *Client) FetchServerListContext(ctx context.Context) (Servers, error) {
 
 	pingServers(ctx, servers, s.settings.pingMode)
 
-	// Calculate distance
-	// If we don't call FetchUserInfo() before FetchServers(),
-	// we don't calculate the distance, instead we use the
-	// remote computing distance provided by Ookla as default.
-	if user := s.GetUser(); user != nil {
+	// speedtest.net reports each server's distance in whole kilometres from the point the list was requested for:
+	// the location set with WithLocation, or the caller's own. With a location, the distances are measured here to
+	// two decimals from the same point, which also fills them in for the alternative list, which has none.
+	if location := s.settings.location; location != nil {
 		for _, server := range servers {
-			sLat, _ := strconv.ParseFloat(server.Lat, 64)
-			sLon, _ := strconv.ParseFloat(server.Lon, 64)
-			uLat, _ := strconv.ParseFloat(user.Lat, 64)
-			uLon, _ := strconv.ParseFloat(user.Lon, 64)
-			server.Distance = distance(sLat, sLon, uLat, uLon)
+			serverLat, latErr := strconv.ParseFloat(server.Lat, 64)
+			serverLon, lonErr := strconv.ParseFloat(server.Lon, 64)
+
+			if latErr == nil && lonErr == nil {
+				server.Distance = distance(serverLat, serverLon, location.Lat, location.Lon)
+			}
 		}
 	}
 
-	// Sort by distance
-	sort.Sort(ByDistance{servers})
+	// Whole kilometres often tie, so a stable sort keeps speedtest.net's order among equally distant servers.
+	sort.Stable(ByDistance{servers})
 
 	if len(servers) == 0 {
 		return servers, ErrServerNotFound
 	}
 
 	return servers, nil
-}
-
-// FetchServerListContext retrieves a list of available servers, observing the given context.
-func FetchServerListContext(ctx context.Context) (Servers, error) {
-	return defaultClient.FetchServerListContext(ctx)
 }
 
 func distance(lat1, lon1, lat2, lon2 float64) float64 {

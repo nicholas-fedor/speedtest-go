@@ -59,8 +59,8 @@ func filterByCountry(
 	return filtered, codes, nil
 }
 
-// autoCountry returns the country auto stands for: the country of the --city label when one is set and has a
-// country, and otherwise the country speedtest.net reports for the user.
+// autoCountry returns the country auto stands for: the country of the --city label when one is set, and otherwise
+// the country speedtest.net reports for the user.
 //
 // Parameters:
 //   - client: the client, which looks up the user's country.
@@ -77,10 +77,7 @@ func autoCountry(client *speedtest.Client, cfg config.Config) (string, error) {
 			return "", fmt.Errorf("%w: --city %q: %w", errUnknownCountry, cfg.City, err)
 		}
 
-		// A label registered without a country, such as one built from coordinates, leaves the user's country.
-		if location.CC != "" {
-			return strings.ToUpper(location.CC), nil
-		}
+		return strings.ToUpper(location.CC), nil
 	}
 
 	user, err := client.FetchUserInfo()

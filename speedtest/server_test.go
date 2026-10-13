@@ -14,46 +14,6 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/testserver"
 )
 
-func TestCustomServer(t *testing.T) {
-	t.Parallel()
-
-	type args struct {
-		host string
-	}
-
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		{
-			name:    "valid host",
-			args:    args{host: "example.com"},
-			wantErr: false,
-		},
-		{
-			name:    "empty host",
-			args:    args{host: ""},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, err := CustomServer(tt.args.host)
-			if tt.wantErr {
-				require.Error(t, err)
-
-				return
-			}
-
-			require.NoError(t, err)
-			assert.NotNil(t, got)
-		})
-	}
-}
-
 func TestClient_CustomServer(t *testing.T) {
 	t.Parallel()
 
@@ -338,6 +298,22 @@ func TestClient_FetchServerByIDContext(t *testing.T) {
 		})
 	}
 
+	// The fake's user and server 1001 are both in Tokyo, so a distance of hundreds of kilometres shows that it was
+	// measured from the Osaka location.
+	t.Run("with a location measures from it", func(t *testing.T) {
+		t.Parallel()
+
+		api := testserver.NewAPI(t)
+		osaka, err := GetLocation("osaka")
+		require.NoError(t, err)
+
+		server, err := newTestClient(t, WithBaseURL(api.URL()), WithLocation(osaka)).
+			FetchServerByIDContext(context.Background(), "1001")
+		require.NoError(t, err)
+
+		assert.InDelta(t, 395, server.Distance, 15)
+	})
+
 	t.Run("nil client", func(t *testing.T) {
 		t.Parallel()
 
@@ -364,7 +340,7 @@ func TestClient_FetchServers(t *testing.T) {
 func TestClient_FetchServerListContext(t *testing.T) {
 	t.Parallel()
 
-	t.Run("without user info keeps the API distance", func(t *testing.T) {
+	t.Run("without a location keeps the API distance and order", func(t *testing.T) {
 		t.Parallel()
 
 		api := testserver.NewAPI(t)
@@ -372,38 +348,63 @@ func TestClient_FetchServerListContext(t *testing.T) {
 
 		servers, err := client.FetchServerListContext(context.Background())
 		require.NoError(t, err)
-		require.Len(t, servers, 2)
 
-		assert.ElementsMatch(t, []string{"1001", "1002"}, serverIDs(servers))
+		assert.Equal(
+			t,
+			[]string{"1002", "1001"},
+			serverIDs(servers),
+			"equal distances keep the listed order",
+		)
 
 		assertProbed(t, api, servers)
 
 		for _, server := range servers {
 			assert.Same(t, client, server.Context)
-			assert.Zero(t, server.Distance, "distance needs the user's location")
+			assert.Zero(t, server.Distance, "the fake reports no distance")
 		}
 	})
 
-	t.Run("with user info sorts by distance", func(t *testing.T) {
+	// The fake's user is in Tokyo, so measuring from Osaka proves the distances come from the location.
+	for _, tt := range []struct {
+		city string
+		want []string
+	}{
+		{city: "tokyo", want: []string{"1001", "1002"}},
+		{city: "osaka", want: []string{"1002", "1001"}},
+	} {
+		t.Run("with a location sorts by distance from "+tt.city, func(t *testing.T) {
+			t.Parallel()
+
+			api := testserver.NewAPI(t)
+			location, err := GetLocation(tt.city)
+			require.NoError(t, err)
+
+			servers, err := newTestClient(t, WithBaseURL(api.URL()), WithLocation(location)).
+				FetchServerListContext(context.Background())
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.want, serverIDs(servers))
+			assert.Less(t, servers[0].Distance, servers[1].Distance)
+			assert.Less(t, servers[0].Distance, 20.0, "the nearest server is in the same city")
+		})
+	}
+
+	t.Run("with a location measures the alternative list", func(t *testing.T) {
 		t.Parallel()
 
 		api := testserver.NewAPI(t)
-		client := newBaseURLClient(t, api.URL())
+		api.SetResponse(testserver.PathServers, testserver.Response{})
 
-		_, err := client.FetchUserInfoContext(context.Background())
+		location, err := GetLocation("tokyo")
 		require.NoError(t, err)
 
-		servers, err := client.FetchServerListContext(context.Background())
+		servers, err := newTestClient(t, WithBaseURL(api.URL()), WithLocation(location)).
+			FetchServerListContext(context.Background())
 		require.NoError(t, err)
-		require.Len(t, servers, 2)
+		require.True(t, api.Requested(testserver.PathServersStatic))
 
-		assert.Equal(
-			t,
-			[]string{"1001", "1002"},
-			serverIDs(servers),
-			"Tokyo is nearer to the Tokyo user",
-		)
-		assert.Less(t, servers[0].Distance, servers[1].Distance)
+		assert.Equal(t, []string{"1001", "1002"}, serverIDs(servers))
+		assert.Positive(t, servers[1].Distance)
 	})
 
 	t.Run("empty list", func(t *testing.T) {

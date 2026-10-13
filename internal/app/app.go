@@ -26,6 +26,8 @@ const (
 	echoInterval              = 500 * time.Millisecond
 	sleepAfterTests           = 30 * time.Second
 	percent                   = 100
+	// userInfoTimeout bounds the user info request, which the reports wait for.
+	userInfoTimeout = 30 * time.Second
 )
 
 // setupSpeedtestClient creates the speedtest client from the settings.
@@ -286,16 +288,17 @@ func runTest(
 func setCallback(
 	client *speedtest.Client,
 	isDownload bool,
+	unit speedtest.UnitType,
 	accEcho *echo.AccompanyEcho,
 	task *task.Task,
 ) {
 	if isDownload {
 		client.SetCallbackDownload(func(downRate speedtest.ByteRate) {
-			updateWithLatency(task, downRate, accEcho, "Download")
+			updateWithLatency(task, downRate, unit, accEcho, "Download")
 		})
 	} else {
 		client.SetCallbackUpload(func(upRate speedtest.ByteRate) {
-			updateWithLatency(task, upRate, accEcho, "Upload")
+			updateWithLatency(task, upRate, unit, accEcho, "Upload")
 		})
 	}
 }
@@ -304,17 +307,18 @@ func setCallback(
 func updateWithLatency(
 	task *task.Task,
 	rate speedtest.ByteRate,
+	unit speedtest.UnitType,
 	accEcho *echo.AccompanyEcho,
 	prefix string,
 ) {
 	currentLatency := accEcho.CurrentLatency()
 	if currentLatency == 0 {
 		task.Updatef("%s: %s (Latency: --)",
-			prefix, rate,
+			prefix, rate.Format(unit),
 		)
 	} else {
 		task.Updatef("%s: %s (Latency: %dms)",
-			prefix, rate, currentLatency/nanoToMilli,
+			prefix, rate.Format(unit), currentLatency/nanoToMilli,
 		)
 	}
 }
@@ -335,7 +339,7 @@ func runBandwidthTest(
 	taskManager.RunWithTrigger(trigger, taskName, func(task *task.Task) {
 		accEcho.Run()
 
-		setCallback(speedtestClient, isDownload, accEcho, task)
+		setCallback(speedtestClient, isDownload, cfg.Unit, accEcho, task)
 
 		runTest(server, cfg, task, isDownload, servers)
 
@@ -360,7 +364,7 @@ func runBandwidthTest(
 		task.Printf(
 			"%s: %s (%s) (Latency: %dms Jitter: %dms Min: %dms Max: %dms)",
 			taskName,
-			speed,
+			speed.Format(cfg.Unit),
 			used,
 			mean/nanoToMilli,
 			std/nanoToMilli,
@@ -471,9 +475,20 @@ func runServerTests(
 }
 
 // runTests performs the actual speed tests on the selected servers.
+//
+// Parameters:
+//   - speedtestClient: the client.
+//   - targets: the servers to test.
+//   - servers: the pool for --multi.
+//   - cfg: the settings.
+//   - taskManager: shows the progress.
+//   - user: waits for and returns the caller's information for the reports.
+//
+// Returns:
+//   - error: the error of writing a report.
 func runTests(
 	speedtestClient *speedtest.Client, targets, servers speedtest.Servers,
-	cfg config.Config, taskManager *task.Manager,
+	cfg config.Config, taskManager *task.Manager, user func() *speedtest.User,
 ) error {
 	// 3. test each selected server with ping, download and upload.
 	for _, server := range targets {
@@ -482,7 +497,6 @@ func runTests(
 
 	taskManager.Stop()
 
-	user := speedtestClient.GetUser()
 	now := time.Now()
 
 	jsonReport, jsonlReport := output.JSONReport, output.JSONLReport
@@ -491,7 +505,7 @@ func runTests(
 	}
 
 	if cfg.JSONOutput {
-		json, errMarshal := jsonReport(now, user, targets)
+		json, errMarshal := jsonReport(now, user(), targets)
 		if errMarshal != nil {
 			return fmt.Errorf("failed to marshal JSON: %w", errMarshal)
 		}
@@ -499,7 +513,7 @@ func runTests(
 		fmt.Fprintf(os.Stdout, "%s", json)
 	} else if cfg.JSONLOutput {
 		for _, server := range targets {
-			json, errMarshal := jsonlReport(now, user, server)
+			json, errMarshal := jsonlReport(now, user(), server)
 			if errMarshal != nil {
 				return fmt.Errorf(
 					"failed to marshal JSONL: %w",
@@ -521,7 +535,7 @@ func runTests(
 //   - cfg: the settings.
 //
 // Returns:
-//   - *speedtest.User: user, or a masked copy of it. The client's stored user is never changed.
+//   - *speedtest.User: user, or a masked copy of it. The given user is never changed.
 func reportedUser(user *speedtest.User, cfg config.Config) *speedtest.User {
 	if cfg.MaskISP {
 		return output.MaskUser(user)
@@ -566,14 +580,28 @@ func RunSpeedtest(cfg config.Config) error {
 		cfg.UnixOutput,
 	)
 
-	// Retrieve user information
+	// Retrieve user information while the servers are retrieved. The reports wait for it.
+	var (
+		user        *speedtest.User
+		userFetched sync.WaitGroup
+	)
+
+	userFetched.Add(1)
 	taskManager.AsyncRun(
 		"Retrieving User Information",
-		func(t *task.Task) {
-			u, err := speedtestClient.FetchUserInfo()
-			t.CheckError(err)
-			t.Printf("ISP: %s", reportedUser(u, cfg).String())
-			t.Complete()
+		func(userTask *task.Task) {
+			defer userFetched.Done()
+
+			ctx, cancel := context.WithTimeout(context.Background(), userInfoTimeout)
+			defer cancel()
+
+			u, err := speedtestClient.FetchUserInfoContext(ctx)
+			userTask.CheckError(err)
+
+			user = u
+
+			userTask.Printf("ISP: %s", reportedUser(u, cfg).String())
+			userTask.Complete()
 		},
 	)
 
@@ -587,5 +615,9 @@ func RunSpeedtest(cfg config.Config) error {
 	taskManager.Reset()
 
 	// Perform the test.
-	return runTests(speedtestClient, targets, servers, cfg, taskManager)
+	return runTests(speedtestClient, targets, servers, cfg, taskManager, func() *speedtest.User {
+		userFetched.Wait()
+
+		return user
+	})
 }

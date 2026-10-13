@@ -50,7 +50,10 @@ Latency: 22.1ms, Download: 42.89 Mbps, Upload: 11.98 Mbps
 The main logic is in the `main()` function:
 
 ```go
-serverList, _ := speedtest.FetchServers()
+speedtestClient, err := speedtest.New()
+checkError(err)
+
+serverList, _ := speedtestClient.FetchServers()
 targets, _ := serverList.FindServer([]int{})
 
 for _, s := range targets {
@@ -63,7 +66,7 @@ for _, s := range targets {
 }
 ```
 
-- `speedtest.FetchServers()` retrieves a list of available Speedtest servers.
+- `speedtest.New()` creates a client, and its `FetchServers()` method retrieves a list of available Speedtest servers.
 - `serverList.FindServer([]int{})` selects all servers since an empty slice is passed.
 - For each server, tests are run sequentially.
 - Speeds are reported in Mbps, latency in milliseconds.
@@ -72,11 +75,11 @@ for _, s := range targets {
 
 The code includes commented examples for additional configurations:
 
-- Fetch user information: `speedtest.FetchUserInfo()`
+- Fetch user information: `speedtestClient.FetchUserInfo()`
 - Choose servers near a city: `speedtest.New(speedtest.WithLocation(tokyo))`, with `tokyo` from `speedtest.GetLocation("tokyo")`
 - Choose servers near coordinates: `speedtest.ParseLocation("osaka", "34.69,135.50")` gives a location for `speedtest.WithLocation`
 - Send from an IP address or network interface: `speedtest.New(speedtest.WithSource("192.168.1.101"))`
-- Fetch specific server by ID: `speedtest.FetchServerByID("28910")`
+- Fetch specific server by ID: `speedtestClient.FetchServerByID("28910")`
 
 Uncomment and modify these lines as needed for more targeted testing.
 
