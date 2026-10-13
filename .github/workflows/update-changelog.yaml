@@ -10,8 +10,9 @@ on:
 permissions:
   contents: read # Set default read-only permissions
 
+# Every run updates the same docs/update-changelog branch, so runs share one group whatever ref started them.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}
   cancel-in-progress: true
 
 jobs:
