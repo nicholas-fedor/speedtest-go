@@ -69,6 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fix the container and library examples by @nicholas-fedor in [#487](https://github.com/nicholas-fedor/speedtest-go/pull/487)
 - Report download and upload speed from measured bytes by @nicholas-fedor in [#467](https://github.com/nicholas-fedor/speedtest-go/pull/467)
 - Resolve upload redirects before streaming by @nicholas-fedor in [#458](https://github.com/nicholas-fedor/speedtest-go/pull/458)
 - Count upload bytes only after the server confirms them by @nicholas-fedor in [#455](https://github.com/nicholas-fedor/speedtest-go/pull/455)
