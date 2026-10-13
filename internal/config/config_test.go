@@ -106,6 +106,7 @@ func TestLoadReadsViperState(t *testing.T) {
 	viper.Set("ping-mode", "icmp")
 	viper.Set("unit", "binary-bytes")
 	viper.Set("debug", true)
+	viper.Set("mask-isp", true)
 	viper.Set("base-url", "http://127.0.0.1:8080/mirror")
 
 	cfg, err := Load()
@@ -129,6 +130,7 @@ func TestLoadReadsViperState(t *testing.T) {
 	assert.Equal(t, speedtest.UnitTypeBinaryBytes, cfg.Unit)
 	assert.True(t, cfg.UnitSet)
 	assert.True(t, cfg.Debug)
+	assert.True(t, cfg.MaskISP)
 	assert.Equal(t, "http://127.0.0.1:8080/mirror", cfg.BaseURL)
 }
 

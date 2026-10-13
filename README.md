@@ -183,6 +183,7 @@ Flags:
       --json                Output results in json format.
       --jsonl               Output results in jsonl format (one json object per line).
       --location string     Change the location with a precise coordinate (format: lat,lon).
+      --mask-isp            Mask your IP address, coordinates, and distances to servers in all output.
   -m, --multi               Enable multi-server mode.
       --no-download         Disable download test.
       --no-upload           Disable upload test.
@@ -348,6 +349,15 @@ speedtest-go list --filter-cc gb,ie
 ```
 
 A filter that leaves no servers is an error. `--filter-cc` cannot be combined with `--server` or `--custom-url`, which already choose the servers.
+
+#### Hide your address in the output
+
+`--mask-isp` replaces the letters and digits of your IP address and coordinates with `*` wherever they appear: on the `ISP:` line, in `--unix` output, and in the `--json` and `--jsonl` reports. Separators stay, so `203.0.113.7` becomes `***.*.***.*`. Distances to servers are hidden too, since distances to servers at known coordinates would reveal where you are: they are masked on the `Test Server:` line and in `list`, and left out of the JSON reports. Your ISP name and country are still shown.
+
+```bash
+speedtest-go --mask-isp --json
+speedtest-go list --mask-isp
+```
 
 #### Test with a virtual location
 

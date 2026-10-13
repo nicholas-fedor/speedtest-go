@@ -51,6 +51,8 @@ type Config struct {
 	DownloadSize int
 	// UploadSize is the upload block size in kB from the library's size table, or 0 for the default.
 	UploadSize int
+	// MaskISP masks the user's IP address, coordinates, and distances to servers in every output.
+	MaskISP bool
 	// CountryCodes are the upper-case two-letter country codes servers must be in, with AUTO for the user's own
 	// country. Empty keeps every server.
 	CountryCodes []string
@@ -238,6 +240,7 @@ func Load() (Config, error) {
 		DownloadSize:  downloadSize,
 		UploadSize:    uploadSize,
 		CountryCodes:  countryCodes,
+		MaskISP:       viper.GetBool("mask-isp"),
 	}
 
 	if cfg.BaseURL != "" {
