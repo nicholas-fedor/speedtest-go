@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Merge clean changelog pull requests directly by @nicholas-fedor in [#489](https://github.com/nicholas-fedor/speedtest-go/pull/489)
 - Accept location flags on the speed test command by @nicholas-fedor in [#481](https://github.com/nicholas-fedor/speedtest-go/pull/481)
 - Filter servers by country code by @nicholas-fedor in [#477](https://github.com/nicholas-fedor/speedtest-go/pull/477)
 - Implement TCP download and upload transfers by @nicholas-fedor in [#469](https://github.com/nicholas-fedor/speedtest-go/pull/469)
