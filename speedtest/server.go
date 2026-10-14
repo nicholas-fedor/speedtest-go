@@ -242,6 +242,15 @@ func (s *Client) FetchServerByIDContext(ctx context.Context, serverID string) (*
 		if list.Servers[serverIndex].ID == serverID {
 			list.Servers[serverIndex].Context = s
 
+			// The lookup lists servers without the host that packet loss and TCP tests connect to, so it comes from
+			// the URL, with the port the server list would report.
+			if list.Servers[serverIndex].Host == "" {
+				host, hostErr := tcpHost(list.Servers[serverIndex])
+				if hostErr == nil {
+					list.Servers[serverIndex].Host = host
+				}
+			}
+
 			// Distances are measured from the location set with WithLocation, as for the server list, and otherwise
 			// from the caller.
 			var originLat, originLon float64
