@@ -424,15 +424,16 @@ func (api *API) writeServersJSON(w http.ResponseWriter) {
 	list := make([]wireServer, 0, len(api.servers))
 	for _, server := range api.servers {
 		list = append(list, wireServer{
-			URL:     api.ServerUploadURL(server.ID),
-			Lat:     server.Lat,
-			Lon:     server.Lon,
-			Name:    server.Name,
-			Country: server.Country,
-			CC:      server.CC,
-			Sponsor: server.Sponsor,
-			ID:      server.ID,
-			Host:    api.Host(),
+			URL:      api.ServerUploadURL(server.ID),
+			Lat:      server.Lat,
+			Lon:      server.Lon,
+			Name:     server.Name,
+			Country:  server.Country,
+			CC:       server.CC,
+			Sponsor:  server.Sponsor,
+			ID:       server.ID,
+			Host:     api.Host(),
+			Distance: server.Distance,
 		})
 	}
 

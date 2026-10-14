@@ -364,6 +364,52 @@ func TestClient_FetchServerListContext(t *testing.T) {
 		}
 	})
 
+	// speedtest.net reports whole kilometres, so equal distances are common. They keep the listed order.
+	t.Run(
+		"without a location keeps reported distances and orders ties as listed",
+		func(t *testing.T) {
+			t.Parallel()
+
+			listed := func(id string, distance int) testserver.Server {
+				return testserver.Server{
+					ID:       id,
+					Name:     "Tokyo",
+					Country:  "Japan",
+					CC:       "JP",
+					Sponsor:  "Example Networks",
+					Lat:      "35.6895",
+					Lon:      "139.6917",
+					Distance: distance,
+				}
+			}
+
+			api := testserver.NewAPI(
+				t,
+				testserver.WithServers(
+					listed("2001", 5),
+					listed("2002", 1),
+					listed("2003", 5),
+					listed("2004", 1),
+				),
+			)
+
+			servers, err := newBaseURLClient(
+				t,
+				api.URL(),
+			).FetchServerListContext(context.Background())
+			require.NoError(t, err)
+
+			assert.Equal(t, []string{"2002", "2004", "2001", "2003"}, serverIDs(servers))
+
+			distances := make([]float64, 0, len(servers))
+			for _, server := range servers {
+				distances = append(distances, server.Distance)
+			}
+
+			assert.Equal(t, []float64{1, 1, 5, 5}, distances)
+		},
+	)
+
 	// The fake's user is in Tokyo, so measuring from Osaka proves the distances come from the location.
 	for _, tt := range []struct {
 		city string
@@ -405,6 +451,28 @@ func TestClient_FetchServerListContext(t *testing.T) {
 
 		assert.Equal(t, []string{"1001", "1002"}, serverIDs(servers))
 		assert.Positive(t, servers[1].Distance)
+	})
+
+	// The alternative list has no distances, so a server that cannot be measured would otherwise rank first at 0 km.
+	t.Run("with a location ranks servers without coordinates last", func(t *testing.T) {
+		t.Parallel()
+
+		unplaced := testserver.DefaultServers()[0]
+		unplaced.ID = "3001"
+		unplaced.Lat = "?"
+
+		listed := append([]testserver.Server{unplaced}, testserver.DefaultServers()...)
+		api := testserver.NewAPI(t, testserver.WithServers(listed...))
+		api.SetResponse(testserver.PathServers, testserver.Response{})
+
+		location, err := GetLocation("tokyo")
+		require.NoError(t, err)
+
+		servers, err := newTestClient(t, WithBaseURL(api.URL()), WithLocation(location)).
+			FetchServerListContext(context.Background())
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{"1001", "1002", "3001"}, serverIDs(servers))
 	})
 
 	t.Run("empty list", func(t *testing.T) {

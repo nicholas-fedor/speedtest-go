@@ -1,6 +1,7 @@
 package speedtest
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"encoding/xml"
@@ -459,28 +460,58 @@ func (s *Client) FetchServerListContext(ctx context.Context) (Servers, error) {
 
 	pingServers(ctx, servers, s.settings.pingMode)
 
-	// speedtest.net reports each server's distance in whole kilometres from the point the list was requested for:
-	// the location set with WithLocation, or the caller's own. With a location, the distances are measured here to
-	// two decimals from the same point, which also fills them in for the alternative list, which has none.
-	if location := s.settings.location; location != nil {
-		for _, server := range servers {
-			serverLat, latErr := strconv.ParseFloat(server.Lat, 64)
-			serverLon, lonErr := strconv.ParseFloat(server.Lon, 64)
-
-			if latErr == nil && lonErr == nil {
-				server.Distance = distance(serverLat, serverLon, location.Lat, location.Lon)
-			}
-		}
-	}
-
-	// Whole kilometres often tie, so a stable sort keeps speedtest.net's order among equally distant servers.
-	sort.Stable(ByDistance{servers})
+	sortByDistance(servers, s.settings.location)
 
 	if len(servers) == 0 {
 		return servers, ErrServerNotFound
 	}
 
 	return servers, nil
+}
+
+// sortByDistance sorts servers by their distance from the point the list was requested for.
+//
+// speedtest.net reports each server's distance in whole kilometres from that point: the location set with
+// WithLocation, or the caller's own. With a location, the distances are measured here to two decimals from the
+// same point, which also fills them in for the alternative list, which has none. Servers whose coordinates do not
+// parse cannot be measured, so they follow the measured ones. Whole kilometres often tie, so the sort is stable and
+// keeps speedtest.net's order among equally distant servers.
+//
+// Parameters:
+//   - servers: the servers, sorted in place.
+//   - location: the location set with WithLocation, or nil.
+func sortByDistance(servers Servers, location *Location) {
+	if location == nil {
+		sort.Stable(ByDistance{servers})
+
+		return
+	}
+
+	unmeasured := make(map[*Server]bool)
+
+	for _, server := range servers {
+		serverLat, latErr := strconv.ParseFloat(server.Lat, 64)
+		serverLon, lonErr := strconv.ParseFloat(server.Lon, 64)
+
+		if latErr != nil || lonErr != nil {
+			unmeasured[server] = true
+
+			continue
+		}
+
+		server.Distance = distance(serverLat, serverLon, location.Lat, location.Lon)
+	}
+
+	slices.SortStableFunc(servers, func(first, second *Server) int {
+		switch {
+		case unmeasured[first] != unmeasured[second] && unmeasured[first]:
+			return 1
+		case unmeasured[first] != unmeasured[second]:
+			return -1
+		default:
+			return cmp.Compare(first.Distance, second.Distance)
+		}
+	})
 }
 
 func distance(lat1, lon1, lat2, lon2 float64) float64 {

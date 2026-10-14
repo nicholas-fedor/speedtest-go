@@ -37,6 +37,8 @@ type Server struct {
 	Lat string
 	// Lon is the server's longitude, as a decimal string.
 	Lon string
+	// Distance is the whole-kilometre distance the JSON server list reports, or 0 to leave it out.
+	Distance int
 }
 
 // wireServer is one server in the JSON server list.
@@ -61,6 +63,8 @@ type wireServer struct {
 	ID string `json:"id"`
 	// Host is the server's host and port.
 	Host string `json:"host"`
+	// Distance is the server's distance in whole kilometres, left out when 0.
+	Distance int `json:"distance,omitempty"`
 }
 
 // xmlServer is one server element in the XML server list and the server lookup.
