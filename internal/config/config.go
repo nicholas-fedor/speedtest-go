@@ -97,13 +97,13 @@ var (
 
 // Setup applies global side effects based on the configuration and returns
 // the resulting Config so callers receive any defaults applied here.
+//
+// Without a resolved unit, rates are shown in Mbps.
 func Setup(cfg Config) Config {
-	unit := speedtest.UnitTypeDefaultMbps
-	if cfg.UnitSet {
-		unit = cfg.Unit
+	if !cfg.UnitSet {
+		cfg.Unit = speedtest.UnitTypeDefaultMbps
+		cfg.UnitSet = true
 	}
-
-	speedtest.SetUnit(unit)
 
 	if cfg.SavingMode && !cfg.JSONOutput && !cfg.JSONLOutput && !cfg.UnixOutput {
 		cfg.UnixOutput = true

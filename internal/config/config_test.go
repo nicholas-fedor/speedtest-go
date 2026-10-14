@@ -630,38 +630,36 @@ func TestInitViperRejectsInvalidEnv(t *testing.T) {
 	assert.Contains(t, err.Error(), `--thread: "many" is not a whole number`)
 }
 
-// TestSetupUnit checks that Setup keeps an explicit decimal-bits unit, which is the zero UnitType, and uses the
-// default Mbps output only when no unit was resolved.
+// TestSetupUnit checks that Setup keeps an explicit decimal-bits unit, which is the zero UnitType, and resolves the
+// default Mbps unit only when no unit was resolved.
 //
-//nolint:paralleltest // Setup mutates the global unit and logger
+//nolint:paralleltest // Setup mutates the global logger
 func TestSetupUnit(t *testing.T) {
-	const rate = speedtest.ByteRate(125)
-
 	tests := []struct {
 		name string
-		want string
 		cfg  Config
+		want speedtest.UnitType
 	}{
-		{name: "unset", cfg: Config{}, want: "0.00 Mbps"},
+		{name: "unset", cfg: Config{}, want: speedtest.UnitTypeDefaultMbps},
 		{
 			name: "explicit decimal bits",
 			cfg:  Config{Unit: speedtest.UnitTypeDecimalBits, UnitSet: true},
-			want: rate.Byte(speedtest.UnitTypeDecimalBits),
+			want: speedtest.UnitTypeDecimalBits,
 		},
 		{
 			name: "explicit default",
 			cfg:  Config{Unit: speedtest.UnitTypeDefaultMbps, UnitSet: true},
-			want: "0.00 Mbps",
+			want: speedtest.UnitTypeDefaultMbps,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			snapshotLogger(t)
-			t.Cleanup(func() { speedtest.SetUnit(speedtest.UnitTypeDefaultMbps) })
 
-			Setup(tt.cfg)
+			cfg := Setup(tt.cfg)
 
-			assert.Equal(t, tt.want, rate.String())
+			assert.Equal(t, tt.want, cfg.Unit)
+			assert.True(t, cfg.UnitSet)
 		})
 	}
 }

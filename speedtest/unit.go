@@ -2,7 +2,6 @@ package speedtest
 
 import (
 	"strconv"
-	"sync"
 )
 
 // UnitType represents the type of unit for byte rate formatting.
@@ -17,23 +16,35 @@ const (
 	UnitTypeDefaultMbps                   // fixed
 )
 
-var (
-	// DecimalBitsUnits contains unit suffixes for decimal bit rates.
-	DecimalBitsUnits = []string{"bps", "Kbps", "Mbps", "Gbps"}
-	// DecimalBytesUnits contains unit suffixes for decimal byte rates.
-	DecimalBytesUnits = []string{"B/s", "KB/s", "MB/s", "GB/s"}
-	// BinaryBitsUnits contains unit suffixes for binary bit rates.
-	BinaryBitsUnits = []string{"Kibps", "KiMbps", "KiGbps"}
-	// BinaryBytesUnits contains unit suffixes for binary byte rates.
-	BinaryBytesUnits = []string{"KiB/s", "MiB/s", "GiB/s"}
-)
-
-var unitMaps = map[UnitType][]string{
-	UnitTypeDecimalBits:  DecimalBitsUnits,
-	UnitTypeDecimalBytes: DecimalBytesUnits,
-	UnitTypeBinaryBits:   BinaryBitsUnits,
-	UnitTypeBinaryBytes:  BinaryBytesUnits,
+// rateScale is a unit prefix that a scaled rate can be shown in.
+type rateScale struct {
+	// label is the unit, such as "Mbps".
+	label string
+	// size is the number of bits or bytes per second in one unit.
+	size float64
 }
+
+// Prefixed units of each scaled unit type, from the smallest to the largest.
+var (
+	// decimalBitScales are the SI bit rate units.
+	decimalBitScales = []rateScale{
+		{"bps", B},
+		{"Kbps", Kilobyte},
+		{"Mbps", Megabyte},
+		{"Gbps", Gigabyte},
+	}
+	// decimalByteScales are the SI byte rate units.
+	decimalByteScales = []rateScale{
+		{"B/s", B},
+		{"KB/s", Kilobyte},
+		{"MB/s", Megabyte},
+		{"GB/s", Gigabyte},
+	}
+	// binaryBitScales are the IEC bit rate units.
+	binaryBitScales = []rateScale{{"Kibps", KiB}, {"Mibps", MiB}, {"Gibps", GiB}}
+	// binaryByteScales are the IEC byte rate units.
+	binaryByteScales = []rateScale{{"KiB/s", KiB}, {"MiB/s", MiB}, {"GiB/s", GiB}}
+)
 
 const (
 	// B represents 1 byte in decimal units.
@@ -58,44 +69,51 @@ const (
 	StrZeroMbps = "0.00 Mbps"
 	// StrNotAvailable is the string representation for unavailable values.
 	StrNotAvailable = "N/A"
+
+	// bitsPerByte converts byte rates to bit rates.
+	bitsPerByte = 8
 )
 
 // ByteRate represents a byte rate value with formatting capabilities.
 type ByteRate float64
 
-var (
-	globalByteRateUnit UnitType
-	globalByteRateMu   sync.RWMutex
-)
-
+// String formats the rate in megabits per second, or as [StrNotAvailable] for -1.
+//
+// Returns:
+//   - string: the formatted rate, such as "723.10 Mbps".
 func (r ByteRate) String() string {
-	if r == 0 {
-		return StrZeroMbps
-	}
+	return r.Format(UnitTypeDefaultMbps)
+}
 
+// Format formats the rate in a unit.
+//
+// The scaled unit types pick the largest prefix that keeps the value at 1 or more, so 1.5 Gbps is never shown as
+// 1500 Mbps.
+//
+// Parameters:
+//   - unit: the unit type. An unknown one formats in megabits per second.
+//
+// Returns:
+//   - string: the formatted rate with two decimals and its unit, or [StrNotAvailable] for -1.
+func (r ByteRate) Format(unit UnitType) string {
 	if r == -1 {
 		return StrNotAvailable
 	}
 
-	globalByteRateMu.RLock()
-
-	unit := globalByteRateUnit
-
-	globalByteRateMu.RUnlock()
-
-	if unit != UnitTypeDefaultMbps {
-		return r.Byte(unit)
+	switch unit {
+	case UnitTypeDecimalBits:
+		return scaledRate(float64(r)*bitsPerByte, decimalBitScales)
+	case UnitTypeDecimalBytes:
+		return scaledRate(float64(r), decimalByteScales)
+	case UnitTypeBinaryBits:
+		return scaledRate(float64(r)*bitsPerByte, binaryBitScales)
+	case UnitTypeBinaryBytes:
+		return scaledRate(float64(r), binaryByteScales)
+	case UnitTypeDefaultMbps:
+		return strconv.FormatFloat(r.Mbps(), 'f', 2, 64) + " Mbps"
+	default:
+		return r.Format(UnitTypeDefaultMbps)
 	}
-
-	return strconv.FormatFloat(float64(r/125000.0), 'f', 2, 64) + " Mbps"
-}
-
-// SetUnit Set global output units.
-func SetUnit(unit UnitType) {
-	globalByteRateMu.Lock()
-	defer globalByteRateMu.Unlock()
-
-	globalByteRateUnit = unit
 }
 
 // Mbps returns the byte rate in megabits per second.
@@ -108,44 +126,22 @@ func (r ByteRate) Gbps() float64 {
 	return float64(r) / 125000000.0
 }
 
-// Byte Specifies the format output byte rate.
-func (r ByteRate) Byte(formatType UnitType) string {
-	if r == 0 {
-		return StrZeroMbps
-	}
+// scaledRate formats a rate in the largest unit it fills at least once.
+//
+// Parameters:
+//   - value: the rate in bits or bytes per second, matching scales.
+//   - scales: the units, from the smallest to the largest.
+//
+// Returns:
+//   - string: the formatted rate, in the smallest unit when it is below one of every unit.
+func scaledRate(value float64, scales []rateScale) string {
+	scale := scales[0]
 
-	if r == -1 {
-		return StrNotAvailable
-	}
-
-	return format(float64(r), formatType)
-}
-
-func format(byteRate float64, unitType UnitType) string {
-	val := byteRate
-	if unitType%2 == 0 {
-		val *= 8
-	}
-
-	if unitType < UnitTypeBinaryBits {
-		switch {
-		case byteRate >= Gigabyte:
-			return strconv.FormatFloat(val/Gigabyte, 'f', 2, 64) + " " + unitMaps[unitType][3]
-		case byteRate >= Megabyte:
-			return strconv.FormatFloat(val/Megabyte, 'f', 2, 64) + " " + unitMaps[unitType][2]
-		case byteRate >= Kilobyte:
-			return strconv.FormatFloat(val/Kilobyte, 'f', 2, 64) + " " + unitMaps[unitType][1]
-		default:
-			return strconv.FormatFloat(val/B, 'f', 2, 64) + " " + unitMaps[unitType][0]
+	for _, candidate := range scales[1:] {
+		if value >= candidate.size {
+			scale = candidate
 		}
 	}
 
-	switch {
-	case byteRate >= GiB:
-		return strconv.FormatFloat(val/GiB, 'f', 2, 64) + " " + unitMaps[unitType][2]
-	case byteRate >= MiB:
-		return strconv.FormatFloat(val/MiB, 'f', 2, 64) + " " + unitMaps[unitType][1]
-	default:
-		return strconv.FormatFloat(val/KiB, 'f', 2, 64) + " " + unitMaps[unitType][0]
-	}
+	return strconv.FormatFloat(value/scale.size, 'f', 2, 64) + " " + scale.label
 }

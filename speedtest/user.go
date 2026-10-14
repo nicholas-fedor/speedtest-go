@@ -30,17 +30,13 @@ type Users struct {
 	Users []User `xml:"client"`
 }
 
-// FetchUserInfo returns information about caller determined by speedtest.net.
+// FetchUserInfo returns information about the caller determined by speedtest.net. The client does not keep it.
 func (s *Client) FetchUserInfo() (*User, error) {
 	return s.FetchUserInfoContext(context.Background())
 }
 
-// FetchUserInfo returns information about caller determined by speedtest.net.
-func FetchUserInfo() (*User, error) {
-	return defaultClient.FetchUserInfo()
-}
-
-// FetchUserInfoContext returns information about caller determined by speedtest.net, observing the given context.
+// FetchUserInfoContext returns information about the caller determined by speedtest.net, observing the given
+// context. The client does not keep it.
 func (s *Client) FetchUserInfoContext(ctx context.Context) (*User, error) {
 	if s == nil {
 		return nil, ErrInstanceNil
@@ -86,14 +82,9 @@ func (s *Client) FetchUserInfoContext(ctx context.Context) (*User, error) {
 		return nil, ErrFetchUserInfo
 	}
 
-	s.SetUser(&users.Users[0])
+	user := users.Users[0]
 
-	return s.GetUser(), nil
-}
-
-// FetchUserInfoContext returns information about caller determined by speedtest.net, observing the given context.
-func FetchUserInfoContext(ctx context.Context) (*User, error) {
-	return defaultClient.FetchUserInfoContext(ctx)
+	return &user, nil
 }
 
 // String representation of User.

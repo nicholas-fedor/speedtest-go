@@ -6,76 +6,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestByteRate_String checks that String formats in megabits per second, and -1 as not available.
 func TestByteRate_String(t *testing.T) {
 	t.Parallel()
 
-	// Reset global unit to default to ensure consistent test behavior
-	// when tests run in parallel with TestSetUnit
-	SetUnit(UnitTypeDecimalBits)
-
-	tests := []struct {
-		name string
-		r    ByteRate
-		want string
-	}{
-		{
-			name: "zero byte rate",
-			r:    0,
-			want: "0.00 Mbps",
-		},
-		{
-			name: "negative one byte rate",
-			r:    -1,
-			want: "N/A",
-		},
-		{
-			name: "normal byte rate",
-			r:    125000,         // 1 Mbps
-			want: "1000.00 Kbps", // Uses global unit (UnitTypeDecimalBits by default)
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := tt.r.Byte(UnitTypeDecimalBits)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestSetUnit(t *testing.T) {
-	t.Parallel()
-
-	type args struct {
-		unit UnitType
-	}
-
-	tests := []struct {
-		name string
-		args args
-	}{
-		{
-			name: "set decimal bits unit",
-			args: args{unit: UnitTypeDecimalBits},
-		},
-		{
-			name: "set binary bytes unit",
-			args: args{unit: UnitTypeBinaryBytes},
-		},
-		{
-			name: "set default Mbps unit",
-			args: args{unit: UnitTypeDefaultMbps},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			SetUnit(tt.args.unit)
-			// Test passes if no panic
-		})
-	}
+	assert.Equal(t, "0.00 Mbps", ByteRate(0).String())
+	assert.Equal(t, "N/A", ByteRate(-1).String())
+	assert.Equal(t, "1.00 Mbps", ByteRate(125000).String())
+	assert.Equal(t, "2500.00 Mbps", ByteRate(312500000).String())
 }
 
 func TestByteRate_Mbps(t *testing.T) {
@@ -146,94 +84,62 @@ func TestByteRate_Gbps(t *testing.T) {
 	}
 }
 
-func TestByteRate_Byte(t *testing.T) {
+// TestByteRate_Format checks every unit type at zero, not available, and rates that need each prefix.
+func TestByteRate_Format(t *testing.T) {
 	t.Parallel()
-
-	type args struct {
-		formatType UnitType
-	}
 
 	tests := []struct {
 		name string
-		r    ByteRate
-		args args
 		want string
+		rate ByteRate
+		unit UnitType
 	}{
+		{name: "Mbps zero", rate: 0, unit: UnitTypeDefaultMbps, want: "0.00 Mbps"},
+		{name: "Mbps not available", rate: -1, unit: UnitTypeDefaultMbps, want: "N/A"},
 		{
-			name: "zero byte rate",
-			r:    0,
-			args: args{formatType: UnitTypeDecimalBytes},
-			want: "0.00 Mbps",
+			name: "Mbps fixed above a gigabit",
+			rate: 312500000,
+			unit: UnitTypeDefaultMbps,
+			want: "2500.00 Mbps",
 		},
+		{name: "unknown unit uses Mbps", rate: 125000, unit: UnitType(99), want: "1.00 Mbps"},
+		{name: "decimal bits zero", rate: 0, unit: UnitTypeDecimalBits, want: "0.00 bps"},
+		{name: "decimal bits not available", rate: -1, unit: UnitTypeDecimalBits, want: "N/A"},
+		{name: "decimal bits bps", rate: 100, unit: UnitTypeDecimalBits, want: "800.00 bps"},
+		{name: "decimal bits Kbps", rate: 1500, unit: UnitTypeDecimalBits, want: "12.00 Kbps"},
+		{name: "decimal bits Mbps", rate: 125000, unit: UnitTypeDecimalBits, want: "1.00 Mbps"},
+		{name: "decimal bits Gbps", rate: 312500000, unit: UnitTypeDecimalBits, want: "2.50 Gbps"},
+		{name: "decimal bytes zero", rate: 0, unit: UnitTypeDecimalBytes, want: "0.00 B/s"},
+		{name: "decimal bytes B/s", rate: 999, unit: UnitTypeDecimalBytes, want: "999.00 B/s"},
+		{name: "decimal bytes KB/s", rate: 1500, unit: UnitTypeDecimalBytes, want: "1.50 KB/s"},
+		{name: "decimal bytes MB/s", rate: 1000000, unit: UnitTypeDecimalBytes, want: "1.00 MB/s"},
 		{
-			name: "negative one byte rate",
-			r:    -1,
-			args: args{formatType: UnitTypeDecimalBytes},
-			want: "N/A",
+			name: "decimal bytes GB/s",
+			rate: 2000000000,
+			unit: UnitTypeDecimalBytes,
+			want: "2.00 GB/s",
 		},
+		{name: "binary bits zero", rate: 0, unit: UnitTypeBinaryBits, want: "0.00 Kibps"},
+		{name: "binary bits not available", rate: -1, unit: UnitTypeBinaryBits, want: "N/A"},
+		{name: "binary bits Kibps", rate: 1024, unit: UnitTypeBinaryBits, want: "8.00 Kibps"},
+		{name: "binary bits Mibps", rate: 131072, unit: UnitTypeBinaryBits, want: "1.00 Mibps"},
+		{name: "binary bits Gibps", rate: 134217728, unit: UnitTypeBinaryBits, want: "1.00 Gibps"},
+		{name: "binary bytes zero", rate: 0, unit: UnitTypeBinaryBytes, want: "0.00 KiB/s"},
+		{name: "binary bytes KiB/s", rate: 1536, unit: UnitTypeBinaryBytes, want: "1.50 KiB/s"},
+		{name: "binary bytes MiB/s", rate: 1048576, unit: UnitTypeBinaryBytes, want: "1.00 MiB/s"},
 		{
-			name: "decimal bytes format",
-			r:    1000000, // 1 MB/s
-			args: args{formatType: UnitTypeDecimalBytes},
-			want: "1.00 MB/s",
-		},
-		{
-			name: "binary bytes format",
-			r:    1048576, // 1 MiB/s
-			args: args{formatType: UnitTypeBinaryBytes},
-			want: "1.00 MiB/s",
+			name: "binary bytes GiB/s",
+			rate: 1073741824,
+			unit: UnitTypeBinaryBytes,
+			want: "1.00 GiB/s",
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := tt.r.Byte(tt.args.formatType)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func Test_format(t *testing.T) {
-	t.Parallel()
-
-	type args struct {
-		byteRate float64
-		i        UnitType
-	}
-
-	tests := []struct {
-		name string
-		args args
-		want string
-	}{
-		{
-			name: "decimal bytes - KB",
-			args: args{byteRate: 1500, i: UnitTypeDecimalBytes},
-			want: "1.50 KB/s",
-		},
-		{
-			name: "decimal bits - Kbps",
-			args: args{byteRate: 125000, i: UnitTypeDecimalBits},
-			want: "1000.00 Kbps",
-		},
-		{
-			name: "binary bytes - KiB",
-			args: args{byteRate: 1536, i: UnitTypeBinaryBytes},
-			want: "1.50 KiB/s",
-		},
-		{
-			name: "binary bits - Kibps",
-			args: args{byteRate: 1024, i: UnitTypeBinaryBits},
-			want: "8.00 Kibps",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := format(tt.args.byteRate, tt.args.i)
-			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.want, tt.rate.Format(tt.unit))
 		})
 	}
 }

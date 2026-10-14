@@ -1,6 +1,7 @@
 package speedtest
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"encoding/xml"
@@ -66,12 +67,6 @@ type TestDuration struct {
 	Download *time.Duration `json:"download"`
 	Upload   *time.Duration `json:"upload"`
 	Total    *time.Duration `json:"total"`
-}
-
-// CustomServer use defaultClient, given a URL string, return a new Server object, with as much
-// filled in as we can.
-func CustomServer(host string) (*Server, error) {
-	return defaultClient.CustomServer(host)
 }
 
 // CustomServer given a URL string, return a new Server object, with as much
@@ -199,11 +194,6 @@ func (s *Client) FetchServerByID(serverID string) (*Server, error) {
 	return s.FetchServerByIDContext(context.Background(), serverID)
 }
 
-// FetchServerByID retrieves a server by given serverID.
-func FetchServerByID(serverID string) (*Server, error) {
-	return defaultClient.FetchServerByID(serverID)
-}
-
 // FetchServerByIDContext retrieves a server by given serverID, observing the given context.
 func (s *Client) FetchServerByIDContext(ctx context.Context, serverID string) (*Server, error) {
 	if s == nil {
@@ -219,7 +209,7 @@ func (s *Client) FetchServerByIDContext(ctx context.Context, serverID string) (*
 	query.Set(strings.ToLower("serverID"), serverID)
 	parsedURL.RawQuery = query.Encode()
 
-	// The response also describes the caller, whose coordinates set the server's distance.
+	// The response also describes the caller, whose coordinates set the server's distance unless a location is set.
 	cacheBust(parsedURL)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsedURL.String(), nil)
@@ -251,13 +241,24 @@ func (s *Client) FetchServerByIDContext(ctx context.Context, serverID string) (*
 	for serverIndex := range list.Servers {
 		if list.Servers[serverIndex].ID == serverID {
 			list.Servers[serverIndex].Context = s
-			if len(list.Users) > 0 {
-				sLat, _ := strconv.ParseFloat(list.Servers[serverIndex].Lat, 64)
-				sLon, _ := strconv.ParseFloat(list.Servers[serverIndex].Lon, 64)
-				uLat, _ := strconv.ParseFloat(list.Users[0].Lat, 64)
-				uLon, _ := strconv.ParseFloat(list.Users[0].Lon, 64)
-				list.Servers[serverIndex].Distance = distance(sLat, sLon, uLat, uLon)
+
+			// Distances are measured from the location set with WithLocation, as for the server list, and otherwise
+			// from the caller.
+			var originLat, originLon float64
+
+			switch {
+			case s.settings.location != nil:
+				originLat, originLon = s.settings.location.Lat, s.settings.location.Lon
+			case len(list.Users) > 0:
+				originLat, _ = strconv.ParseFloat(list.Users[0].Lat, 64)
+				originLon, _ = strconv.ParseFloat(list.Users[0].Lon, 64)
+			default:
+				return list.Servers[serverIndex], nil
 			}
+
+			sLat, _ := strconv.ParseFloat(list.Servers[serverIndex].Lat, 64)
+			sLon, _ := strconv.ParseFloat(list.Servers[serverIndex].Lon, 64)
+			list.Servers[serverIndex].Distance = distance(sLat, sLon, originLat, originLon)
 
 			return list.Servers[serverIndex], nil
 		}
@@ -309,11 +310,6 @@ func pingServers(ctx context.Context, servers Servers, pingMode Proto) {
 // FetchServers retrieves a list of available servers.
 func (s *Client) FetchServers() (Servers, error) {
 	return s.FetchServerListContext(context.Background())
-}
-
-// FetchServers retrieves a list of available servers.
-func FetchServers() (Servers, error) {
-	return defaultClient.FetchServers()
 }
 
 // buildServerListURL constructs the URL for fetching server list.
@@ -464,22 +460,7 @@ func (s *Client) FetchServerListContext(ctx context.Context) (Servers, error) {
 
 	pingServers(ctx, servers, s.settings.pingMode)
 
-	// Calculate distance
-	// If we don't call FetchUserInfo() before FetchServers(),
-	// we don't calculate the distance, instead we use the
-	// remote computing distance provided by Ookla as default.
-	if user := s.GetUser(); user != nil {
-		for _, server := range servers {
-			sLat, _ := strconv.ParseFloat(server.Lat, 64)
-			sLon, _ := strconv.ParseFloat(server.Lon, 64)
-			uLat, _ := strconv.ParseFloat(user.Lat, 64)
-			uLon, _ := strconv.ParseFloat(user.Lon, 64)
-			server.Distance = distance(sLat, sLon, uLat, uLon)
-		}
-	}
-
-	// Sort by distance
-	sort.Sort(ByDistance{servers})
+	sortByDistance(servers, s.settings.location)
 
 	if len(servers) == 0 {
 		return servers, ErrServerNotFound
@@ -488,9 +469,49 @@ func (s *Client) FetchServerListContext(ctx context.Context) (Servers, error) {
 	return servers, nil
 }
 
-// FetchServerListContext retrieves a list of available servers, observing the given context.
-func FetchServerListContext(ctx context.Context) (Servers, error) {
-	return defaultClient.FetchServerListContext(ctx)
+// sortByDistance sorts servers by their distance from the point the list was requested for.
+//
+// speedtest.net reports each server's distance in whole kilometres from that point: the location set with
+// WithLocation, or the caller's own. With a location, the distances are measured here to two decimals from the
+// same point, which also fills them in for the alternative list, which has none. Servers whose coordinates do not
+// parse cannot be measured, so they follow the measured ones. Whole kilometres often tie, so the sort is stable and
+// keeps speedtest.net's order among equally distant servers.
+//
+// Parameters:
+//   - servers: the servers, sorted in place.
+//   - location: the location set with WithLocation, or nil.
+func sortByDistance(servers Servers, location *Location) {
+	if location == nil {
+		sort.Stable(ByDistance{servers})
+
+		return
+	}
+
+	unmeasured := make(map[*Server]bool)
+
+	for _, server := range servers {
+		serverLat, latErr := strconv.ParseFloat(server.Lat, 64)
+		serverLon, lonErr := strconv.ParseFloat(server.Lon, 64)
+
+		if latErr != nil || lonErr != nil {
+			unmeasured[server] = true
+
+			continue
+		}
+
+		server.Distance = distance(serverLat, serverLon, location.Lat, location.Lon)
+	}
+
+	slices.SortStableFunc(servers, func(first, second *Server) int {
+		switch {
+		case unmeasured[first] != unmeasured[second] && unmeasured[first]:
+			return 1
+		case unmeasured[first] != unmeasured[second]:
+			return -1
+		default:
+			return cmp.Compare(first.Distance, second.Distance)
+		}
+	})
 }
 
 func distance(lat1, lon1, lat2, lon2 float64) float64 {

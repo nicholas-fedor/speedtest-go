@@ -40,7 +40,10 @@ The main functionality is contained in the `main()` function:
 ```go
 func main() {
     // 0. Fetching servers
-    serverList, err := speedtest.FetchServers()
+    speedtestClient, err := speedtest.New()
+    checkError(err)
+
+    serverList, err := speedtestClient.FetchServers()
     checkError(err)
 
     // 1. Retrieve available servers

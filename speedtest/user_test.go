@@ -97,14 +97,13 @@ func TestClient_FetchUserInfoContext(t *testing.T) {
 			switch {
 			case tt.wantErr != nil:
 				require.ErrorIs(t, err, tt.wantErr)
-				assert.Nil(t, client.GetUser(), "a failed fetch must not store a user")
+				assert.Nil(t, got)
 			case tt.anyErr:
 				require.Error(t, err)
-				assert.Nil(t, client.GetUser(), "a failed fetch must not store a user")
+				assert.Nil(t, got)
 			default:
 				require.NoError(t, err)
 				assert.Equal(t, tt.want, got)
-				assert.Equal(t, tt.want, client.GetUser())
 			}
 		})
 	}

@@ -33,7 +33,10 @@ The main functionality is contained in the `main()` function:
 
 ```go
 func main() {
-    serverList, _ := speedtest.FetchServers()
+    speedtestClient, err := speedtest.New()
+    checkError(err)
+
+    serverList, _ := speedtestClient.FetchServers()
     targets, _ := serverList.FindServer([]int{})
 
     if len(targets) > 0 {

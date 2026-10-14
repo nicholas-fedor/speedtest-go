@@ -9,7 +9,6 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -47,9 +46,6 @@ const (
 type Client struct {
 	Manager
 
-	// User is the caller's information from the last user info request. Use GetUser and SetUser to access it.
-	User *User
-
 	// doer sends HTTP requests.
 	doer *http.Client
 	// transport is the client's HTTP transport, built from its settings.
@@ -62,9 +58,6 @@ type Client struct {
 	ipDialer *net.Dialer
 	// settings is the configuration the client was built from.
 	settings settings
-
-	// userMu guards User.
-	userMu sync.RWMutex
 }
 
 // Network timeouts used by the dialers and the HTTP transport.
@@ -376,25 +369,6 @@ func usableModuleVersion(raw string) string {
 	}
 
 	return normalizeVersion(raw)
-}
-
-// defaultClient serves the package-level functions. Default settings are always valid, so it is built directly.
-var defaultClient = newClient(defaultSettings())
-
-// GetUser returns the user information in a thread-safe manner.
-func (s *Client) GetUser() *User {
-	s.userMu.RLock()
-	defer s.userMu.RUnlock()
-
-	return s.User
-}
-
-// SetUser sets the user information in a thread-safe manner.
-func (s *Client) SetUser(u *User) {
-	s.userMu.Lock()
-	defer s.userMu.Unlock()
-
-	s.User = u
 }
 
 // logSettings records the client's settings as a debug message.
