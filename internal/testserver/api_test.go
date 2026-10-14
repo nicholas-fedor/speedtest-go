@@ -385,7 +385,15 @@ func TestAPI_Options(t *testing.T) {
 
 	api := NewAPI(t, WithUser(user), WithServers(server))
 
-	got := do(t, http.MethodGet, api.URL()+PathServerLookup+"?serverid=7", "")
+	got := do(t, http.MethodGet, api.URL()+PathServersStatic, "")
+
+	var list xmlSettings
+	require.NoError(t, xml.Unmarshal(got.body, &list))
+	require.Len(t, list.Servers, 1)
+	assert.Equal(t, "London", list.Servers[0].Name)
+	assert.Equal(t, "GB", list.Servers[0].CC)
+
+	got = do(t, http.MethodGet, api.URL()+PathServerLookup+"?serverid=7", "")
 
 	var doc xmlSettings
 	require.NoError(t, xml.Unmarshal(got.body, &doc))
@@ -393,7 +401,27 @@ func TestAPI_Options(t *testing.T) {
 	assert.Equal(t, toXMLClient(user), doc.Client)
 	require.Len(t, doc.Servers, 1)
 	assert.Equal(t, "London", doc.Servers[0].Name)
-	assert.Equal(t, "GB", doc.Servers[0].CC)
+}
+
+// TestAPI_LookupLeavesOutHost checks that, like speedtest.net's lookup, a lookup by ID describes the server without
+// its host, country, or country code, while the XML list keeps them.
+func TestAPI_LookupLeavesOutHost(t *testing.T) {
+	t.Parallel()
+
+	api := NewAPI(t)
+
+	body := string(do(t, http.MethodGet, api.URL()+PathServerLookup+"?serverid=1001", "").body)
+	_, lookup, found := strings.Cut(body, "<server ")
+	require.True(t, found, "the lookup must list the server")
+
+	assert.Contains(t, lookup, `id="1001"`)
+	assert.NotContains(t, lookup, "host=")
+	assert.NotContains(t, lookup, "country=")
+	assert.NotContains(t, lookup, "cc=")
+
+	list := string(do(t, http.MethodGet, api.URL()+PathServersStatic, "").body)
+	assert.Contains(t, list, `host="`+api.Host()+`"`)
+	assert.Contains(t, list, `cc="JP"`)
 }
 
 // TestAPI_WithServerHost checks that listed servers report the configured host while their URLs stay on the HTTP fake.

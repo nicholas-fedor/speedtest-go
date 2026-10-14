@@ -289,6 +289,12 @@ func TestClient_FetchServerByIDContext(t *testing.T) {
 				assert.Equal(t, tt.id, server.ID)
 				assert.Equal(t, api.ServerUploadURL(tt.id), server.URL)
 				assert.Same(t, client, server.Context)
+				assert.Equal(
+					t,
+					api.Host(),
+					server.Host,
+					"the lookup has no host, so it comes from the URL",
+				)
 				assert.Positive(
 					t,
 					server.Distance,
@@ -903,8 +909,8 @@ func TestServers_FilterCountry(t *testing.T) {
 	assert.Empty(t, servers.FilterCountry())
 }
 
-// TestServerCountryCode checks that servers keep their country code from the JSON list, the XML list, and a lookup
-// by ID.
+// TestServerCountryCode checks that servers keep their country code from the JSON list and the XML list. A lookup by
+// ID has none to keep.
 func TestServerCountryCode(t *testing.T) {
 	t.Parallel()
 
@@ -941,15 +947,6 @@ func TestServerCountryCode(t *testing.T) {
 		for _, server := range servers {
 			assert.Equal(t, "JP", server.CC)
 		}
-	})
-
-	t.Run("lookup by ID", func(t *testing.T) {
-		t.Parallel()
-
-		server, err := newBaseURLClient(t, testserver.NewAPI(t).URL()).
-			FetchServerByIDContext(context.Background(), "1001")
-		require.NoError(t, err)
-		assert.Equal(t, "JP", server.CC)
 	})
 }
 

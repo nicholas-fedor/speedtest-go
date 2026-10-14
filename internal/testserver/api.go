@@ -449,19 +449,21 @@ func (api *API) writeServersJSON(w http.ResponseWriter) {
 
 // xmlServers converts the server list to XML elements.
 //
+// Like speedtest.net's lookup, a lookup by ID describes the server without its host, country, or country code.
+//
 // Parameters:
-//   - id: when not empty, only the server with this ID is included.
+//   - lookupID: when not empty, only the server with this ID is included, as a lookup describes it.
 //
 // Returns:
 //   - []xmlServer: the server elements.
-func (api *API) xmlServers(id string) []xmlServer {
+func (api *API) xmlServers(lookupID string) []xmlServer {
 	servers := make([]xmlServer, 0, len(api.servers))
 	for _, server := range api.servers {
-		if id != "" && server.ID != id {
+		if lookupID != "" && server.ID != lookupID {
 			continue
 		}
 
-		servers = append(servers, xmlServer{
+		element := xmlServer{
 			URL:     api.ServerUploadURL(server.ID),
 			Lat:     server.Lat,
 			Lon:     server.Lon,
@@ -471,7 +473,13 @@ func (api *API) xmlServers(id string) []xmlServer {
 			Sponsor: server.Sponsor,
 			ID:      server.ID,
 			Host:    api.Host(),
-		})
+		}
+
+		if lookupID != "" {
+			element.Country, element.CC, element.Host = "", "", ""
+		}
+
+		servers = append(servers, element)
 	}
 
 	return servers

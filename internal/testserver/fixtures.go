@@ -77,16 +77,16 @@ type xmlServer struct {
 	Lon string `xml:"lon,attr"`
 	// Name is the server's city name.
 	Name string `xml:"name,attr"`
-	// Country is the server's country name.
-	Country string `xml:"country,attr"`
-	// CC is the server's country code.
-	CC string `xml:"cc,attr"`
+	// Country is the server's country name, left out of the server lookup.
+	Country string `xml:"country,attr,omitempty"`
+	// CC is the server's country code, left out of the server lookup.
+	CC string `xml:"cc,attr,omitempty"`
 	// Sponsor is the organization that hosts the server.
 	Sponsor string `xml:"sponsor,attr"`
 	// ID is the server's identifier.
 	ID string `xml:"id,attr"`
-	// Host is the server's host and port.
-	Host string `xml:"host,attr"`
+	// Host is the server's host and port, left out of the server lookup.
+	Host string `xml:"host,attr,omitempty"`
 }
 
 // xmlClient is the client element that carries the caller's details.
