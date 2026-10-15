@@ -21,8 +21,6 @@
 //   - Client: The main client structure that manages speedtest operations
 //   - Server: Represents a speedtest server with properties like URL, location, latency, speeds, and packet loss
 //   - User: Contains user information including IP, ISP, and coordinates
-//   - Manager/DataManager: Handles data collection and rate calculations during tests
-//   - Chunk: Manages individual data transfer chunks with rate and duration tracking
 //   - ByteRate: Represents data transfer rates with flexible unit formatting (bps, Kbps, Mbps, etc.)
 //
 // ## Main Functions
@@ -33,6 +31,8 @@
 //   - JSON() and JSONL(): Marshal results with the user information
 //   - ByteRate.Format(): Formats a rate in a chosen unit
 //   - Cities(): Lists the predefined city labels for GetLocation
+//   - Client.SetCallbackDownload() and Client.SetCallbackUpload(): Report the live rate during a test
+//   - Client.GetTotalDownload(), Client.GetTotalUpload(), and Client.Reset(): Read and clear the transfer totals
 //   - Server.PingTest(): Measures latency to a server
 //   - Server.DownloadTest(): Performs download speed test
 //   - Server.UploadTest(): Performs upload speed test
@@ -50,7 +50,8 @@
 // # Subpackages
 //
 //   - transport: Implements TCP and UDP transport layers for low-level network operations
-//   - internal: Provides Welford's algorithm for online statistical calculations
+//   - internal/meter: Runs the transfer workers and measures their rates
+//   - internal/welford: Provides Welford's algorithm for online statistical calculations
 //
 // # Dependencies
 //

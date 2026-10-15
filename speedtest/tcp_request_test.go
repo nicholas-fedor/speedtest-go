@@ -190,15 +190,15 @@ func Test_tcpUploadRequest(t *testing.T) {
 	t.Parallel()
 
 	srv := testserver.NewTCPServer(t)
-	client, manager := runningClient(t)
+	client, manager := meteredClient(t)
 	server := &Server{Host: srv.Addr(), Context: client}
 
 	require.NoError(t, tcpUploadRequest(context.Background(), server, 0))
 
 	payload, err := transport.UploadPayloadSize(int64(ulSizes[0]) * 1000)
 	require.NoError(t, err)
-	assert.Equal(t, payload, manager.GetTotalUpload())
-	assert.Zero(t, manager.GetUploadBacklog(), "every payload byte read was confirmed")
+	assert.Equal(t, payload, manager.TotalUpload())
+	assert.Zero(t, manager.UploadBacklog(), "every payload byte read was confirmed")
 }
 
 // Test_tcpDownloadRequest checks a complete download, and that a truncated one is an error.
@@ -209,13 +209,13 @@ func Test_tcpDownloadRequest(t *testing.T) {
 		t.Parallel()
 
 		srv := testserver.NewTCPServer(t)
-		client, manager := runningClient(t)
+		client, manager := meteredClient(t)
 
 		require.NoError(
 			t,
 			tcpDownloadRequest(context.Background(), &Server{Host: srv.Addr(), Context: client}, 0),
 		)
-		assert.Equal(t, int64(dlSizes[0])*1000, manager.GetTotalDownload())
+		assert.Equal(t, int64(dlSizes[0])*1000, manager.TotalDownload())
 	})
 
 	t.Run("truncated", func(t *testing.T) {
@@ -224,7 +224,7 @@ func Test_tcpDownloadRequest(t *testing.T) {
 		srv := testserver.NewTCPServer(t)
 		srv.SetFaults(testserver.Faults{TruncateDownloads: true})
 
-		client, _ := runningClient(t)
+		client, _ := meteredClient(t)
 
 		err := tcpDownloadRequest(
 			context.Background(),
@@ -237,7 +237,7 @@ func Test_tcpDownloadRequest(t *testing.T) {
 	t.Run("no host", func(t *testing.T) {
 		t.Parallel()
 
-		client, _ := runningClient(t)
+		client, _ := meteredClient(t)
 
 		err := tcpDownloadRequest(context.Background(), &Server{Context: client}, 0)
 		require.ErrorIs(t, err, errNoTCPHost)

@@ -500,21 +500,29 @@ func TestNew(t *testing.T) {
 
 // recordingLogger records the messages of a client's Logger.
 type recordingLogger struct {
-	// mu guards messages.
-	mu sync.Mutex
+	// args maps each message to the arguments it was last logged with.
+	args map[string][]any
 	// messages are the messages logged so far.
 	messages []string
+	// mu guards args and messages.
+	mu sync.Mutex
 }
 
 // Debug records the message.
-func (l *recordingLogger) Debug(_ context.Context, msg string, _ ...any) {
+func (l *recordingLogger) Debug(_ context.Context, msg string, args ...any) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
 	l.messages = append(l.messages, msg)
+
+	if l.args == nil {
+		l.args = map[string][]any{}
+	}
+
+	l.args[msg] = args
 }
 
-// TestWithLogger checks that the client and its data manager send debug messages to the logger.
+// TestWithLogger checks that the client sends debug messages to the logger.
 func TestWithLogger(t *testing.T) {
 	t.Parallel()
 
@@ -524,10 +532,6 @@ func TestWithLogger(t *testing.T) {
 
 	_, err := client.FetchUserInfoContext(context.Background())
 	require.NoError(t, err)
-
-	dataManager, ok := client.Manager.(*DataManager)
-	require.True(t, ok)
-	assert.Same(t, logger, dataManager.log())
 
 	logger.mu.Lock()
 	defer logger.mu.Unlock()

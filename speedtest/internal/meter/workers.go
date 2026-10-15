@@ -1,17 +1,18 @@
 // Copyright (c) Nicholas Fedor 2026 <nick@nickfedor.com>
 // SPDX-License-Identifier: MIT
 
-package speedtest
+package meter
 
 import (
 	"context"
 	"math"
+	"runtime"
 	"time"
 )
 
 // Upload worker tuning.
 const (
-	// defaultUploadMaxWorkers caps upload workers when no thread count is set. Each worker holds a request body in
+	// defaultUploadMaxWorkers caps upload workers when no connection count is set. Each worker holds a request body in
 	// the transport, so more workers than the uplink can drain only queue data that may never be confirmed.
 	defaultUploadMaxWorkers = 8
 	// uploadAdjustInterval is how often the upload worker count is reconsidered.
@@ -23,6 +24,25 @@ const (
 	// uploadBacklogPerWorker is the unconfirmed upload volume each active worker may hold before workers are removed.
 	uploadBacklogPerWorker = 2 * 1024 * 1024
 )
+
+// workerLimits returns the worker counts for a configured number of connections.
+//
+// Parameters:
+//   - connections: the configured connections, or less than 1 for the defaults.
+//
+// Returns:
+//   - downloadWorkers: the download workers, one per CPU by default.
+//   - uploadMaxWorkers: the most upload workers, 8 by default, since more workers than the uplink can drain only
+//     queue unconfirmed data.
+//
+//nolint:nonamedreturns // Same-type returns need names.
+func workerLimits(connections int) (downloadWorkers, uploadMaxWorkers int) {
+	if connections < 1 {
+		return runtime.NumCPU(), defaultUploadMaxWorkers
+	}
+
+	return connections, connections
+}
 
 // nextUploadWorkers decides the active upload worker count for the next interval.
 //
@@ -83,11 +103,11 @@ func nextUploadWorkers(
 // Parameters:
 //   - ctx: the test's context, for debug messages.
 //   - stop: closed when the test ends.
-func (td *TestDirection) adaptUploadWorkers(ctx context.Context, stop <-chan struct{}) {
+func (d *Direction) adaptUploadWorkers(ctx context.Context, stop <-chan struct{}) {
 	ticker := time.NewTicker(uploadAdjustInterval)
 	defer ticker.Stop()
 
-	previousConfirmed := td.GetTotalDataVolume()
+	previousConfirmed := d.confirmed.Load()
 	previousAt := time.Now()
 
 	var bestRate float64
@@ -97,7 +117,7 @@ func (td *TestDirection) adaptUploadWorkers(ctx context.Context, stop <-chan str
 		case <-stop:
 			return
 		case now := <-ticker.C:
-			confirmed := td.GetTotalDataVolume()
+			confirmed := d.confirmed.Load()
 			delta := confirmed - previousConfirmed
 			elapsed := now.Sub(previousAt).Seconds()
 			previousConfirmed = confirmed
@@ -114,29 +134,29 @@ func (td *TestDirection) adaptUploadWorkers(ctx context.Context, stop <-chan str
 				rate = float64(delta) / elapsed
 			}
 
-			backlog := max(td.GetTotalReadVolume()-confirmed, 0)
+			backlog := max(d.read.Load()-confirmed, 0)
 
-			td.workerMu.Lock()
+			d.workerMu.Lock()
 			active, newBest := nextUploadWorkers(
-				td.activeWorkers,
-				td.maxWorkers,
+				d.activeWorkers,
+				d.maxWorkers,
 				rate,
 				bestRate,
 				backlog,
 			)
-			changed := active != td.activeWorkers
-			td.activeWorkers = active
-			td.workerMu.Unlock()
+			changed := active != d.activeWorkers
+			d.activeWorkers = active
+			d.workerMu.Unlock()
 
 			bestRate = newBest
 
 			if changed {
-				td.workerCond.Broadcast()
-				td.manager.log().Debug(
+				d.workerCond.Broadcast()
+				d.meter.logger.Debug(
 					ctx,
 					"upload workers",
 					logKeyWorkers, active,
-					logKeyLimit, td.maxWorkers,
+					logKeyLimit, d.maxWorkers,
 					logKeyRate, rate,
 					logKeyBacklog, backlog,
 				)
@@ -152,28 +172,28 @@ func (td *TestDirection) adaptUploadWorkers(ctx context.Context, stop <-chan str
 //
 // Returns:
 //   - bool: true when the worker should send a request, or false when the test has stopped.
-func (td *TestDirection) waitForTurn(worker int) bool {
-	td.workerMu.Lock()
-	defer td.workerMu.Unlock()
+func (d *Direction) waitForTurn(worker int) bool {
+	d.workerMu.Lock()
+	defer d.workerMu.Unlock()
 
 	for {
-		if !td.manager.isRunning() {
+		if d.stopped.Load() {
 			return false
 		}
 
-		if worker < td.activeWorkers {
+		if worker < d.activeWorkers {
 			return true
 		}
 
-		td.workerCond.Wait()
+		d.workerCond.Wait()
 	}
 }
 
 // stopWorkers wakes every waiting worker so it sees that the test has stopped. Broadcasting under the lock means
-// a worker that is checking the running state either sees the stop or is already waiting for this wake-up.
-func (td *TestDirection) stopWorkers() {
-	td.workerMu.Lock()
-	defer td.workerMu.Unlock()
+// a worker that is checking the stop flag either sees the stop or is already waiting for this wake-up.
+func (d *Direction) stopWorkers() {
+	d.workerMu.Lock()
+	defer d.workerMu.Unlock()
 
-	td.workerCond.Broadcast()
+	d.workerCond.Broadcast()
 }

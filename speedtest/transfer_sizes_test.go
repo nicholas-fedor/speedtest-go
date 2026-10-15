@@ -143,8 +143,7 @@ func TestHTTPTransferSizes(t *testing.T) {
 		t.Parallel()
 
 		api := testserver.NewAPI(t)
-		client := newTestClient(t, WithConnections(1))
-		client.SetCaptureTime(200 * time.Millisecond)
+		client := newTestClient(t, WithConnections(1), WithTestDuration(200*time.Millisecond))
 
 		pool := Servers{{ID: "1001", URL: api.ServerUploadURL("1001"), Context: client}}
 
@@ -169,8 +168,8 @@ func TestTCPTransferSizes(t *testing.T) {
 		WithProtocol(TCPTest),
 		WithConnections(1),
 		WithTransferSizes(2000, 300),
+		WithTestDuration(200*time.Millisecond),
 	)
-	client.SetCaptureTime(200 * time.Millisecond)
 
 	server := &Server{ID: "1001", Host: srv.Addr(), Context: client}
 

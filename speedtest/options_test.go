@@ -132,11 +132,6 @@ func TestOptions_Settings(t *testing.T) {
 	require.NotNil(t, client.settings.location)
 	assert.Equal(t, *location, *client.settings.location)
 	assert.NotSame(t, location, client.settings.location, "the location is copied")
-
-	dataManager, ok := client.Manager.(*DataManager)
-	require.True(t, ok)
-	assert.Equal(t, 3, dataManager.nThread)
-	assert.Equal(t, 5*time.Second, dataManager.captureTime)
 }
 
 // TestOptions_LaterReplacesEarlier checks that a later option replaces the value an earlier one set.

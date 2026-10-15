@@ -1,6 +1,7 @@
 package speedtest
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/testserver"
+	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/internal/meter"
 )
 
 func TestServer_MultiDownloadTestContext(t *testing.T) {
@@ -653,20 +655,20 @@ func Test_checkSum(t *testing.T) {
 	}
 }
 
-// runningClient returns a client whose data manager accepts transferred bytes, as it does during a test.
-func runningClient(t *testing.T) (*Client, *DataManager) {
+// meteredClient returns a client and its meter, which counts the bytes of requests sent outside a test.
+//
+// Parameters:
+//   - t: the test.
+//
+// Returns:
+//   - *Client: the client.
+//   - *meter.Meter: the client's meter.
+func meteredClient(t *testing.T) (*Client, *meter.Meter) {
 	t.Helper()
 
 	client := newTestClient(t)
 
-	manager, ok := client.Manager.(*DataManager)
-	require.True(t, ok)
-
-	manager.runningRW.Lock()
-	manager.running = true
-	manager.runningRW.Unlock()
-
-	return client, manager
+	return client, client.meter
 }
 
 // Test_downloadRequest_FakeServer checks that a successful download returns no error and counts its bytes, and that
@@ -678,12 +680,12 @@ func Test_downloadRequest_FakeServer(t *testing.T) {
 		t.Parallel()
 
 		api := testserver.NewAPI(t)
-		client, manager := runningClient(t)
+		client, manager := meteredClient(t)
 		server := &Server{URL: api.ServerUploadURL("1001"), Context: client}
 
 		require.NoError(t, downloadRequest(context.Background(), server, 0))
 
-		assert.Equal(t, int64(testserver.DefaultDownloadSize), manager.GetTotalDownload())
+		assert.Equal(t, int64(testserver.DefaultDownloadSize), manager.TotalDownload())
 	})
 
 	t.Run("error status", func(t *testing.T) {
@@ -695,7 +697,7 @@ func Test_downloadRequest_FakeServer(t *testing.T) {
 			testserver.Response{Status: http.StatusInternalServerError, Body: "error page"},
 		)
 
-		client, manager := runningClient(t)
+		client, manager := meteredClient(t)
 		server := &Server{URL: api.ServerUploadURL("1001"), Context: client}
 
 		err := downloadRequest(context.Background(), server, 0)
@@ -703,10 +705,9 @@ func Test_downloadRequest_FakeServer(t *testing.T) {
 
 		assert.Zero(
 			t,
-			manager.GetTotalDownload(),
+			manager.TotalDownload(),
 			"the error page must not count as downloaded data",
 		)
-		assert.Empty(t, *manager.Snapshot, "no chunk should be created for an error page")
 	})
 }
 
@@ -737,14 +738,14 @@ func Test_uploadRequest_FakeServer(t *testing.T) {
 		t.Parallel()
 
 		api := testserver.NewAPI(t)
-		client, manager := runningClient(t)
+		client, manager := meteredClient(t)
 		server := &Server{URL: api.ServerUploadURL("1001"), Context: client}
 
 		require.NoError(t, uploadRequest(context.Background(), server, 0))
-		assert.Equal(t, wantSize, manager.GetTotalUpload())
+		assert.Equal(t, wantSize, manager.TotalUpload())
 
 		require.NoError(t, uploadRequest(context.Background(), server, 0))
-		assert.Equal(t, 2*wantSize, manager.GetTotalUpload())
+		assert.Equal(t, 2*wantSize, manager.TotalUpload())
 	})
 
 	t.Run("error status", func(t *testing.T) {
@@ -756,14 +757,14 @@ func Test_uploadRequest_FakeServer(t *testing.T) {
 			testserver.Response{Status: http.StatusInternalServerError, Body: "error page"},
 		)
 
-		client, manager := runningClient(t)
+		client, manager := meteredClient(t)
 		server := &Server{URL: api.ServerUploadURL("1001"), Context: client}
 
 		err := uploadRequest(context.Background(), server, 0)
 		require.ErrorIs(t, err, ErrUnexpectedStatus)
 		assert.Zero(
 			t,
-			manager.GetTotalUpload(),
+			manager.TotalUpload(),
 			"a rejected upload must not count as uploaded data",
 		)
 	})
@@ -772,7 +773,7 @@ func Test_uploadRequest_FakeServer(t *testing.T) {
 		t.Parallel()
 
 		for _, read := range []int64{0, wantSize / 2} {
-			client, manager := runningClient(t)
+			client, manager := meteredClient(t)
 			client.doer = &http.Client{
 				Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 					_, _ = io.CopyN(io.Discard, req.Body, read)
@@ -790,7 +791,7 @@ func Test_uploadRequest_FakeServer(t *testing.T) {
 			require.ErrorIs(t, err, errUploadIncomplete)
 			assert.Zero(
 				t,
-				manager.GetTotalUpload(),
+				manager.TotalUpload(),
 				"an upload the server did not take must not count",
 			)
 		}
@@ -813,19 +814,19 @@ func Test_uploadRequest_FakeServer(t *testing.T) {
 		}))
 		t.Cleanup(target.Close)
 
-		client, manager := runningClient(t)
+		client, manager := meteredClient(t)
 		server := &Server{URL: target.URL + "/speedtest/upload.php", Context: client}
 
 		err := uploadRequest(context.Background(), server, 0)
 		require.ErrorIs(t, err, ErrUnexpectedStatus)
 		assert.False(t, followed.Load(), "the redirect must not be followed with a GET")
-		assert.Zero(t, manager.GetTotalUpload(), "a redirected upload must not count")
+		assert.Zero(t, manager.TotalUpload(), "a redirected upload must not count")
 	})
 
 	t.Run("unreadable response", func(t *testing.T) {
 		t.Parallel()
 
-		client, manager := runningClient(t)
+		client, manager := meteredClient(t)
 		client.doer = &http.Client{
 			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 				_, _ = io.Copy(io.Discard, req.Body)
@@ -843,7 +844,7 @@ func Test_uploadRequest_FakeServer(t *testing.T) {
 		require.ErrorContains(t, err, "connection reset")
 		assert.Zero(
 			t,
-			manager.GetTotalUpload(),
+			manager.TotalUpload(),
 			"an unconfirmed upload must not count as uploaded data",
 		)
 	})
@@ -860,8 +861,7 @@ func TestServer_DownloadTestContext_ErrorStatus(t *testing.T) {
 		testserver.Response{Status: http.StatusInternalServerError, Body: "error page"},
 	)
 
-	client := newTestClient(t, WithConnections(2))
-	client.SetCaptureTime(300 * time.Millisecond)
+	client := newTestClient(t, WithConnections(2), WithTestDuration(300*time.Millisecond))
 
 	server := &Server{URL: api.ServerUploadURL("1001"), Context: client}
 
@@ -1438,7 +1438,7 @@ func TestServer_resolveUploadURL(t *testing.T) {
 			final := api.ServerUploadURL("1001")
 			moved := newRedirector(t, final, status)
 
-			client, manager := runningClient(t)
+			client, manager := meteredClient(t)
 			server := &Server{URL: moved.URL(), Context: client}
 
 			server.resolveUploadURL(context.Background())
@@ -1447,7 +1447,7 @@ func TestServer_resolveUploadURL(t *testing.T) {
 			assert.Equal(t, moved.URL(), server.URL, "the listed URL must stay as it was")
 
 			require.NoError(t, uploadRequest(context.Background(), server, 0))
-			assert.Equal(t, wantSize, manager.GetTotalUpload())
+			assert.Equal(t, wantSize, manager.TotalUpload())
 			assert.Equal(
 				t,
 				[]string{http.MethodHead},
@@ -1511,8 +1511,7 @@ func TestServer_UploadTestContext_Redirect(t *testing.T) {
 	api := testserver.NewAPI(t)
 	moved := newRedirector(t, api.ServerUploadURL("1001"), http.StatusTemporaryRedirect)
 
-	client := newTestClient(t, WithConnections(2))
-	client.SetCaptureTime(300 * time.Millisecond)
+	client := newTestClient(t, WithConnections(2), WithTestDuration(300*time.Millisecond))
 
 	server := &Server{URL: moved.URL(), Context: client}
 
@@ -1532,8 +1531,7 @@ func TestServer_MultiUploadTestContext_Redirect(t *testing.T) {
 	movedA := newRedirector(t, api.ServerUploadURL("1001"), http.StatusTemporaryRedirect)
 	movedB := newRedirector(t, api.ServerUploadURL("1002"), http.StatusFound)
 
-	client := newTestClient(t, WithConnections(2))
-	client.SetCaptureTime(300 * time.Millisecond)
+	client := newTestClient(t, WithConnections(2), WithTestDuration(300*time.Millisecond))
 
 	pool := Servers{
 		{ID: "1001", URL: movedA.URL(), Context: client},
@@ -1609,15 +1607,14 @@ func TestServer_testContextFinalRate(t *testing.T) {
 
 	request := func(_ context.Context, server *Server, _ int) error {
 		time.Sleep(100 * time.Millisecond)
-		server.Context.AddTotalDownload(1_000_000)
-		server.Context.AddTotalUpload(1_000_000)
+		server.Context.meter.AddTotalUpload(1_000_000)
 
-		return nil
+		return server.Context.meter.NewChunk().
+			DownloadHandler(bytes.NewReader(make([]byte, 1_000_000)))
 	}
 
 	synctest.Test(t, func(t *testing.T) {
-		client := newTestClient(t, WithConnections(1))
-		client.SetCaptureTime(1050 * time.Millisecond)
+		client := newTestClient(t, WithConnections(1), WithTestDuration(1050*time.Millisecond))
 
 		server := &Server{Context: client}
 
@@ -1629,4 +1626,18 @@ func TestServer_testContextFinalRate(t *testing.T) {
 		require.NoError(t, server.uploadTestContext(context.Background(), request))
 		assert.InDelta(t, 10_000_000/1.05, float64(server.ULSpeed), 1e-6)
 	})
+}
+
+// TestUploadRequestClearsBacklog checks that a confirmed upload to the fake server leaves no backlog.
+func TestUploadRequestClearsBacklog(t *testing.T) {
+	t.Parallel()
+
+	api := testserver.NewAPI(t)
+	client, manager := meteredClient(t)
+	server := &Server{URL: api.ServerUploadURL("1001"), Context: client}
+
+	require.NoError(t, uploadRequest(context.Background(), server, 0))
+
+	assert.Zero(t, manager.UploadBacklog())
+	assert.InDelta(t, 1.0, manager.UploadConfirmationRatio(), 1e-9)
 }

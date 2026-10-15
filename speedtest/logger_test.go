@@ -20,8 +20,7 @@ func TestLoggerOrNoop(t *testing.T) {
 	assert.Same(t, logger, loggerOrNoop(logger))
 }
 
-// TestLog_ZeroValues checks that clients, servers, and data managers built without New log nowhere instead of
-// panicking.
+// TestLog_ZeroValues checks that clients and servers built without New log nowhere instead of panicking.
 func TestLog_ZeroValues(t *testing.T) {
 	t.Parallel()
 
@@ -30,7 +29,5 @@ func TestLog_ZeroValues(t *testing.T) {
 		(&Client{}).log().Debug(context.Background(), "message")
 		(*Server)(nil).log().Debug(context.Background(), "message")
 		(&Server{}).log().Debug(context.Background(), "message")
-		(*DataManager)(nil).log().Debug(context.Background(), "message")
-		NewDataManager().log().Debug(context.Background(), "message")
 	})
 }
