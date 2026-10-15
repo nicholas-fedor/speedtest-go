@@ -145,3 +145,11 @@ func TestMeter_Connections(t *testing.T) {
 	assert.Equal(t, noHandler, download.handler)
 	assert.Equal(t, noHandler, upload.handler)
 }
+
+// TestMeter_HandlerLimit checks that the handler limit is the connection count.
+func TestMeter_HandlerLimit(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, 3, newTestMeter(3, 0).HandlerLimit())
+	assert.Equal(t, runtime.NumCPU(), New(Config{}).HandlerLimit())
+}

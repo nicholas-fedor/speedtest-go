@@ -587,3 +587,33 @@ func TestClient_MultiMainBeyondConnections(t *testing.T) {
 	require.NotEmpty(t, transfer.Connections)
 	assert.Equal(t, "1004", transfer.Connections[0].ServerID)
 }
+
+// TestClient_UploadMulti_ResolvesOnlyUsedServers checks that a multi-server upload resolves the upload URLs of only
+// the servers that get a connection, not the whole pool.
+func TestClient_UploadMulti_ResolvesOnlyUsedServers(t *testing.T) {
+	t.Parallel()
+
+	api := testserver.NewAPI(t)
+	pool := make(Servers, 0, 4)
+	redirectors := make([]*redirector, 0, 4)
+
+	for index := range 4 {
+		id := strconv.Itoa(1001 + index)
+		moved := newRedirector(t, api.ServerUploadURL(id), http.StatusFound)
+		redirectors = append(redirectors, moved)
+		pool = append(
+			pool,
+			&Server{ID: id, URL: moved.URL(), Latency: time.Duration(index+1) * time.Millisecond},
+		)
+	}
+
+	client := newTestClient(t, WithConnections(2), WithTestDuration(200*time.Millisecond))
+
+	_, err := client.UploadMulti(context.Background(), pool[0], pool)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{http.MethodHead}, redirectors[0].Methods())
+	assert.Equal(t, []string{http.MethodHead}, redirectors[1].Methods())
+	assert.Empty(t, redirectors[2].Methods(), "a server without a connection must not be resolved")
+	assert.Empty(t, redirectors[3].Methods(), "a server without a connection must not be resolved")
+}

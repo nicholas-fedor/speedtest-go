@@ -118,6 +118,14 @@ func (m *Meter) RegisterUpload(handler Handler) *Direction {
 	return m.register(&m.upload, kindUpload, handler)
 }
 
+// HandlerLimit returns how many request handlers each direction takes. Handlers registered beyond it are dropped.
+//
+// Returns:
+//   - int: the limit, the number of connections.
+func (m *Meter) HandlerLimit() int {
+	return m.connections
+}
+
 // DownloadConnection returns a connection on the download direction that is not part of a test run, for sending a
 // single request outside [Direction.Run].
 //

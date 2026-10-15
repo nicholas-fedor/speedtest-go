@@ -255,7 +255,8 @@ func (s *Client) UploadMulti(
 // Parameters:
 //   - ctx: ends the test early, which makes it fail.
 //   - kind: how the test registers and sends its requests.
-//   - servers: the servers, each of which gets a request handler, with the main server first.
+//   - servers: the servers, with the main server first. Only as many as the test has connections get a request
+//     handler.
 //   - size: the index into the size table.
 //   - opts: options for this test.
 //
@@ -278,13 +279,6 @@ func (s *Client) transfer(
 		opt(&cfg)
 	}
 
-	// Resolve before the handlers are registered, so no upload worker sees a URL change. TCP tests use no HTTP
-	// upload URL.
-	uploadURLs := make([]string, len(servers))
-	if kind.resolveUploads && s.settings.testMode != TCPTest {
-		uploadURLs = s.resolveUploadURLs(ctx, servers, maxConcurrentUploadResolves)
-	}
-
 	transferMeter := meter.New(meter.Config{
 		Logger:               s.settings.logger,
 		OnRate:               rateCallback(cfg.onRate),
@@ -292,6 +286,16 @@ func (s *Client) transfer(
 		CaptureTime:          s.settings.testDuration,
 		RateCaptureFrequency: 0,
 	})
+
+	// Servers beyond the handler limit would get no handler, so they are left out before anything is sent to them.
+	servers = servers[:min(len(servers), transferMeter.HandlerLimit())]
+
+	// Resolve before the handlers are registered, so no upload worker sees a URL change. TCP tests use no HTTP
+	// upload URL.
+	uploadURLs := make([]string, len(servers))
+	if kind.resolveUploads && s.settings.testMode != TCPTest {
+		uploadURLs = s.resolveUploadURLs(ctx, servers, maxConcurrentUploadResolves)
+	}
 
 	requestCtx, cancel := context.WithCancel(ctx)
 	defer cancel()

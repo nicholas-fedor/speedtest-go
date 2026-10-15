@@ -19,7 +19,8 @@
 // ## Core Types
 //
 //   - Client: The main client structure that manages speedtest operations
-//   - Server: Represents a speedtest server with properties like URL, location, latency, speeds, and packet loss
+//   - Server: Represents a speedtest server with its URL, location, and the Latency of a quick probe
+//   - Result: Collects a server's ping, download, upload, and packet loss measurements
 //   - User: Contains user information including IP, ISP, and coordinates
 //   - ByteRate: Represents data transfer rates with flexible unit formatting (bps, Kbps, Mbps, etc.)
 //
@@ -35,7 +36,6 @@
 //   - Client.Download() and Client.Upload(): Measure download and upload speed, with each connection's results
 //   - Client.DownloadMulti() and Client.UploadMulti(): Measure speed across several servers at once
 //   - Client.PacketLoss(): Measures packet loss to a server
-//   - Result: Collects a server's measurements for JSON() and JSONL()
 //
 // # Key Features
 //

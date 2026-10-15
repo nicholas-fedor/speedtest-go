@@ -13,7 +13,6 @@ The program performs the following steps:
    - Runs a download speed test.
    - Runs an upload speed test.
    - Prints the latency, download speed, and upload speed.
-4. Resets the server context after each test.
 
 ## Prerequisites
 
