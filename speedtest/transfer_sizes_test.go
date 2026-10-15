@@ -124,10 +124,13 @@ func TestHTTPTransferSizes(t *testing.T) {
 			WithTestDuration(200*time.Millisecond),
 		)
 
-		server := &Server{ID: "1001", URL: api.ServerUploadURL("1001"), Context: client}
+		server := &Server{ID: "1001", URL: api.ServerUploadURL("1001")}
 
-		require.NoError(t, server.DownloadTestContext(context.Background()))
-		require.NoError(t, server.UploadTestContext(context.Background()))
+		_, err := client.Download(context.Background(), server)
+		require.NoError(t, err)
+
+		_, err = client.Upload(context.Background(), server)
+		require.NoError(t, err)
 
 		paths := requestedPaths(api, testserver.PathDownload)
 		require.NotEmpty(t, paths)
@@ -145,10 +148,13 @@ func TestHTTPTransferSizes(t *testing.T) {
 		api := testserver.NewAPI(t)
 		client := newTestClient(t, WithConnections(1), WithTestDuration(200*time.Millisecond))
 
-		pool := Servers{{ID: "1001", URL: api.ServerUploadURL("1001"), Context: client}}
+		pool := Servers{{ID: "1001", URL: api.ServerUploadURL("1001")}}
 
-		require.NoError(t, pool[0].MultiDownloadTestContext(context.Background(), pool))
-		require.NoError(t, pool[0].MultiUploadTestContext(context.Background(), pool))
+		_, err := client.DownloadMulti(context.Background(), pool[0], pool)
+		require.NoError(t, err)
+
+		_, err = client.UploadMulti(context.Background(), pool[0], pool)
+		require.NoError(t, err)
 
 		for _, path := range requestedPaths(api, testserver.PathDownload) {
 			assert.True(t, strings.HasSuffix(path, "/random1000x1000.jpg"), path)
@@ -171,10 +177,13 @@ func TestTCPTransferSizes(t *testing.T) {
 		WithTestDuration(200*time.Millisecond),
 	)
 
-	server := &Server{ID: "1001", Host: srv.Addr(), Context: client}
+	server := &Server{ID: "1001", Host: srv.Addr()}
 
-	require.NoError(t, server.DownloadTestContext(context.Background()))
-	require.NoError(t, server.UploadTestContext(context.Background()))
+	_, err := client.Download(context.Background(), server)
+	require.NoError(t, err)
+
+	_, err = client.Upload(context.Background(), server)
+	require.NoError(t, err)
 
 	assert.Positive(t, countCommands(srv, "DOWNLOAD 2000000"))
 	assert.Positive(t, countCommands(srv, "UPLOAD 300000 0"))

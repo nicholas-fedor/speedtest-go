@@ -7,15 +7,13 @@ import (
 	"errors"
 	"io"
 	"sync"
-	"sync/atomic"
 )
 
-// Chunk counts the data of one download or upload request toward its meter.
+// Chunk counts the data of one download or upload request toward its connection.
 type Chunk struct {
-	// meter is the meter the bytes count toward.
-	meter *Meter
-	// uploadRead counts the bytes read from an upload chunk into its direction's read volume.
-	uploadRead *atomic.Int64
+	// connection is the connection the bytes count toward.
+	connection *Connection
+
 	// remaining is the upload bytes left to read.
 	remaining int64
 	// used reports that the chunk has started handling a request.
@@ -68,11 +66,11 @@ func (c *Chunk) DownloadHandler(reader io.Reader) error {
 	}
 	defer discardBuffers.Put(buffer)
 
-	download := c.meter.currentDownload()
+	direction := c.connection.direction
 
-	for !download.stopped.Load() {
+	for !direction.stopped.Load() {
 		read, err := reader.Read(*buffer)
-		download.confirmed.Add(int64(read))
+		c.connection.bytes.Add(int64(read))
 
 		if errors.Is(err, io.EOF) {
 			return nil
@@ -88,8 +86,8 @@ func (c *Chunk) DownloadHandler(reader io.Reader) error {
 
 // UploadHandler prepares the chunk to supply an upload body of the given size.
 //
-// Bytes read from the chunk add to the upload's read volume. They count as uploaded only once the request's caller
-// confirms them with [Meter.AddTotalUpload].
+// Bytes read from the chunk add to the connection's and the test's sent volume. They count as uploaded only once the request's caller
+// confirms them with [Connection.Confirm].
 //
 // Parameters:
 //   - size: the body size in bytes, greater than 0.
@@ -103,7 +101,6 @@ func (c *Chunk) UploadHandler(size int64) *Chunk {
 
 	c.used = true
 	c.remaining = size
-	c.uploadRead = &c.meter.currentUpload().read
 
 	return c
 }
@@ -121,12 +118,11 @@ func (c *Chunk) Read(buffer []byte) (int, error) {
 		return 0, io.EOF
 	}
 
-	read := copy(buffer, c.meter.pattern[:min(c.remaining, readChunkSize)])
+	read := copy(buffer, c.connection.direction.meter.pattern[:min(c.remaining, readChunkSize)])
 	c.remaining -= int64(read)
 
-	if c.uploadRead != nil {
-		c.uploadRead.Add(int64(read))
-	}
+	c.connection.sent.Add(int64(read))
+	c.connection.direction.read.Add(int64(read))
 
 	return read, nil
 }

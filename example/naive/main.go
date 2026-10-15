@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -28,23 +29,29 @@ func main() {
 	serverList, _ := speedtestClient.FetchServers()
 	targets, _ := serverList.FindServer([]int{})
 
+	ctx := context.Background()
+
 	for _, server := range targets {
 		// Please make sure your host can access this test server,
 		// otherwise you will get an error.
 		// It is recommended to replace a server at this time
-		checkError(server.PingTest(nil))
-		checkError(server.DownloadTest())
-		checkError(server.UploadTest())
+		ping, err := speedtestClient.Ping(ctx, server)
+		checkError(err)
 
-		// Note: The unit of server.DLSpeed, server.ULSpeed is bytes per second, this is a float64.
+		download, err := speedtestClient.Download(ctx, server)
+		checkError(err)
+
+		upload, err := speedtestClient.Upload(ctx, server)
+		checkError(err)
+
+		// Note: Rate is in bytes per second, a float64 that prints in Mbps.
 		_, _ = fmt.Fprintf(
 			os.Stdout,
 			"Latency: %s, Download: %s, Upload: %s\n",
-			server.Latency,
-			server.DLSpeed,
-			server.ULSpeed,
+			ping.Latency,
+			download.Rate,
+			upload.Rate,
 		)
-		server.Context.Reset()
 	}
 }
 

@@ -45,49 +45,54 @@ func reportUser() *speedtest.User {
 	}
 }
 
-// reportServers returns the tested servers in the golden reports, with every reported field set.
-func reportServers() speedtest.Servers {
-	duration := func(value time.Duration) *time.Duration { return &value }
-
-	return speedtest.Servers{
+// reportResults returns the results in the golden reports: one server with every measurement, and one whose
+// download and upload rates were not available and that has no other measurement.
+func reportResults() []speedtest.Result {
+	return []speedtest.Result{
 		{
-			URL:        "http://speed.example/speedtest/upload.php",
-			Lat:        "35.6895",
-			Lon:        "139.6917",
-			Name:       "Tokyo",
-			Country:    "Japan",
-			CC:         "JP",
-			Sponsor:    "Example Networks",
-			ID:         "1001",
-			Host:       "speed.example:8080",
-			Distance:   6.95,
-			Latency:    4500 * time.Microsecond,
-			MaxLatency: 5 * time.Millisecond,
-			MinLatency: 4 * time.Millisecond,
-			Jitter:     300 * time.Microsecond,
-			DLSpeed:    12_500_000,
-			ULSpeed:    2_500_000,
-			TestDuration: speedtest.TestDuration{
-				Ping:     duration(2 * time.Second),
-				Download: duration(10 * time.Second),
-				Upload:   duration(10 * time.Second),
-				Total:    duration(22 * time.Second),
+			Server: &speedtest.Server{
+				URL:      "http://speed.example/speedtest/upload.php",
+				Lat:      "35.6895",
+				Lon:      "139.6917",
+				Name:     "Tokyo",
+				Country:  "Japan",
+				CC:       "JP",
+				Sponsor:  "Example Networks",
+				ID:       "1001",
+				Host:     "speed.example:8080",
+				Distance: 6.95,
+				Latency:  0,
 			},
-			PacketLoss: transport.PLoss{Sent: 300, Dup: 1, Max: 301},
+			Ping: &speedtest.PingStats{
+				Latencies: nil,
+				Latency:   4500 * time.Microsecond,
+				Jitter:    300 * time.Microsecond,
+				Min:       4 * time.Millisecond,
+				Max:       5 * time.Millisecond,
+				Duration:  2 * time.Second,
+			},
+			Download:   &speedtest.Transfer{Rate: 12_500_000, Duration: 10 * time.Second},
+			Upload:     &speedtest.Transfer{Rate: 2_500_000, Duration: 10 * time.Second},
+			PacketLoss: &transport.PLoss{Sent: 300, Dup: 1, Max: 301},
 		},
 		{
-			URL:      "http://speed2.example/speedtest/upload.php",
-			Lat:      "34.6937",
-			Lon:      "135.5023",
-			Name:     "Osaka",
-			Country:  "Japan",
-			CC:       "JP",
-			Sponsor:  "Example Networks",
-			ID:       "1002",
-			Host:     "speed2.example:8080",
-			Distance: 396.5,
-			DLSpeed:  -1,
-			ULSpeed:  -1,
+			Server: &speedtest.Server{
+				URL:      "http://speed2.example/speedtest/upload.php",
+				Lat:      "34.6937",
+				Lon:      "135.5023",
+				Name:     "Osaka",
+				Country:  "Japan",
+				CC:       "JP",
+				Sponsor:  "Example Networks",
+				ID:       "1002",
+				Host:     "speed2.example:8080",
+				Distance: 396.5,
+				Latency:  0,
+			},
+			Ping:       nil,
+			Download:   &speedtest.Transfer{Rate: -1},
+			Upload:     &speedtest.Transfer{Rate: -1},
+			PacketLoss: nil,
 		},
 	}
 }
@@ -102,7 +107,7 @@ func renderReport(t *testing.T, jsonl, masked bool, user *speedtest.User) []byte
 	}
 
 	if !jsonl {
-		data, err := jsonReport(reportTimestamp, user, reportServers())
+		data, err := jsonReport(reportTimestamp, user, reportResults())
 		require.NoError(t, err)
 
 		return data
@@ -110,8 +115,8 @@ func renderReport(t *testing.T, jsonl, masked bool, user *speedtest.User) []byte
 
 	var lines bytes.Buffer
 
-	for _, server := range reportServers() {
-		data, err := jsonlReport(reportTimestamp, user, server)
+	for _, result := range reportResults() {
+		data, err := jsonlReport(reportTimestamp, user, result)
 		require.NoError(t, err)
 
 		lines.Write(data)
@@ -181,7 +186,7 @@ func withoutTimestamp(t *testing.T, data []byte) map[string]any {
 func TestReportMatchesLibrary(t *testing.T) {
 	t.Parallel()
 
-	library, err := speedtest.JSON(reportUser(), reportServers())
+	library, err := speedtest.JSON(reportUser(), reportResults())
 	require.NoError(t, err)
 
 	assert.Equal(
@@ -190,12 +195,12 @@ func TestReportMatchesLibrary(t *testing.T) {
 		withoutTimestamp(t, renderReport(t, false, false, reportUser())),
 	)
 
-	server := reportServers()[0]
+	result := reportResults()[0]
 
-	libraryLine, err := speedtest.JSONL(reportUser(), server)
+	libraryLine, err := speedtest.JSONL(reportUser(), result)
 	require.NoError(t, err)
 
-	line, err := JSONLReport(reportTimestamp, reportUser(), server)
+	line, err := JSONLReport(reportTimestamp, reportUser(), result)
 	require.NoError(t, err)
 
 	assert.Equal(t, withoutTimestamp(t, libraryLine), withoutTimestamp(t, line))

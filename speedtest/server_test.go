@@ -288,7 +288,6 @@ func TestClient_FetchServerByIDContext(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, tt.id, server.ID)
 				assert.Equal(t, api.ServerUploadURL(tt.id), server.URL)
-				assert.Same(t, client, server.Context)
 				assert.Equal(
 					t,
 					api.Host(),
@@ -365,7 +364,6 @@ func TestClient_FetchServerListContext(t *testing.T) {
 		assertProbed(t, api, servers)
 
 		for _, server := range servers {
-			assert.Same(t, client, server.Context)
 			assert.Zero(t, server.Distance, "the fake reports no distance")
 		}
 	})
@@ -778,105 +776,6 @@ func TestServer_String(t *testing.T) {
 			t.Parallel()
 
 			got := tt.s.String()
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestServer_CheckResultValid(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		s    *Server
-		want bool
-	}{
-		{
-			name: "server with valid results",
-			s:    &Server{DLSpeed: 100, ULSpeed: 50},
-			want: true,
-		},
-		{
-			name: "server with extreme speed ratio",
-			s:    &Server{DLSpeed: 1000000, ULSpeed: 1}, // DL way faster than UL
-			want: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := tt.s.CheckResultValid()
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestServer_testDurationTotalCount(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		s    *Server
-	}{
-		{
-			name: "nil server",
-			s:    nil,
-		},
-		{
-			name: "server with durations",
-			s: &Server{
-				TestDuration: TestDuration{
-					Ping:     &[]time.Duration{time.Second}[0],
-					Download: &[]time.Duration{time.Second}[0],
-					Upload:   &[]time.Duration{time.Second}[0],
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			if tt.s != nil {
-				tt.s.testDurationTotalCount()
-			}
-			// Test passes if no panic
-		})
-	}
-}
-
-func TestServer_getNotNullValue(t *testing.T) {
-	t.Parallel()
-
-	type args struct {
-		time *time.Duration
-	}
-
-	tests := []struct {
-		name string
-		s    *Server
-		args args
-		want time.Duration
-	}{
-		{
-			name: "nil duration pointer",
-			s:    &Server{},
-			args: args{time: nil},
-			want: 0,
-		},
-		{
-			name: "valid duration pointer",
-			s:    &Server{},
-			args: args{time: &[]time.Duration{time.Second}[0]},
-			want: time.Second,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := tt.s.getNotNullValue(tt.args.time)
 			assert.Equal(t, tt.want, got)
 		})
 	}

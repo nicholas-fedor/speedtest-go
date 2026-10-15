@@ -19,7 +19,8 @@
 // ## Core Types
 //
 //   - Client: The main client structure that manages speedtest operations
-//   - Server: Represents a speedtest server with properties like URL, location, latency, speeds, and packet loss
+//   - Server: Represents a speedtest server with its URL, location, and the Latency of a quick probe
+//   - Result: Collects a server's ping, download, upload, and packet loss measurements
 //   - User: Contains user information including IP, ISP, and coordinates
 //   - ByteRate: Represents data transfer rates with flexible unit formatting (bps, Kbps, Mbps, etc.)
 //
@@ -31,12 +32,10 @@
 //   - JSON() and JSONL(): Marshal results with the user information
 //   - ByteRate.Format(): Formats a rate in a chosen unit
 //   - Cities(): Lists the predefined city labels for GetLocation
-//   - Client.SetCallbackDownload() and Client.SetCallbackUpload(): Report the live rate during a test
-//   - Client.GetTotalDownload(), Client.GetTotalUpload(), and Client.Reset(): Read and clear the transfer totals
-//   - Server.PingTest(): Measures latency to a server
-//   - Server.DownloadTest(): Performs download speed test
-//   - Server.UploadTest(): Performs upload speed test
-//   - Server.TestAll(): Runs complete test suite (ping, download, upload)
+//   - Client.Ping(): Measures latency to a server
+//   - Client.Download() and Client.Upload(): Measure download and upload speed, with each connection's results
+//   - Client.DownloadMulti() and Client.UploadMulti(): Measure speed across several servers at once
+//   - Client.PacketLoss(): Measures packet loss to a server
 //
 // # Key Features
 //
@@ -64,12 +63,14 @@
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
-//	user, _ := client.FetchUserInfo()
+//	ctx := context.Background()
 //	servers, _ := client.FetchServers()
 //	server := servers[0]
-//	server.PingTest()
-//	server.DownloadTest()
-//	server.UploadTest()
+//	ping, _ := client.Ping(ctx, server)
+//	download, _ := client.Download(ctx, server, speedtest.WithRateCallback(func(rate speedtest.ByteRate) {
+//	    fmt.Println("Download:", rate)
+//	}))
+//	upload, _ := client.Upload(ctx, server)
 //	fmt.Printf("Download: %s, Upload: %s, Latency: %s\n",
-//	    server.DLSpeed, server.ULSpeed, server.Latency)
+//	    download.Rate, upload.Rate, ping.Latency)
 package speedtest

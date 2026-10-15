@@ -378,6 +378,7 @@ The [code](https://github.com/nicholas-fedor/speedtest-go/blob/master/example/na
 package main
 
 import (
+ "context"
  "fmt"
  "log"
 
@@ -410,12 +411,11 @@ func main() {
   // Please make sure your host can access this test server,
   // otherwise you will get an error.
   // It is recommended to replace a server at this time
-  s.PingTest(nil)
-  s.DownloadTest()
-  s.UploadTest()
-  // Note: The unit of s.DLSpeed, s.ULSpeed is bytes per second, this is a float64.
-  fmt.Printf("Latency: %s, Download: %s, Upload: %s\n", s.Latency, s.DLSpeed, s.ULSpeed)
-  s.Context.Reset() // reset counter
+  ping, _ := speedtestClient.Ping(context.Background(), s)
+  download, _ := speedtestClient.Download(context.Background(), s)
+  upload, _ := speedtestClient.Upload(context.Background(), s)
+  // Note: Rate is in bytes per second, a float64 that prints in Mbps. Each test reports its own results.
+  fmt.Printf("Latency: %s, Download: %s, Upload: %s\n", ping.Latency, download.Rate, upload.Rate)
  }
 }
 ```

@@ -107,7 +107,7 @@ func (d *Direction) adaptUploadWorkers(ctx context.Context, stop <-chan struct{}
 	ticker := time.NewTicker(uploadAdjustInterval)
 	defer ticker.Stop()
 
-	previousConfirmed := d.confirmed.Load()
+	previousConfirmed := d.volume()
 	previousAt := time.Now()
 
 	var bestRate float64
@@ -117,7 +117,7 @@ func (d *Direction) adaptUploadWorkers(ctx context.Context, stop <-chan struct{}
 		case <-stop:
 			return
 		case now := <-ticker.C:
-			confirmed := d.confirmed.Load()
+			confirmed := d.volume()
 			delta := confirmed - previousConfirmed
 			elapsed := now.Sub(previousAt).Seconds()
 			previousConfirmed = confirmed

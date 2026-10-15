@@ -17,6 +17,8 @@ type kind int
 
 // Direction runs the request handlers of one download or upload test and measures its rate.
 type Direction struct {
+	// stoppedAt is when the stop function ran.
+	stoppedAt time.Time
 	// meter is the meter the direction belongs to.
 	meter *Meter
 	// welford estimates the live rate and decides when it has settled. welfordMu guards it.
@@ -26,30 +28,32 @@ type Direction struct {
 	// workerCond wakes workers when the active count changes or the test stops.
 	workerCond *sync.Cond
 	// handlers are the registered request handlers. handlersMu guards them.
-	handlers []func()
+	handlers []Handler
+	// connections are the workers' connections, set when the test starts.
+	connections []*Connection
 	// rateSequence is the history of non-zero volumes per sample. welfordMu guards it.
 	rateSequence []int64
-	// finalRate is the measured bytes per second over the capture window, recorded by the stop function before the
-	// workers are told to stop, so it is safe to read once the direction has stopped.
-	finalRate float64
+	// stopBytes are the connections' bytes when the test stopped, in connection order.
+	stopBytes []int64
+	// result is the measurement, taken by the stop function before the workers are told to stop, and completed with
+	// the request counts once they have.
+	result Result
 	// kind is whether the direction downloads or uploads.
 	kind kind
 	// activeWorkers is how many workers may send requests, numbered from 0. workerMu guards it.
 	activeWorkers int
 	// maxWorkers is how many workers were started. workerMu guards it.
 	maxWorkers int
-	// confirmed counts the bytes downloaded, or the upload bytes the server confirmed.
-	confirmed atomic.Int64
 	// read counts the upload bytes read into the transport, confirmed or not.
 	read atomic.Int64
-	// stopped reports that the direction's test has ended, so its workers and chunks stop transferring.
-	stopped atomic.Bool
 	// handlersMu guards handlers.
 	handlersMu sync.Mutex
 	// welfordMu guards welford and rateSequence.
 	welfordMu sync.Mutex
 	// workerMu guards activeWorkers and maxWorkers.
 	workerMu sync.Mutex
+	// stopped reports that the direction's test has ended, so its workers and chunks stop transferring.
+	stopped atomic.Bool
 }
 
 // Rate sampling.
@@ -88,7 +92,15 @@ func newDirection(meter *Meter, testKind kind) *Direction {
 // Returns:
 //   - float64: the bytes per second over the capture window.
 func (d *Direction) FinalRate() float64 {
-	return d.finalRate
+	return d.result.Rate
+}
+
+// Result returns the measurement of the test, once [Direction.Run] has returned.
+//
+// Returns:
+//   - Result: the rate, bytes, and request counts, in total and for each connection.
+func (d *Direction) Result() Result {
+	return d.result
 }
 
 // Run runs the registered handlers on the direction's workers and blocks until the test stops.
@@ -134,6 +146,8 @@ func (d *Direction) Run(ctx context.Context, cancel context.CancelFunc, mainHand
 	d.activeWorkers = initialWorkers
 	d.workerMu.Unlock()
 
+	d.connections = assignConnections(d, len(handlers), mainHandler, mainWorkers, otherWorkers)
+
 	d.meter.logger.Debug(
 		ctx,
 		"starting transfer workers",
@@ -150,9 +164,9 @@ func (d *Direction) Run(ctx context.Context, cancel context.CancelFunc, mainHand
 
 	d.closeFunc = func() {
 		once.Do(func() {
-			// Record the final rate at the moment the test stops, before requests are cancelled, so neither bytes
+			// Take the measurement at the moment the test stops, before requests are cancelled, so neither bytes
 			// that arrive while they shut down nor a slow rate callback affect it.
-			d.finalRate = measuredRate(d.confirmed.Load(), time.Since(captureStart))
+			d.takeResult(captureStart)
 
 			close(stopCapture)
 			close(stopAdapting)
@@ -185,38 +199,58 @@ func (d *Direction) Run(ctx context.Context, cancel context.CancelFunc, mainHand
 
 	var workers sync.WaitGroup
 
-	for worker := range mainWorkers {
+	for worker, connection := range d.connections {
+		handler := handlers[connection.handler]
+
 		workers.Go(func() {
 			for d.waitForTurn(worker) {
-				handlers[mainHandler]()
+				connection.run(handler)
 			}
 		})
 	}
 
-	for otherIndex := 0; otherIndex < otherWorkers; {
-		for handlerIndex := range handlers {
-			if otherIndex == otherWorkers {
+	workers.Wait()
+	d.completeResult()
+}
+
+// assignConnections returns a connection for each worker of a test. The main handler's workers come first, and the
+// other workers cycle through the remaining handlers in order.
+//
+// Parameters:
+//   - direction: the test.
+//   - handlers: the number of registered handlers.
+//   - mainHandler: the index of the main handler.
+//   - mainWorkers: the workers that run the main handler.
+//   - otherWorkers: the workers that share the other handlers.
+//
+// Returns:
+//   - []*Connection: the connections, in worker order.
+func assignConnections(
+	direction *Direction,
+	handlers, mainHandler, mainWorkers, otherWorkers int,
+) []*Connection {
+	connections := make([]*Connection, 0, mainWorkers+max(otherWorkers, 0))
+
+	for range mainWorkers {
+		connections = append(connections, newConnection(direction, mainHandler))
+	}
+
+	for assigned := 0; assigned < otherWorkers; {
+		for handler := range handlers {
+			if assigned == otherWorkers {
 				break
 			}
 
-			if handlerIndex == mainHandler {
+			if handler == mainHandler {
 				continue
 			}
 
-			worker := mainWorkers + otherIndex
-			handler := handlers[handlerIndex]
-
-			workers.Go(func() {
-				for d.waitForTurn(worker) {
-					handler()
-				}
-			})
-
-			otherIndex++
+			connections = append(connections, newConnection(direction, handler))
+			assigned++
 		}
 	}
 
-	workers.Wait()
+	return connections
 }
 
 // addHandler adds a request handler, unless the direction already has limit of them.
@@ -224,7 +258,7 @@ func (d *Direction) Run(ctx context.Context, cancel context.CancelFunc, mainHand
 // Parameters:
 //   - handler: sends one request.
 //   - limit: the most handlers the direction holds.
-func (d *Direction) addHandler(handler func(), limit int) {
+func (d *Direction) addHandler(handler Handler, limit int) {
 	d.handlersMu.Lock()
 	defer d.handlersMu.Unlock()
 
@@ -236,29 +270,66 @@ func (d *Direction) addHandler(handler func(), limit int) {
 // snapshotHandlers returns a copy of the registered handlers.
 //
 // Returns:
-//   - []func(): the handlers.
-func (d *Direction) snapshotHandlers() []func() {
+//   - []Handler: the handlers.
+func (d *Direction) snapshotHandlers() []Handler {
 	d.handlersMu.Lock()
 	defer d.handlersMu.Unlock()
 
-	return append([]func(){}, d.handlers...)
+	return append([]Handler{}, d.handlers...)
 }
 
-// callback returns the meter's live rate callback for this direction.
+// volume returns the bytes the test's connections have counted so far.
 //
 // Returns:
-//   - func(rate float64): the callback, or nil when none is set.
-func (d *Direction) callback() func(rate float64) {
-	pointer := d.meter.downloadCallback.Load()
-	if d.kind == kindUpload {
-		pointer = d.meter.uploadCallback.Load()
+//   - int64: the bytes downloaded, or the upload bytes the server confirmed.
+func (d *Direction) volume() int64 {
+	var total int64
+
+	for _, connection := range d.connections {
+		total += connection.Bytes()
 	}
 
-	if pointer == nil {
-		return nil
+	return total
+}
+
+// takeResult records the rate and bytes at the moment the test stops.
+//
+// Parameters:
+//   - start: when the capture window began.
+func (d *Direction) takeResult(start time.Time) {
+	d.stoppedAt = time.Now()
+	d.stopBytes = make([]int64, len(d.connections))
+
+	var total int64
+
+	for index, connection := range d.connections {
+		d.stopBytes[index] = connection.Bytes()
+		total += d.stopBytes[index]
 	}
 
-	return *pointer
+	window := d.stoppedAt.Sub(start)
+	d.result = Result{
+		Connections: nil,
+		Rate:        measuredRate(total, window),
+		Bytes:       total,
+		Sent:        d.read.Load(),
+		Window:      window,
+		Requests:    0,
+		Failures:    0,
+	}
+}
+
+// completeResult adds the request counts and each connection's measurement to the result, once every worker has
+// returned.
+func (d *Direction) completeResult() {
+	d.result.Connections = make([]ConnectionResult, 0, len(d.connections))
+
+	for index, connection := range d.connections {
+		result := connection.result(d.stopBytes[index], d.stoppedAt)
+		d.result.Connections = append(d.result.Connections, result)
+		d.result.Requests += result.Requests
+		d.result.Failures += result.Failures
+	}
 }
 
 // rateCapture samples the transferred volume at each capture interval, updating the live rate and calling the rate
@@ -283,7 +354,7 @@ func (d *Direction) rateCapture(start time.Time, stop <-chan struct{}) {
 		for {
 			select {
 			case <-ticker.C:
-				volume := d.confirmed.Load()
+				volume := d.volume()
 				delta := volume - previousVolume
 				previousVolume = volume
 
@@ -304,9 +375,8 @@ func (d *Direction) rateCapture(start time.Time, stop <-chan struct{}) {
 					go d.closeFunc()
 				}
 
-				callback := d.callback()
-				if callback != nil {
-					callback(ewma)
+				if d.meter.onRate != nil {
+					d.meter.onRate(ewma)
 				}
 			case <-stop:
 				return

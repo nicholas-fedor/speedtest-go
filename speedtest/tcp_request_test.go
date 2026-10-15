@@ -76,19 +76,22 @@ func TestTCPHost(t *testing.T) {
 	}
 }
 
-// TestRequestFor checks that each test mode selects its own request functions.
-func TestRequestFor(t *testing.T) {
+// TestTransferKinds checks that each test mode selects its own request functions, and that only HTTP uploads
+// resolve upload redirects.
+func TestTransferKinds(t *testing.T) {
 	t.Parallel()
 
 	pointer := func(fn any) uintptr { return reflect.ValueOf(fn).Pointer() }
 
-	httpServer := &Server{Context: newTestClient(t)}
-	assert.Equal(t, pointer(downloadRequest), pointer(httpServer.downloadRequestFor()))
-	assert.Equal(t, pointer(uploadRequest), pointer(httpServer.uploadRequestFor()))
+	httpClient := newTestClient(t)
+	assert.Equal(t, pointer(downloadRequest), pointer(httpClient.downloadKind().request))
+	assert.Equal(t, pointer(uploadRequest), pointer(httpClient.uploadKind().request))
+	assert.False(t, httpClient.downloadKind().resolveUploads)
+	assert.True(t, httpClient.uploadKind().resolveUploads)
 
-	tcpServer := &Server{Context: newTestClient(t, WithProtocol(TCPTest))}
-	assert.Equal(t, pointer(tcpDownloadRequest), pointer(tcpServer.downloadRequestFor()))
-	assert.Equal(t, pointer(tcpUploadRequest), pointer(tcpServer.uploadRequestFor()))
+	tcpClient := newTestClient(t, WithProtocol(TCPTest))
+	assert.Equal(t, pointer(tcpDownloadRequest), pointer(tcpClient.downloadKind().request))
+	assert.Equal(t, pointer(tcpUploadRequest), pointer(tcpClient.uploadKind().request))
 }
 
 // uploadURLWatcher is an HTTP server standing in for a listed upload URL, counting the requests it receives.
@@ -123,31 +126,33 @@ func tcpClient(t *testing.T) *Client {
 	)
 }
 
-// TestServer_TCPTests checks single-server download and upload tests in TCP mode: both measure a rate over the
+// TestClient_TCPTests checks single-server download and upload tests in TCP mode: both measure a rate over the
 // TCP protocol, and the listed HTTP upload URL is never contacted.
-func TestServer_TCPTests(t *testing.T) {
+func TestClient_TCPTests(t *testing.T) {
 	t.Parallel()
 
 	srv := testserver.NewTCPServer(t)
 	uploadURL, httpRequests := uploadURLWatcher(t)
 	client := tcpClient(t)
-	server := &Server{ID: "1001", Host: srv.Addr(), URL: uploadURL, Context: client}
+	server := &Server{ID: "1001", Host: srv.Addr(), URL: uploadURL}
 
-	require.NoError(t, server.DownloadTestContext(context.Background()))
-	assert.Positive(t, float64(server.DLSpeed))
-	assert.Positive(t, client.GetTotalDownload())
+	download, err := client.Download(context.Background(), server)
+	require.NoError(t, err)
+	assert.Positive(t, float64(download.Rate))
+	assert.Positive(t, download.Bytes)
 
-	require.NoError(t, server.UploadTestContext(context.Background()))
-	assert.Positive(t, float64(server.ULSpeed))
-	assert.Positive(t, client.GetTotalUpload())
+	upload, err := client.Upload(context.Background(), server)
+	require.NoError(t, err)
+	assert.Positive(t, float64(upload.Rate))
+	assert.Positive(t, upload.Bytes)
 
 	assert.Positive(t, countCommands(srv, "DOWNLOAD "+strconv.Itoa(dlSizes[3]*1000)))
 	assert.Positive(t, countCommands(srv, "UPLOAD "+strconv.Itoa(ulSizes[4]*1000)+" 0"))
 	assert.Zero(t, httpRequests.Load(), "TCP tests must not resolve the HTTP upload URL")
 }
 
-// TestServer_TCPMultiTests checks that multi-server tests in TCP mode use every server in the pool.
-func TestServer_TCPMultiTests(t *testing.T) {
+// TestClient_TCPMultiTests checks that multi-server tests in TCP mode use every server in the pool.
+func TestClient_TCPMultiTests(t *testing.T) {
 	t.Parallel()
 
 	first, second := testserver.NewTCPServer(t), testserver.NewTCPServer(t)
@@ -155,21 +160,43 @@ func TestServer_TCPMultiTests(t *testing.T) {
 	client := tcpClient(t)
 
 	pool := Servers{
-		{ID: "1001", Host: first.Addr(), URL: uploadURL, Context: client},
-		{ID: "1002", Host: second.Addr(), URL: uploadURL, Context: client},
+		{ID: "1001", Host: first.Addr(), URL: uploadURL},
+		{ID: "1002", Host: second.Addr(), URL: uploadURL},
 	}
 
-	require.NoError(t, pool[0].MultiDownloadTestContext(context.Background(), pool))
-	require.NoError(t, pool[0].MultiUploadTestContext(context.Background(), pool))
+	download, err := client.DownloadMulti(context.Background(), pool[0], pool)
+	require.NoError(t, err)
+
+	upload, err := client.UploadMulti(context.Background(), pool[0], pool)
+	require.NoError(t, err)
 
 	for _, srv := range []*testserver.TCPServer{first, second} {
 		assert.Positive(t, countPrefix(srv, "DOWNLOAD "))
 		assert.Positive(t, countPrefix(srv, "UPLOAD "))
 	}
 
-	assert.Positive(t, float64(pool[0].DLSpeed))
-	assert.Positive(t, float64(pool[0].ULSpeed))
+	assert.Positive(t, float64(download.Rate))
+	assert.Positive(t, float64(upload.Rate))
 	assert.Zero(t, httpRequests.Load(), "TCP tests must not resolve the HTTP upload URL")
+}
+
+// tcpRequestTo returns a request to a TCP server, with the smallest transfer size.
+//
+// Parameters:
+//   - t: the test.
+//   - host: the server's host and port, or empty for none.
+//
+// Returns:
+//   - *transferRequest: the request.
+func tcpRequestTo(t *testing.T, host string) *transferRequest {
+	t.Helper()
+
+	return &transferRequest{
+		client:    newTestClient(t),
+		server:    &Server{Host: host},
+		uploadURL: "",
+		size:      0,
+	}
 }
 
 // countPrefix returns how many commands the fake server received starting with prefix.
@@ -190,15 +217,20 @@ func Test_tcpUploadRequest(t *testing.T) {
 	t.Parallel()
 
 	srv := testserver.NewTCPServer(t)
-	client, manager := meteredClient(t)
-	server := &Server{Host: srv.Addr(), Context: client}
+	request := &transferRequest{
+		client:    newTestClient(t),
+		server:    &Server{Host: srv.Addr()},
+		uploadURL: "",
+		size:      0,
+	}
+	connection := uploadConnection()
 
-	require.NoError(t, tcpUploadRequest(context.Background(), server, 0))
+	require.NoError(t, tcpUploadRequest(context.Background(), request, connection))
 
 	payload, err := transport.UploadPayloadSize(int64(ulSizes[0]) * 1000)
 	require.NoError(t, err)
-	assert.Equal(t, payload, manager.TotalUpload())
-	assert.Zero(t, manager.UploadBacklog(), "every payload byte read was confirmed")
+	assert.Equal(t, payload, connection.Bytes())
+	assert.Equal(t, connection.Sent(), connection.Bytes(), "every payload byte read was confirmed")
 }
 
 // Test_tcpDownloadRequest checks a complete download, and that a truncated one is an error.
@@ -209,13 +241,13 @@ func Test_tcpDownloadRequest(t *testing.T) {
 		t.Parallel()
 
 		srv := testserver.NewTCPServer(t)
-		client, manager := meteredClient(t)
+		connection := downloadConnection()
 
 		require.NoError(
 			t,
-			tcpDownloadRequest(context.Background(), &Server{Host: srv.Addr(), Context: client}, 0),
+			tcpDownloadRequest(context.Background(), tcpRequestTo(t, srv.Addr()), connection),
 		)
-		assert.Equal(t, int64(dlSizes[0])*1000, manager.TotalDownload())
+		assert.Equal(t, int64(dlSizes[0])*1000, connection.Bytes())
 	})
 
 	t.Run("truncated", func(t *testing.T) {
@@ -224,12 +256,10 @@ func Test_tcpDownloadRequest(t *testing.T) {
 		srv := testserver.NewTCPServer(t)
 		srv.SetFaults(testserver.Faults{TruncateDownloads: true})
 
-		client, _ := meteredClient(t)
-
 		err := tcpDownloadRequest(
 			context.Background(),
-			&Server{Host: srv.Addr(), Context: client},
-			0,
+			tcpRequestTo(t, srv.Addr()),
+			downloadConnection(),
 		)
 		require.ErrorIs(t, err, io.ErrUnexpectedEOF)
 	})
@@ -237,9 +267,7 @@ func Test_tcpDownloadRequest(t *testing.T) {
 	t.Run("no host", func(t *testing.T) {
 		t.Parallel()
 
-		client, _ := meteredClient(t)
-
-		err := tcpDownloadRequest(context.Background(), &Server{Context: client}, 0)
+		err := tcpDownloadRequest(context.Background(), tcpRequestTo(t, ""), downloadConnection())
 		require.ErrorIs(t, err, errNoTCPHost)
 	})
 }

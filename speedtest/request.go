@@ -1,34 +1,47 @@
+// Copyright (c) Nicholas Fedor 2026 <nick@nickfedor.com>
+// SPDX-License-Identifier: MIT
+
 package speedtest
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"net/url"
 	"path"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/internal/meter"
-	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/transport"
 )
 
-type (
-	downloadFunc func(context.Context, *Server, int) error
-	uploadFunc   func(context.Context, *Server, int) error
-	registerFunc func(func()) *meter.Direction
-)
+// requestFunc sends one download or upload request of a transfer, counting its data through the worker's
+// connection.
+type requestFunc func(ctx context.Context, request *transferRequest, connection *meter.Connection) error
 
-var (
-	dlSizes = [...]int{350, 500, 750, 1000, 1500, 2000, 2500, 3000, 3500, 4000}
-	ulSizes = [...]int{100, 300, 500, 800, 1000, 1500, 2500, 3000, 3500, 4000} // kB
-)
+// transferRequest is what a transfer's requests to one server need.
+type transferRequest struct {
+	// client sends the requests.
+	client *Client
+	// server is the server the requests go to.
+	server *Server
+	// uploadURL is where uploads go once redirects are resolved, or empty to use the server's URL.
+	uploadURL string
+	// size is the index into the download or upload size table.
+	size int
+}
+
+// countingReader counts the bytes read through it. The HTTP transport reads a request body on its own goroutine,
+// so the count is atomic.
+type countingReader struct {
+	// reader is the wrapped reader.
+	reader io.Reader
+	// count is the number of bytes read so far.
+	count atomic.Int64
+}
 
 // Limits on resolving upload redirects.
 const (
@@ -40,12 +53,19 @@ const (
 	maxConcurrentUploadResolves = 8
 )
 
+// Transfer sizes.
+var (
+	// dlSizes are the sides of the images downloads request, or their size in kB over TCP.
+	dlSizes = [...]int{350, 500, 750, 1000, 1500, 2000, 2500, 3000, 3500, 4000}
+	// ulSizes are the upload sizes in kB.
+	ulSizes = [...]int{100, 300, 500, 800, 1000, 1500, 2500, 3000, 3500, 4000}
+)
+
 // Errors of server tests and requests.
 var (
 	// ErrConnectTimeout is returned when server connection times out.
 	ErrConnectTimeout = errors.New("server connect timeout")
-	// ErrUninitializedManager is returned when a server's client was not built by [New], so it cannot measure a
-	// transfer.
+	// ErrUninitializedManager is returned when a test runs on a client that was not built by [New].
 	ErrUninitializedManager = errors.New("uninitialized manager")
 	// ErrServerNil is returned when the server is nil.
 	ErrServerNil = errors.New("server is nil")
@@ -56,15 +76,6 @@ var (
 	// errUploadIncomplete reports a successful upload response that arrived before the server took the whole body.
 	errUploadIncomplete = errors.New("upload response arrived before the whole body was sent")
 )
-
-// countingReader counts the bytes read through it. The HTTP transport reads a request body on its own goroutine,
-// so the count is atomic.
-type countingReader struct {
-	// reader is the wrapped reader.
-	reader io.Reader
-	// count is the number of bytes read so far.
-	count atomic.Int64
-}
 
 // Read reads from the wrapped reader and adds the bytes read to the count.
 //
@@ -81,290 +92,49 @@ func (r *countingReader) Read(buffer []byte) (int, error) {
 	return read, err //nolint:wrapcheck // io.Reader callers compare the error with io.EOF.
 }
 
-func (s *Server) multiTestContext(
+// uploadTarget returns the URL uploads are sent to.
+//
+// Returns:
+//   - string: the resolved upload URL, or the server's URL when nothing was resolved.
+func (r *transferRequest) uploadTarget() string {
+	if r.uploadURL != "" {
+		return r.uploadURL
+	}
+
+	return r.server.URL
+}
+
+// downloadRequest downloads one image from the server over HTTP, counting each byte as it arrives.
+//
+// Parameters:
+//   - ctx: cancellation for the request.
+//   - request: the server and the download size.
+//   - connection: the worker's connection, which counts the bytes.
+//
+// Returns:
+//   - error: the request, status, or transfer error.
+func downloadRequest(
 	ctx context.Context,
-	servers Servers,
-	register registerFunc,
-	requestFunc func(context.Context, *Server, int) error,
-	size int,
-	handlerName string,
-	setSpeed func(ByteRate),
+	request *transferRequest,
+	connection *meter.Connection,
 ) error {
-	if s == nil {
-		return ErrServerNil
-	}
+	size := dlSizes[request.size]
 
-	availableServers := servers.Available()
-	if availableServers.Len() == 0 {
-		return ErrNoAvailableServers
-	}
-
-	mainIDIndex := 0
-
-	var testDirection *meter.Direction
-
-	_context, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	var (
-		errorTimes   int64
-		requestTimes int64
-	)
-
-	for i, availableServer := range *availableServers {
-		if availableServer.ID == s.ID {
-			mainIDIndex = i
-		}
-
-		server := availableServer
-		s.log().
-			Debug(ctx, "registering transfer handler", logKeyDirection, handlerName, logKeyURL, server.URL)
-
-		testDirection = register(func() {
-			atomic.AddInt64(&requestTimes, 1)
-
-			err := requestFunc(_context, server, size)
-			if err != nil {
-				atomic.AddInt64(&errorTimes, 1)
-			}
-		})
-	}
-
-	if testDirection == nil {
-		return ErrUninitializedManager
-	}
-
-	testDirection.Run(ctx, cancel, mainIDIndex) // block here
-
-	// A cancelled test measured nothing useful, so leave the server's earlier results as they were.
-	err := ctx.Err()
-	if err != nil {
-		return fmt.Errorf("speed test ended by context: %w", err)
-	}
-
-	// The final rate is the measured volume over the capture window, not the live estimate, which starts at zero and
-	// reads low until it converges.
-	rate := ByteRate(testDirection.FinalRate())
-	setSpeed(rate)
-
-	if rate == 0 && float64(errorTimes)/float64(requestTimes) > 0.1 {
-		setSpeed(-1) // N/A
-	}
-
-	return nil
-}
-
-// MultiDownloadTestContext executes multi-download test with context.
-func (s *Server) MultiDownloadTestContext(ctx context.Context, servers Servers) error {
-	if s == nil {
-		return ErrServerNil
-	}
-
-	if !s.hasMeter() {
-		return ErrUninitializedManager
-	}
-
-	return s.multiTestContext(
-		ctx,
-		servers,
-		s.Context.meter.RegisterDownload,
-		s.downloadRequestFor(),
-		s.Context.downloadIndex(defaultDownloadIndex),
-		"Download",
-		func(rate ByteRate) { s.DLSpeed = rate },
-	)
-}
-
-// MultiUploadTestContext executes multi-upload test with context.
-func (s *Server) MultiUploadTestContext(ctx context.Context, servers Servers) error {
-	if s == nil {
-		return ErrServerNil
-	}
-
-	if !s.hasMeter() {
-		return ErrUninitializedManager
-	}
-
-	// Resolve before the handlers are registered, so no upload worker reads a URL while it changes. TCP tests use no
-	// HTTP upload URL.
-	if !s.usesTCP() {
-		resolveUploadURLs(ctx, *servers.Available(), maxConcurrentUploadResolves)
-	}
-
-	return s.multiTestContext(
-		ctx,
-		servers,
-		s.Context.meter.RegisterUpload,
-		s.uploadRequestFor(),
-		s.Context.uploadIndex(defaultMultiUploadIndex),
-		"Upload",
-		func(rate ByteRate) { s.ULSpeed = rate },
-	)
-}
-
-// DownloadTest executes the test to measure download speed.
-func (s *Server) DownloadTest() error {
-	if s == nil {
-		return ErrServerNil
-	}
-
-	return s.downloadTestContext(context.Background(), s.downloadRequestFor())
-}
-
-// DownloadTestContext executes the test to measure download speed, observing the given context.
-func (s *Server) DownloadTestContext(ctx context.Context) error {
-	if s == nil {
-		return ErrServerNil
-	}
-
-	return s.downloadTestContext(ctx, s.downloadRequestFor())
-}
-
-func (s *Server) testContext(
-	ctx context.Context,
-	requestFunc func(context.Context, *Server, int) error,
-	size int,
-	register registerFunc,
-	setSpeed func(ByteRate),
-	setDuration func(*time.Duration),
-) error {
-	if s == nil {
-		return ErrServerNil
-	}
-
-	if !s.hasMeter() {
-		return ErrUninitializedManager
-	}
-
-	var (
-		errorTimes   int64
-		requestTimes int64
-	)
-
-	start := time.Now()
-	_context, cancel := context.WithCancel(ctx)
-
-	defer cancel()
-
-	testDirection := register(func() {
-		atomic.AddInt64(&requestTimes, 1)
-
-		err := requestFunc(_context, s, size)
-		if err != nil {
-			atomic.AddInt64(&errorTimes, 1)
-		}
-	})
-	testDirection.Run(ctx, cancel, 0)
-
-	// A cancelled test measured nothing useful, so leave the server's earlier results as they were.
-	err := ctx.Err()
-	if err != nil {
-		return fmt.Errorf("speed test ended by context: %w", err)
-	}
-
-	duration := time.Since(start)
-
-	// The final rate is the measured volume over the capture window, not the live estimate, which starts at zero and
-	// reads low until it converges.
-	rate := ByteRate(testDirection.FinalRate())
-	if rate == 0 && float64(errorTimes)/float64(requestTimes) > 0.1 {
-		rate = -1 // N/A
-	}
-
-	setSpeed(rate)
-	setDuration(&duration)
-	s.testDurationTotalCount()
-
-	return nil
-}
-
-func (s *Server) downloadTestContext(ctx context.Context, downloadRequest downloadFunc) error {
-	if s == nil {
-		return ErrServerNil
-	}
-
-	if !s.hasMeter() {
-		return ErrUninitializedManager
-	}
-
-	return s.testContext(
-		ctx,
-		downloadRequest,
-		s.Context.downloadIndex(defaultDownloadIndex),
-		s.Context.meter.RegisterDownload,
-		func(rate ByteRate) { s.DLSpeed = rate },
-		func(d *time.Duration) { s.TestDuration.Download = d },
-	)
-}
-
-// UploadTest executes the test to measure upload speed.
-func (s *Server) UploadTest() error {
-	if s == nil {
-		return ErrServerNil
-	}
-
-	return s.uploadTestContext(context.Background(), s.uploadRequestFor())
-}
-
-// UploadTestContext executes the test to measure upload speed, observing the given context.
-func (s *Server) UploadTestContext(ctx context.Context) error {
-	if s == nil {
-		return ErrServerNil
-	}
-
-	return s.uploadTestContext(ctx, s.uploadRequestFor())
-}
-
-func (s *Server) uploadTestContext(ctx context.Context, uploadRequest uploadFunc) error {
-	if s == nil {
-		return ErrServerNil
-	}
-
-	if !s.hasMeter() {
-		return ErrUninitializedManager
-	}
-
-	// TCP tests use no HTTP upload URL, so there are no redirects to resolve.
-	if !s.usesTCP() {
-		s.resolveUploadURL(ctx)
-	}
-
-	return s.testContext(
-		ctx,
-		uploadRequest,
-		s.Context.uploadIndex(defaultUploadIndex),
-		s.Context.meter.RegisterUpload,
-		func(rate ByteRate) { s.ULSpeed = rate },
-		func(d *time.Duration) { s.TestDuration.Upload = d },
-	)
-}
-
-func downloadRequest(ctx context.Context, server *Server, writer int) error {
-	if server == nil {
-		return ErrServerNil
-	}
-
-	if !server.hasMeter() {
-		return ErrUninitializedManager
-	}
-
-	size := dlSizes[writer]
-
-	u, err := url.Parse(server.URL)
+	u, err := url.Parse(request.server.URL)
 	if err != nil {
 		return fmt.Errorf("failed to parse download URL: %w", err)
 	}
 
 	u.Path = path.Dir(u.Path)
 	xdlURL := u.JoinPath(fmt.Sprintf("random%dx%d.jpg", size, size)).String()
-	server.log().Debug(ctx, "downloading", logKeyURL, xdlURL)
+	request.client.log().Debug(ctx, "downloading", logKeyURL, xdlURL)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, xdlURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create download HTTP request: %w", err)
 	}
 
-	resp, err := server.Context.doer.Do(req)
+	resp, err := request.client.doer.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to perform download HTTP request: %w", err)
 	}
@@ -377,7 +147,7 @@ func downloadRequest(ctx context.Context, server *Server, writer int) error {
 		return fmt.Errorf("download request failed: %w", err)
 	}
 
-	err = server.Context.meter.NewChunk().DownloadHandler(resp.Body)
+	err = connection.NewChunk().DownloadHandler(resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to download data: %w", err)
 	}
@@ -385,100 +155,25 @@ func downloadRequest(ctx context.Context, server *Server, writer int) error {
 	return nil
 }
 
-// resolveUploadURL follows any redirects from the server's upload URL with a HEAD request and stores the final URL
-// for uploads. Some servers advertise an http URL that redirects to https and close the connection while a POST
-// body is still streaming, so the upload fails before its redirect can be seen. Sending to the final URL avoids
-// that. When the HEAD request fails or nothing redirects, uploads use the server's URL. The server's URL itself is
-// left as listed, since downloads and reports use it.
+// uploadRequest uploads one block to the server over HTTP, counting it once the server confirms the whole body.
 //
 // Parameters:
-//   - ctx: cancellation for the HEAD request.
-func (s *Server) resolveUploadURL(ctx context.Context) {
-	s.uploadURL = ""
-
-	if s.Context == nil {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, uploadResolveTimeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, s.URL, nil)
-	if err != nil {
-		return
-	}
-
-	resp, err := s.Context.doer.Do(req)
-	if err != nil {
-		s.log().Debug(ctx, "upload URL not resolved", logKeyError, err)
-
-		return
-	}
-
-	_ = resp.Body.Close()
-
-	if resp.Request == nil || resp.Request.URL == nil {
-		return
-	}
-
-	resolved := resp.Request.URL.String()
-	if resolved != s.URL {
-		s.log().Debug(ctx, "resolved upload URL", logKeyURL, s.URL, logKeyResolved, resolved)
-		s.uploadURL = resolved
-	}
-}
-
-// resolveUploadURLs resolves the upload URL of every server, running at most limit resolutions at once, and returns
-// when all are done.
-//
-// Parameters:
-//   - ctx: cancellation for the HEAD requests.
-//   - servers: the servers to resolve.
-//   - limit: the most resolutions to run at once.
-func resolveUploadURLs(ctx context.Context, servers Servers, limit int) {
-	var resolving sync.WaitGroup
-
-	slots := make(chan struct{}, limit)
-
-	for _, server := range servers {
-		slots <- struct{}{}
-
-		resolving.Go(func() {
-			defer func() { <-slots }()
-
-			server.resolveUploadURL(ctx)
-		})
-	}
-
-	resolving.Wait()
-}
-
-// uploadTarget returns the URL uploads are sent to.
+//   - ctx: cancellation for the request.
+//   - request: the server, its resolved upload URL, and the upload size.
+//   - connection: the worker's connection, which counts the confirmed bytes.
 //
 // Returns:
-//   - string: the resolved upload URL, or the server's URL when nothing was resolved.
-func (s *Server) uploadTarget() string {
-	if s.uploadURL != "" {
-		return s.uploadURL
-	}
-
-	return s.URL
-}
-
-func uploadRequest(ctx context.Context, server *Server, writer int) error {
-	if server == nil {
-		return ErrServerNil
-	}
-
-	if !server.hasMeter() {
-		return ErrUninitializedManager
-	}
-
-	size := ulSizes[writer]
+//   - error: the request, status, or confirmation error.
+func uploadRequest(
+	ctx context.Context,
+	request *transferRequest,
+	connection *meter.Connection,
+) error {
+	size := ulSizes[request.size]
 	chunkSize := int64(size*100-51) * 10
-	body := &countingReader{reader: server.Context.meter.NewChunk().UploadHandler(chunkSize)}
+	body := &countingReader{reader: connection.NewChunk().UploadHandler(chunkSize)}
 
-	target := server.uploadTarget()
+	target := request.uploadTarget()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, io.NopCloser(body))
 	if err != nil {
@@ -486,12 +181,12 @@ func uploadRequest(ctx context.Context, server *Server, writer int) error {
 	}
 
 	req.ContentLength = chunkSize
-	server.log().Debug(ctx, "uploading", logKeyURL, target, logKeyBytes, req.ContentLength)
+	request.client.log().Debug(ctx, "uploading", logKeyURL, target, logKeyBytes, req.ContentLength)
 	req.Header.Set("Content-Type", "application/octet-stream")
 
 	// Following a redirect would replace the POST with a bodyless GET, whose success confirms nothing. A redirect
 	// is returned as is, and its status fails the check below.
-	client := *server.Context.doer
+	client := *request.client.doer
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 
 	resp, err := client.Do(req)
@@ -518,545 +213,81 @@ func uploadRequest(ctx context.Context, server *Server, writer int) error {
 		return fmt.Errorf("%w: %d of %d bytes", errUploadIncomplete, sent, chunkSize)
 	}
 
-	server.Context.meter.AddTotalUpload(chunkSize)
+	connection.Confirm(chunkSize)
 
 	return nil
 }
 
-// PingTest executes test to measure latency.
-func (s *Server) PingTest(callback func(latency time.Duration)) error {
-	return s.PingTestContext(context.Background(), callback)
-}
-
-// PingTestContext executes test to measure latency, observing the given context.
-func (s *Server) PingTestContext(ctx context.Context, callback func(latency time.Duration)) error {
-	if s == nil {
-		return ErrServerNil
-	}
-
-	if s.Context == nil {
-		return ErrUninitializedManager
-	}
-
-	start := time.Now()
-
-	var (
-		vectorPingResult []int64
-		err              error
-	)
-
-	switch s.Context.settings.pingMode {
-	case TCP:
-		vectorPingResult, err = s.TCPPing(ctx, 10, time.Millisecond*200, callback)
-	case ICMP:
-		vectorPingResult, err = s.ICMPPing(ctx, time.Second*4, 10, time.Millisecond*200, callback)
-	case HTTP:
-		vectorPingResult, err = s.HTTPPing(ctx, 10, time.Millisecond*200, callback)
-	default:
-		vectorPingResult, err = s.HTTPPing(ctx, 10, time.Millisecond*200, callback)
-	}
-
-	if err != nil || len(vectorPingResult) == 0 {
-		return err
-	}
-
-	// A ping cut short by its context measured too little, so keep the server's earlier latency results.
-	err = ctx.Err()
-	if err != nil {
-		return fmt.Errorf("ping ended by context: %w", err)
-	}
-
-	s.log().Debug(ctx, "measured latencies", logKeyLatencies, vectorPingResult)
-	mean, _, std, minLatency, maxLatency := StandardDeviation(vectorPingResult)
-	duration := time.Since(start)
-	s.Latency = time.Duration(mean) * time.Nanosecond
-	s.Jitter = time.Duration(std) * time.Nanosecond
-	s.MinLatency = time.Duration(minLatency) * time.Nanosecond
-	s.MaxLatency = time.Duration(maxLatency) * time.Nanosecond
-	s.TestDuration.Ping = &duration
-	s.testDurationTotalCount()
-
-	return nil
-}
-
-// TestAll executes ping, download and upload tests one by one.
-func (s *Server) TestAll() error {
-	if s == nil {
-		return ErrServerNil
-	}
-
-	err := s.PingTest(nil)
-	if err != nil {
-		return err
-	}
-
-	err = s.DownloadTest()
-	if err != nil {
-		return err
-	}
-
-	return s.UploadTest()
-}
-
-// TCPPing performs TCP ping test.
-func (s *Server) TCPPing(
-	ctx context.Context,
-	echoTimes int,
-	echoFreq time.Duration,
-	callback func(latency time.Duration),
-) ([]int64, error) {
-	if s == nil {
-		return nil, ErrServerNil
-	}
-
-	if s.Context == nil {
-		return nil, ErrUninitializedManager
-	}
-
-	var pingDst string
-
-	if len(s.Host) == 0 {
-		u, err := url.Parse(s.URL)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse server URL for TCP ping: %w", err)
-		}
-
-		if len(u.Host) == 0 {
-			return nil, fmt.Errorf("invalid server URL %q for TCP ping: %w", s.URL, errNoHost)
-		}
-
-		pingDst = u.Host
-	} else {
-		pingDst = s.Host
-	}
-
-	failTimes := 0
-
-	latencies := make([]int64, 0, echoTimes)
-
-	client, err := transport.NewClient(s.Context.tcpDialer)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create transport client for TCP ping: %w", err)
-	}
-
-	err = client.Connect(ctx, pingDst)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect for TCP ping: %w", err)
-	}
-
-	defer func() { _ = client.Disconnect() }()
-
-	for range echoTimes {
-		latency, err := client.PingContext(ctx)
-		if err != nil {
-			if isContextError(err) {
-				return latencies, fmt.Errorf("TCP ping ended by context: %w", err)
-			}
-
-			failTimes++
-
-			continue
-		}
-
-		latencies = append(latencies, latency)
-		if callback != nil {
-			callback(time.Duration(latency))
-		}
-
-		err = sleepContext(ctx, echoFreq)
-		if err != nil {
-			return latencies, err
-		}
-	}
-
-	if failTimes == echoTimes {
-		return nil, ErrConnectTimeout
-	}
-
-	return latencies, nil
-}
-
-// HTTPPing performs HTTP ping test.
-func (s *Server) HTTPPing(
-	ctx context.Context,
-	echoTimes int,
-	echoFreq time.Duration,
-	callback func(latency time.Duration),
-) ([]int64, error) {
-	if s == nil {
-		return nil, ErrServerNil
-	}
-
-	if s.Context == nil {
-		return nil, ErrUninitializedManager
-	}
-
-	var contextErr, lastErr error
-
-	u, err := url.Parse(s.URL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse server URL for HTTP ping: %w", err)
-	}
-
-	if len(u.Host) == 0 {
-		return nil, fmt.Errorf("invalid server URL %q for HTTP ping: %w", s.URL, errNoHost)
-	}
-
-	u.Path = path.Dir(u.Path)
-	pingDst := u.JoinPath("latency.txt").String()
-	s.log().Debug(ctx, "pinging over HTTP", logKeyURL, pingDst)
-
-	failTimes := 0
-	latencies := make([]int64, 0, echoTimes+1)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pingDst, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create ping HTTP request: %w", err)
-	}
-	// carry out an extra request to warm up the connection and ensure the first request is not going to affect the
-	// overall estimation
-	echoTimes++
-	for i := range echoTimes {
-		sTime := time.Now()
-		resp, err := s.Context.doer.Do(req)
-		endTime := time.Since(sTime)
-
-		if err != nil {
-			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				contextErr = err
-
-				break
-			}
-
-			lastErr = err
-			failTimes++
-
-			continue
-		}
-
-		// A server that answers with an error status must not look reachable, or it could win server selection.
-		statusErr := checkStatus(resp)
-
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-
-		if statusErr != nil {
-			lastErr = statusErr
-			failTimes++
-
-			continue
-		}
-
-		if i > 0 {
-			latency := endTime.Nanoseconds()
-			latencies = append(latencies, latency)
-			s.log().Debug(ctx, "measured latency", logKeyLatency, time.Duration(latency))
-
-			if callback != nil {
-				callback(endTime)
-			}
-		}
-
-		err = sleepContext(ctx, echoFreq)
-		if err != nil {
-			contextErr = err
-
-			break
-		}
-	}
-
-	if contextErr != nil {
-		return latencies, contextErr
-	}
-
-	if failTimes == echoTimes {
-		return nil, fmt.Errorf("%w: %w", ErrConnectTimeout, lastErr)
-	}
-
-	return latencies, nil
-}
-
-// PingTimeout represents the timeout value for ping operations.
-const (
-	PingTimeout        = -1
-	echoOptionDataSize = 32 // `echoMessage` need to change at same time
-	// icmpEchoReply is the ICMP message type of an echo reply.
-	icmpEchoReply = 0
-	// maxIPv4HeaderSize is the largest IPv4 header, which precedes the ICMP message on a raw socket.
-	maxIPv4HeaderSize = 60
-)
-
-// ICMPPing privileged method.
-func (s *Server) ICMPPing(
-	ctx context.Context,
-	readTimeout time.Duration,
-	echoTimes int,
-	echoFreq time.Duration,
-	callback func(latency time.Duration),
-) ([]int64, error) {
-	if s == nil {
-		return nil, ErrServerNil
-	}
-
-	if s.Context == nil {
-		return nil, ErrUninitializedManager
-	}
-
-	latencies := make([]int64, 0, echoTimes)
-
-	u, err := url.ParseRequestURI(s.URL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse ICMP URL: %w", err)
-	}
-
-	if len(u.Host) == 0 {
-		return nil, fmt.Errorf("invalid server URL %q for ICMP ping: %w", s.URL, errNoHost)
-	}
-
-	s.log().Debug(ctx, "pinging over ICMP", logKeyAddress, u.Hostname())
-
-	dialContext, err := s.Context.ipDialer.DialContext(
-		ctx,
-		"ip:icmp",
-		strings.Split(u.Host, ":")[0],
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to dial ICMP: %w", err)
-	}
-
-	defer func() { _ = dialContext.Close() }()
-
-	// Each echo's read has its own deadline, so close the socket when ctx ends to unblock a pending read. Closing
-	// cannot be undone by the next echo's deadline, unlike moving the deadline.
-	stopClosing := context.AfterFunc(ctx, func() { _ = dialContext.Close() })
-	defer stopClosing()
-
-	icmpData := prepareICMPPacket()
-
-	failTimes := 0
-
-	for i := range echoTimes {
-		err := ctx.Err()
-		if err != nil {
-			return latencies, fmt.Errorf("ICMP ping ended by context: %w", err)
-		}
-
-		latency, err := s.sendOneICMPPing(dialContext, icmpData, i, readTimeout)
-		if err != nil {
-			// A read cut off by the closed socket is the context ending, not a lost echo.
-			ctxErr := ctx.Err()
-			if ctxErr != nil {
-				return latencies, fmt.Errorf("ICMP ping ended by context: %w", ctxErr)
-			}
-
-			failTimes++
-
-			continue
-		}
-
-		latencies = append(latencies, latency.Nanoseconds())
-		s.log().Debug(ctx, "measured latency", logKeyLatency, latency)
-
-		if callback != nil {
-			callback(latency)
-		}
-
-		err = sleepContext(ctx, echoFreq)
-		if err != nil {
-			return latencies, err
-		}
-	}
-
-	if failTimes == echoTimes {
-		return nil, ErrConnectTimeout
-	}
-
-	return latencies, nil
-}
-
-func prepareICMPPacket() []byte {
-	icmpData := make([]byte, 8+echoOptionDataSize) // header + data
-	icmpData[0] = 8                                // echo
-	icmpData[1] = 0                                // code
-	icmpData[2] = 0                                // checksum
-	icmpData[3] = 0                                // checksum
-	icmpData[4] = 0                                // id
-	icmpData[5] = 1                                // id
-	icmpData[6] = 0                                // seq
-	icmpData[7] = 1                                // seq
-
-	echoMessage := "Hi! SpeedTest-Go \\(●'◡'●)/"
-	copy(icmpData[8:], echoMessage)
-
-	icmpData[8+echoOptionDataSize-1] = 6
-
-	return icmpData
-}
-
-func (s *Server) sendOneICMPPing(dialContext interface {
-	Write(data []byte) (n int, err error)
-	Read(data []byte) (n int, err error)
-	SetDeadline(t time.Time) error
-	Close() error
-}, icmpData []byte, _ int, readTimeout time.Duration,
-) (time.Duration, error) {
-	// Update checksum and seq
-	icmpData[2] = 0
-	icmpData[3] = 0
-	icmpData[6] = byte(1 >> 8)
-	icmpData[7] = byte(1)
-	cs := checkSum(icmpData)
-	icmpData[2] = byte(cs >> 8)
-	icmpData[3] = byte(cs & 0xFF)
-
-	sTime := time.Now()
-	_ = dialContext.SetDeadline(sTime.Add(readTimeout))
-
-	_, err := dialContext.Write(icmpData)
-	if err != nil {
-		return 0, fmt.Errorf("failed to write ICMP packet: %w", err)
-	}
-
-	buf := make([]byte, maxIPv4HeaderSize+8+echoOptionDataSize)
-
-	// A raw ICMP socket receives every ICMP packet addressed to the host, including this client's own request when
-	// the target is local. Keep reading until the matching reply arrives or the deadline set above expires.
-	for {
-		n, err := dialContext.Read(buf)
-		if err != nil {
-			return 0, fmt.Errorf("failed to read ICMP response: %w", err)
-		}
-
-		if isEchoReply(buf[:n], icmpData) {
-			return time.Since(sTime), nil
-		}
-	}
-}
-
-// isEchoReply reports whether an IPv4 packet read from a raw ICMP socket is the echo reply to request.
+// resolveUploadURL follows any redirects from a server's upload URL with a HEAD request. Some servers advertise an
+// http URL that redirects to https and close the connection while a POST body is still streaming, so the upload
+// fails before its redirect can be seen. Sending to the final URL avoids that.
 //
 // Parameters:
-//   - packet: the IPv4 packet, starting with its header.
-//   - request: the ICMP echo request that was sent.
+//   - ctx: cancellation for the HEAD request.
+//   - server: the server.
 //
 // Returns:
-//   - bool: true when the packet is an echo reply with the request's identifier and sequence number.
-func isEchoReply(packet, request []byte) bool {
-	if len(packet) == 0 {
-		return false
-	}
+//   - string: the URL the server's upload URL redirects to, or empty when the request fails or nothing redirects.
+func (s *Client) resolveUploadURL(ctx context.Context, server *Server) string {
+	ctx, cancel := context.WithTimeout(ctx, uploadResolveTimeout)
+	defer cancel()
 
-	headerLen := int(packet[0]&0x0f) * 4
-	if len(packet) < headerLen+8 {
-		return false
-	}
-
-	icmp := packet[headerLen:]
-
-	return icmp[0] == icmpEchoReply && bytes.Equal(icmp[4:8], request[4:8])
-}
-
-// checkSum computes the RFC 1071 Internet checksum of an ICMP message.
-//
-// The 16-bit words are added in a wider accumulator and the carries are folded back in, giving the one's complement
-// sum that receivers verify. An odd final byte is padded with a zero low byte.
-//
-// Parameters:
-//   - data: the message, with its checksum field set to zero.
-//
-// Returns:
-//   - uint16: the checksum to store in the message.
-func checkSum(data []byte) uint16 {
-	var sum uint32
-	for i := 0; i+1 < len(data); i += 2 {
-		sum += uint32(data[i])<<8 | uint32(data[i+1])
-	}
-
-	if len(data)%2 == 1 {
-		sum += uint32(data[len(data)-1]) << 8
-	}
-
-	for sum>>16 != 0 {
-		sum = sum&0xffff + sum>>16
-	}
-
-	return ^uint16(sum)
-}
-
-// sleepContext waits for wait, returning early when ctx ends.
-//
-// Parameters:
-//   - ctx: ends the wait early.
-//   - wait: how long to wait.
-//
-// Returns:
-//   - error: a wrapped context error when ctx ended first, or nil.
-func sleepContext(ctx context.Context, wait time.Duration) error {
-	err := ctx.Err()
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, server.URL, nil)
 	if err != nil {
-		return fmt.Errorf("ping ended by context: %w", err)
+		return ""
 	}
 
-	timer := time.NewTimer(wait)
-	defer timer.Stop()
+	resp, err := s.doer.Do(req)
+	if err != nil {
+		s.log().Debug(ctx, "upload URL not resolved", logKeyError, err)
 
-	select {
-	case <-ctx.Done():
-		return fmt.Errorf("ping ended by context: %w", ctx.Err())
-	case <-timer.C:
-		// When both cases are ready, select picks either one, so a context that ended meanwhile still wins.
-		err := ctx.Err()
-		if err != nil {
-			return fmt.Errorf("ping ended by context: %w", err)
-		}
-
-		return nil
+		return ""
 	}
+
+	_ = resp.Body.Close()
+
+	if resp.Request == nil || resp.Request.URL == nil {
+		return ""
+	}
+
+	resolved := resp.Request.URL.String()
+	if resolved == server.URL {
+		return ""
+	}
+
+	s.log().Debug(ctx, "resolved upload URL", logKeyURL, server.URL, logKeyResolved, resolved)
+
+	return resolved
 }
 
-// isContextError reports whether err comes from a cancelled or expired context.
+// resolveUploadURLs resolves the upload URL of every server, running at most limit resolutions at once, and returns
+// when all are done.
 //
 // Parameters:
-//   - err: the error to check.
+//   - ctx: cancellation for the HEAD requests.
+//   - servers: the servers to resolve.
+//   - limit: the most resolutions to run at once.
 //
 // Returns:
-//   - bool: true when err wraps [context.Canceled] or [context.DeadlineExceeded].
-func isContextError(err error) bool {
-	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
-}
+//   - []string: each server's resolved upload URL, in server order, or empty where nothing was resolved.
+func (s *Client) resolveUploadURLs(ctx context.Context, servers Servers, limit int) []string {
+	resolved := make([]string, len(servers))
 
-// StandardDeviation calculates the mean, variance, standard deviation, min, and max of a vector.
-func StandardDeviation(vector []int64) (int64, int64, int64, int64, int64) {
-	if len(vector) == 0 {
-		return 0, 0, 0, 0, 0
+	var resolving sync.WaitGroup
+
+	slots := make(chan struct{}, limit)
+
+	for index, server := range servers {
+		slots <- struct{}{}
+
+		resolving.Go(func() {
+			defer func() { <-slots }()
+
+			resolved[index] = s.resolveUploadURL(ctx, server)
+		})
 	}
 
-	var (
-		sumNum, accumulate                     int64
-		mean, variance, stdDev, minVal, maxVal int64
-	)
+	resolving.Wait()
 
-	minVal = math.MaxInt64
-	maxVal = math.MinInt64
-
-	for _, value := range vector {
-		sumNum += value
-		if minVal > value {
-			minVal = value
-		}
-
-		if maxVal < value {
-			maxVal = value
-		}
-	}
-
-	mean = sumNum / int64(len(vector))
-	for _, value := range vector {
-		accumulate += (value - mean) * (value - mean)
-	}
-
-	variance = accumulate / int64(len(vector))
-	stdDev = int64(math.Sqrt(float64(variance)))
-
-	return mean, variance, stdDev, minVal, maxVal
+	return resolved
 }

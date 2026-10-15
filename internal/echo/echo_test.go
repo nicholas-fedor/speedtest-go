@@ -5,9 +5,49 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/testserver"
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
+
+// newClient returns a speedtest client with the default settings.
+//
+// Parameters:
+//   - t: the test, which fails when the client cannot be built.
+//
+// Returns:
+//   - *speedtest.Client: the client.
+func newClient(t *testing.T) *speedtest.Client {
+	t.Helper()
+
+	client, err := speedtest.New()
+	require.NoError(t, err)
+
+	return client
+}
+
+// TestAccompanyEcho_RecordsLatency checks that the echo pings the server through the client while it runs and keeps
+// each latency it measures.
+func TestAccompanyEcho_RecordsLatency(t *testing.T) {
+	t.Parallel()
+
+	api := testserver.NewAPI(t)
+	server := &speedtest.Server{ID: "1001", URL: api.ServerUploadURL("1001")}
+	echo := New(newClient(t), server, 20*time.Millisecond)
+
+	echo.Run()
+	defer echo.Stop()
+
+	require.Eventually(
+		t,
+		func() bool { return len(echo.Latencies()) > 0 },
+		5*time.Second,
+		10*time.Millisecond,
+	)
+	assert.Positive(t, echo.CurrentLatency())
+	assert.True(t, api.Requested(testserver.PathLatency))
+}
 
 func TestNew(t *testing.T) {
 	t.Parallel()
@@ -29,6 +69,7 @@ func TestNew(t *testing.T) {
 				interval: time.Second,
 			},
 			want: &AccompanyEcho{
+				client:   nil,
 				server:   &speedtest.Server{ID: "1"},
 				interval: time.Second,
 			},
@@ -38,8 +79,10 @@ func TestNew(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := New(tt.args.server, tt.args.interval)
+			client := newClient(t)
+			got := New(client, tt.args.server, tt.args.interval)
 			assert.NotNil(t, got)
+			assert.Same(t, client, got.client)
 			assert.Equal(t, tt.args.server, got.server)
 			assert.Equal(t, tt.args.interval, got.interval)
 		})
@@ -55,7 +98,7 @@ func TestAccompanyEcho_Run(t *testing.T) {
 	}{
 		{
 			name: "run accompany echo",
-			ae:   New(&speedtest.Server{ID: "1"}, time.Millisecond*100),
+			ae:   New(nil, &speedtest.Server{ID: "1"}, time.Millisecond*100),
 		},
 	}
 	for _, tt := range tests {
@@ -77,7 +120,7 @@ func TestAccompanyEcho_Stop(t *testing.T) {
 	}{
 		{
 			name: "stop accompany echo",
-			ae:   New(&speedtest.Server{ID: "1"}, time.Millisecond*100),
+			ae:   New(nil, &speedtest.Server{ID: "1"}, time.Millisecond*100),
 		},
 	}
 	for _, tt := range tests {
@@ -100,7 +143,7 @@ func TestAccompanyEcho_CurrentLatency(t *testing.T) {
 	}{
 		{
 			name: "initial latency",
-			ae:   New(&speedtest.Server{ID: "1"}, time.Millisecond*100),
+			ae:   New(nil, &speedtest.Server{ID: "1"}, time.Millisecond*100),
 			want: 0,
 		},
 	}
@@ -124,7 +167,7 @@ func TestAccompanyEcho_Latencies(t *testing.T) {
 	}{
 		{
 			name: "initial latencies",
-			ae:   New(&speedtest.Server{ID: "1"}, time.Millisecond*100),
+			ae:   New(nil, &speedtest.Server{ID: "1"}, time.Millisecond*100),
 			want: nil,
 		},
 	}

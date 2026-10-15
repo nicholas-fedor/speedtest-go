@@ -360,3 +360,43 @@ func endedByContext(ctx context.Context, err error) bool {
 
 	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
+
+// PacketLoss measures the packet loss to a server with the speedtest.net TCP and UDP protocols until ctx ends. The
+// connections leave the way the client's others do, as with [Client.NewPacketLossAnalyzer].
+//
+// Parameters:
+//   - ctx: ends the measurement. Its end is the normal way to finish.
+//   - server: the server, whose host serves the protocols.
+//
+// Returns:
+//   - transport.PLoss: the last sample in which the server counted sent packets, or zero counts when none did. It is
+//     also returned with an error, so a measurement that failed partway keeps what it saw.
+//   - error: [ErrServerNil], [ErrUninitializedManager] for a client not built by [New], an error wrapping
+//     [transport.ErrUnsupported] when the server cannot be reached, or the sampling error.
+func (s *Client) PacketLoss(ctx context.Context, server *Server) (transport.PLoss, error) {
+	if !s.ready() {
+		return transport.PLoss{}, ErrUninitializedManager
+	}
+
+	if server == nil {
+		return transport.PLoss{}, ErrServerNil
+	}
+
+	host, err := tcpHost(server)
+	if err != nil {
+		return transport.PLoss{}, fmt.Errorf("%w: %w", transport.ErrUnsupported, err)
+	}
+
+	var last transport.PLoss
+
+	err = s.NewPacketLossAnalyzer(nil).RunWithContext(ctx, host, func(packetLoss *transport.PLoss) {
+		if packetLoss.Sent != 0 {
+			last = *packetLoss
+		}
+	})
+	if err != nil {
+		return last, fmt.Errorf("packet loss measurement failed: %w", err)
+	}
+
+	return last, nil
+}

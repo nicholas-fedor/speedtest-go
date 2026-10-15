@@ -1,22 +1,18 @@
 package speedtest
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -26,653 +22,36 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/internal/meter"
 )
 
-func TestServer_MultiDownloadTestContext(t *testing.T) {
-	t.Parallel()
-
-	type args struct {
-		servers Servers
-	}
-
-	tests := []struct {
-		name    string
-		s       *Server
-		args    args
-		wantErr bool
-	}{
-		{
-			name:    "nil server",
-			s:       nil,
-			args:    args{servers: Servers{}},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := context.Background()
-
-			err := tt.s.MultiDownloadTestContext(ctx, tt.args.servers)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestServer_MultiUploadTestContext(t *testing.T) {
-	t.Parallel()
-
-	type args struct {
-		servers Servers
-	}
-
-	tests := []struct {
-		name    string
-		s       *Server
-		args    args
-		wantErr bool
-	}{
-		{
-			name:    "nil server",
-			s:       nil,
-			args:    args{servers: Servers{}},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := context.Background()
-
-			err := tt.s.MultiUploadTestContext(ctx, tt.args.servers)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestServer_DownloadTest(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		s       *Server
-		wantErr bool
-	}{
-		{
-			name:    "nil server",
-			s:       nil,
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			err := tt.s.DownloadTest()
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestServer_DownloadTestContext(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		s       *Server
-		wantErr bool
-	}{
-		{
-			name:    "nil server",
-			s:       nil,
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := context.Background()
-
-			err := tt.s.DownloadTestContext(ctx)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestServer_downloadTestContext(t *testing.T) {
-	t.Parallel()
-
-	type args struct {
-		downloadRequest downloadFunc
-	}
-
-	tests := []struct {
-		name    string
-		s       *Server
-		args    args
-		wantErr bool
-	}{
-		{
-			name:    "nil server",
-			s:       nil,
-			args:    args{},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := context.Background()
-
-			err := tt.s.downloadTestContext(ctx, tt.args.downloadRequest)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestServer_UploadTest(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		s       *Server
-		wantErr bool
-	}{
-		{
-			name:    "nil server",
-			s:       nil,
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			err := tt.s.UploadTest()
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestServer_UploadTestContext(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		s       *Server
-		wantErr bool
-	}{
-		{
-			name:    "nil server",
-			s:       nil,
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := context.Background()
-
-			err := tt.s.UploadTestContext(ctx)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestServer_uploadTestContext(t *testing.T) {
-	t.Parallel()
-
-	type args struct {
-		uploadRequest uploadFunc
-	}
-
-	tests := []struct {
-		name    string
-		s       *Server
-		args    args
-		wantErr bool
-	}{
-		{
-			name:    "nil server",
-			s:       nil,
-			args:    args{},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := context.Background()
-
-			err := tt.s.uploadTestContext(ctx, tt.args.uploadRequest)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func Test_downloadRequest(t *testing.T) {
-	t.Parallel()
-
-	type args struct {
-		s *Server
-		w int
-	}
-
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		{
-			name:    "nil server",
-			args:    args{s: nil, w: 1},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := context.Background()
-
-			err := downloadRequest(ctx, tt.args.s, tt.args.w)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func Test_uploadRequest(t *testing.T) {
-	t.Parallel()
-
-	type args struct {
-		s *Server
-		w int
-	}
-
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		{
-			name:    "nil server",
-			args:    args{s: nil, w: 1},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := context.Background()
-
-			err := uploadRequest(ctx, tt.args.s, tt.args.w)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestServer_PingTest(t *testing.T) {
-	t.Parallel()
-
-	type args struct {
-		callback func(latency time.Duration)
-	}
-
-	tests := []struct {
-		name    string
-		s       *Server
-		args    args
-		wantErr bool
-	}{
-		{
-			name:    "nil server",
-			s:       nil,
-			args:    args{callback: func(_ time.Duration) {}},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			err := tt.s.PingTest(tt.args.callback)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestServer_PingTestContext(t *testing.T) {
-	t.Parallel()
-
-	type args struct {
-		callback func(latency time.Duration)
-	}
-
-	tests := []struct {
-		name    string
-		s       *Server
-		args    args
-		wantErr bool
-	}{
-		{
-			name:    "nil server",
-			s:       nil,
-			args:    args{callback: func(_ time.Duration) {}},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := context.Background()
-
-			err := tt.s.PingTestContext(ctx, tt.args.callback)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestAll(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		s       *Server
-		wantErr bool
-	}{
-		{
-			name:    "nil server",
-			s:       nil,
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			err := tt.s.TestAll()
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestServer_TCPPing(t *testing.T) {
-	t.Parallel()
-
-	type args struct {
-		echoTimes int
-		echoFreq  time.Duration
-		callback  func(latency time.Duration)
-	}
-
-	tests := []struct {
-		name          string
-		s             *Server
-		args          args
-		wantLatencies []int64
-		wantErr       bool
-	}{
-		{
-			name:    "nil server",
-			s:       nil,
-			args:    args{echoTimes: 1, echoFreq: time.Second, callback: func(_ time.Duration) {}},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := context.Background()
-
-			gotLatencies, err := tt.s.TCPPing(
-				ctx,
-				tt.args.echoTimes,
-				tt.args.echoFreq,
-				tt.args.callback,
-			)
-			if tt.wantErr {
-				require.Error(t, err)
-
-				return
-			}
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantLatencies, gotLatencies)
-		})
-	}
-}
-
-func TestServer_HTTPPing(t *testing.T) {
-	t.Parallel()
-
-	type args struct {
-		echoTimes int
-		echoFreq  time.Duration
-		callback  func(latency time.Duration)
-	}
-
-	tests := []struct {
-		name          string
-		s             *Server
-		args          args
-		wantLatencies []int64
-		wantErr       bool
-	}{
-		{
-			name:    "nil server",
-			s:       nil,
-			args:    args{echoTimes: 1, echoFreq: time.Second, callback: func(_ time.Duration) {}},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := context.Background()
-
-			gotLatencies, err := tt.s.HTTPPing(
-				ctx,
-				tt.args.echoTimes,
-				tt.args.echoFreq,
-				tt.args.callback,
-			)
-			if tt.wantErr {
-				require.Error(t, err)
-
-				return
-			}
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantLatencies, gotLatencies)
-		})
-	}
-}
-
-func TestServer_ICMPPing(t *testing.T) {
-	t.Parallel()
-
-	type args struct {
-		readTimeout time.Duration
-		echoTimes   int
-		echoFreq    time.Duration
-		callback    func(latency time.Duration)
-	}
-
-	tests := []struct {
-		name          string
-		s             *Server
-		args          args
-		wantLatencies []int64
-		wantErr       bool
-	}{
-		{
-			name: "nil server",
-			s:    nil,
-			args: args{
-				readTimeout: time.Second,
-				echoTimes:   1,
-				echoFreq:    time.Second,
-				callback:    func(_ time.Duration) {},
-			},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := context.Background()
-
-			gotLatencies, err := tt.s.ICMPPing(
-				ctx,
-				tt.args.readTimeout,
-				tt.args.echoTimes,
-				tt.args.echoFreq,
-				tt.args.callback,
-			)
-			if tt.wantErr {
-				require.Error(t, err)
-
-				return
-			}
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantLatencies, gotLatencies)
-		})
-	}
-}
-
-func Test_checkSum(t *testing.T) {
-	t.Parallel()
-
-	type args struct {
-		data []byte
-	}
-
-	tests := []struct {
-		name string
-		args args
-		want uint16
-	}{
-		{
-			name: "checksum of empty data",
-			args: args{data: []byte{}},
-			want: 0xffff,
-		},
-		{
-			name: "checksum of data",
-			args: args{data: []byte{1, 2, 3, 4}},
-			want: 0xfbf9,
-		},
-		{
-			name: "RFC 1071 example folds the carry",
-			args: args{data: []byte{0x00, 0x01, 0xf2, 0x03, 0xf4, 0xf5, 0xf6, 0xf7}},
-			want: 0x220d,
-		},
-		{
-			name: "echo request sent by ICMPPing",
-			args: args{data: prepareICMPPacket()},
-			want: 0xc770,
-		},
-		{
-			name: "odd length pads the last byte",
-			args: args{data: []byte{0xab, 0xcd, 0xef}},
-			want: 0x6531,
-		},
-		{
-			name: "carry wraps more than once",
-			args: args{data: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}},
-			want: 0x0000,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := checkSum(tt.args.data)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
-// meteredClient returns a client and its meter, which counts the bytes of requests sent outside a test.
+// requestTo returns a request from a client to a server at a URL, with the smallest transfer size.
 //
 // Parameters:
-//   - t: the test.
+//   - client: the client that sends the request.
+//   - url: the server's upload URL.
 //
 // Returns:
-//   - *Client: the client.
-//   - *meter.Meter: the client's meter.
-func meteredClient(t *testing.T) (*Client, *meter.Meter) {
-	t.Helper()
+//   - *transferRequest: the request.
+func requestTo(client *Client, url string) *transferRequest {
+	return &transferRequest{client: client, server: &Server{URL: url}, uploadURL: "", size: 0}
+}
 
-	client := newTestClient(t)
+// downloadConnection returns a connection outside a test run that counts a download request's bytes.
+//
+// Returns:
+//   - *meter.Connection: the connection.
+func downloadConnection() *meter.Connection {
+	return meter.New(meter.Config{}).DownloadConnection()
+}
 
-	return client, client.meter
+// uploadConnection returns a connection outside a test run that counts an upload request's bytes.
+//
+// Returns:
+//   - *meter.Connection: the connection.
+func uploadConnection() *meter.Connection {
+	return meter.New(meter.Config{}).UploadConnection()
 }
 
 // Test_downloadRequest_FakeServer checks that a successful download returns no error and counts its bytes, and that
-// an error status returns a status error without counting the error page or creating a chunk.
+// an error status returns a status error without counting the error page.
 func Test_downloadRequest_FakeServer(t *testing.T) {
 	t.Parallel()
 
@@ -680,12 +59,18 @@ func Test_downloadRequest_FakeServer(t *testing.T) {
 		t.Parallel()
 
 		api := testserver.NewAPI(t)
-		client, manager := meteredClient(t)
-		server := &Server{URL: api.ServerUploadURL("1001"), Context: client}
+		connection := downloadConnection()
 
-		require.NoError(t, downloadRequest(context.Background(), server, 0))
+		require.NoError(
+			t,
+			downloadRequest(
+				context.Background(),
+				requestTo(newTestClient(t), api.ServerUploadURL("1001")),
+				connection,
+			),
+		)
 
-		assert.Equal(t, int64(testserver.DefaultDownloadSize), manager.TotalDownload())
+		assert.Equal(t, int64(testserver.DefaultDownloadSize), connection.Bytes())
 	})
 
 	t.Run("error status", func(t *testing.T) {
@@ -697,15 +82,18 @@ func Test_downloadRequest_FakeServer(t *testing.T) {
 			testserver.Response{Status: http.StatusInternalServerError, Body: "error page"},
 		)
 
-		client, manager := meteredClient(t)
-		server := &Server{URL: api.ServerUploadURL("1001"), Context: client}
+		connection := downloadConnection()
 
-		err := downloadRequest(context.Background(), server, 0)
+		err := downloadRequest(
+			context.Background(),
+			requestTo(newTestClient(t), api.ServerUploadURL("1001")),
+			connection,
+		)
 		require.ErrorIs(t, err, ErrUnexpectedStatus)
 
 		assert.Zero(
 			t,
-			manager.TotalDownload(),
+			connection.Bytes(),
 			"the error page must not count as downloaded data",
 		)
 	})
@@ -738,14 +126,14 @@ func Test_uploadRequest_FakeServer(t *testing.T) {
 		t.Parallel()
 
 		api := testserver.NewAPI(t)
-		client, manager := meteredClient(t)
-		server := &Server{URL: api.ServerUploadURL("1001"), Context: client}
+		request := requestTo(newTestClient(t), api.ServerUploadURL("1001"))
+		connection := uploadConnection()
 
-		require.NoError(t, uploadRequest(context.Background(), server, 0))
-		assert.Equal(t, wantSize, manager.TotalUpload())
+		require.NoError(t, uploadRequest(context.Background(), request, connection))
+		assert.Equal(t, wantSize, connection.Bytes())
 
-		require.NoError(t, uploadRequest(context.Background(), server, 0))
-		assert.Equal(t, 2*wantSize, manager.TotalUpload())
+		require.NoError(t, uploadRequest(context.Background(), request, connection))
+		assert.Equal(t, 2*wantSize, connection.Bytes())
 	})
 
 	t.Run("error status", func(t *testing.T) {
@@ -757,14 +145,17 @@ func Test_uploadRequest_FakeServer(t *testing.T) {
 			testserver.Response{Status: http.StatusInternalServerError, Body: "error page"},
 		)
 
-		client, manager := meteredClient(t)
-		server := &Server{URL: api.ServerUploadURL("1001"), Context: client}
+		connection := uploadConnection()
 
-		err := uploadRequest(context.Background(), server, 0)
+		err := uploadRequest(
+			context.Background(),
+			requestTo(newTestClient(t), api.ServerUploadURL("1001")),
+			connection,
+		)
 		require.ErrorIs(t, err, ErrUnexpectedStatus)
 		assert.Zero(
 			t,
-			manager.TotalUpload(),
+			connection.Bytes(),
 			"a rejected upload must not count as uploaded data",
 		)
 	})
@@ -773,7 +164,8 @@ func Test_uploadRequest_FakeServer(t *testing.T) {
 		t.Parallel()
 
 		for _, read := range []int64{0, wantSize / 2} {
-			client, manager := meteredClient(t)
+			client := newTestClient(t)
+			connection := uploadConnection()
 			client.doer = &http.Client{
 				Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 					_, _ = io.CopyN(io.Discard, req.Body, read)
@@ -785,13 +177,15 @@ func Test_uploadRequest_FakeServer(t *testing.T) {
 					}, nil
 				}),
 			}
-			server := &Server{URL: "http://upload.invalid/speedtest/upload.php", Context: client}
-
-			err := uploadRequest(context.Background(), server, 0)
+			err := uploadRequest(
+				context.Background(),
+				requestTo(client, "http://upload.invalid/speedtest/upload.php"),
+				connection,
+			)
 			require.ErrorIs(t, err, errUploadIncomplete)
 			assert.Zero(
 				t,
-				manager.TotalUpload(),
+				connection.Bytes(),
 				"an upload the server did not take must not count",
 			)
 		}
@@ -814,19 +208,23 @@ func Test_uploadRequest_FakeServer(t *testing.T) {
 		}))
 		t.Cleanup(target.Close)
 
-		client, manager := meteredClient(t)
-		server := &Server{URL: target.URL + "/speedtest/upload.php", Context: client}
+		connection := uploadConnection()
 
-		err := uploadRequest(context.Background(), server, 0)
+		err := uploadRequest(
+			context.Background(),
+			requestTo(newTestClient(t), target.URL+"/speedtest/upload.php"),
+			connection,
+		)
 		require.ErrorIs(t, err, ErrUnexpectedStatus)
 		assert.False(t, followed.Load(), "the redirect must not be followed with a GET")
-		assert.Zero(t, manager.TotalUpload(), "a redirected upload must not count")
+		assert.Zero(t, connection.Bytes(), "a redirected upload must not count")
 	})
 
 	t.Run("unreadable response", func(t *testing.T) {
 		t.Parallel()
 
-		client, manager := meteredClient(t)
+		client := newTestClient(t)
+		connection := uploadConnection()
 		client.doer = &http.Client{
 			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 				_, _ = io.Copy(io.Discard, req.Body)
@@ -838,545 +236,18 @@ func Test_uploadRequest_FakeServer(t *testing.T) {
 				}, nil
 			}),
 		}
-		server := &Server{URL: "http://upload.invalid/speedtest/upload.php", Context: client}
-
-		err := uploadRequest(context.Background(), server, 0)
+		err := uploadRequest(
+			context.Background(),
+			requestTo(client, "http://upload.invalid/speedtest/upload.php"),
+			connection,
+		)
 		require.ErrorContains(t, err, "connection reset")
 		assert.Zero(
 			t,
-			manager.TotalUpload(),
+			connection.Bytes(),
 			"an unconfirmed upload must not count as uploaded data",
 		)
 	})
-}
-
-// TestServer_DownloadTestContext_ErrorStatus checks that a server answering downloads with an error status ends with
-// a download speed of N/A instead of a rate measured from error pages.
-func TestServer_DownloadTestContext_ErrorStatus(t *testing.T) {
-	t.Parallel()
-
-	api := testserver.NewAPI(t)
-	api.SetResponse(
-		testserver.PathDownload,
-		testserver.Response{Status: http.StatusInternalServerError, Body: "error page"},
-	)
-
-	client := newTestClient(t, WithConnections(2), WithTestDuration(300*time.Millisecond))
-
-	server := &Server{URL: api.ServerUploadURL("1001"), Context: client}
-
-	require.NoError(t, server.DownloadTestContext(context.Background()))
-
-	assert.InDelta(
-		t,
-		-1,
-		float64(server.DLSpeed),
-		1e-9,
-		"a test of only failed requests reports N/A",
-	)
-	assert.Zero(t, client.GetTotalDownload())
-}
-
-// TestServer_HTTPPing_ErrorStatus checks that error statuses fail the probe, and that the error names both the
-// timeout and the status.
-func TestServer_HTTPPing_ErrorStatus(t *testing.T) {
-	t.Parallel()
-
-	api := testserver.NewAPI(t)
-	api.SetResponse(
-		testserver.PathLatency,
-		testserver.Response{Status: http.StatusInternalServerError},
-	)
-
-	server := &Server{URL: api.ServerUploadURL("1001"), Context: newTestClient(t)}
-
-	latencies, err := server.HTTPPing(context.Background(), 2, time.Millisecond, nil)
-
-	require.ErrorIs(t, err, ErrConnectTimeout)
-	require.ErrorIs(t, err, ErrUnexpectedStatus)
-	assert.Nil(t, latencies)
-}
-
-// TestServer_Ping_NoHost checks that each ping reports a server URL without a host as errNoHost, instead of
-// wrapping a nil parse error.
-func TestServer_Ping_NoHost(t *testing.T) {
-	t.Parallel()
-
-	server := &Server{URL: "/speedtest/upload.php", Context: newTestClient(t)}
-
-	tests := []struct {
-		ping func() error
-		name string
-	}{
-		{
-			name: "TCP",
-			ping: func() error {
-				_, err := server.TCPPing(context.Background(), 1, time.Millisecond, nil)
-
-				return err
-			},
-		},
-		{
-			name: "HTTP",
-			ping: func() error {
-				_, err := server.HTTPPing(context.Background(), 1, time.Millisecond, nil)
-
-				return err
-			},
-		},
-		{
-			name: "ICMP",
-			ping: func() error {
-				_, err := server.ICMPPing(
-					context.Background(),
-					time.Second,
-					1,
-					time.Millisecond,
-					nil,
-				)
-
-				return err
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			err := tt.ping()
-
-			require.ErrorIs(t, err, errNoHost)
-			assert.NotContains(t, err.Error(), "%!w", "the error must not wrap a nil cause")
-			assert.Contains(t, err.Error(), server.URL)
-		})
-	}
-}
-
-// TestServer_HTTPPing_Success checks that each requested echo after the warm-up yields a latency.
-func TestServer_HTTPPing_Success(t *testing.T) {
-	t.Parallel()
-
-	api := testserver.NewAPI(t)
-	server := &Server{URL: api.ServerUploadURL("1001"), Context: newTestClient(t)}
-
-	latencies, err := server.HTTPPing(context.Background(), 3, time.Millisecond, nil)
-	require.NoError(t, err)
-
-	assert.Len(t, latencies, 3)
-}
-
-// Test_sleepContext checks that the wait runs its full length, or ends promptly with the context's error.
-func Test_sleepContext(t *testing.T) {
-	t.Parallel()
-
-	require.NoError(t, sleepContext(context.Background(), time.Millisecond))
-
-	ctx, cancel := context.WithCancel(context.Background())
-	time.AfterFunc(10*time.Millisecond, cancel)
-
-	start := time.Now()
-	err := sleepContext(ctx, time.Minute)
-
-	require.ErrorIs(t, err, context.Canceled)
-	assert.Less(t, time.Since(start), time.Second)
-
-	// With a context that already ended and a timer that is ready at once, both select cases are ready.
-	for range 100 {
-		require.ErrorIs(t, sleepContext(ctx, 0), context.Canceled)
-	}
-}
-
-// TestServer_Ping_CancelBetweenEchoes checks that cancelling a ping between echoes ends it at once with the
-// context's error and the latencies measured so far, instead of finishing the wait and the remaining echoes.
-func TestServer_Ping_CancelBetweenEchoes(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		ping func(*Server, context.Context, func(time.Duration)) ([]int64, error)
-		name string
-	}{
-		{
-			name: "TCP",
-			ping: func(s *Server, ctx context.Context, callback func(time.Duration)) ([]int64, error) {
-				return s.TCPPing(ctx, 10, 200*time.Millisecond, callback)
-			},
-		},
-		{
-			name: "HTTP",
-			ping: func(s *Server, ctx context.Context, callback func(time.Duration)) ([]int64, error) {
-				return s.HTTPPing(ctx, 10, 200*time.Millisecond, callback)
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			tcp := testserver.NewTCPServer(t)
-			api := testserver.NewAPI(t)
-			server := &Server{
-				URL:     api.ServerUploadURL("1001"),
-				Host:    tcp.Addr(),
-				Context: newTestClient(t),
-			}
-
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-
-			// Measure from the cancel, since the HTTP ping waits once after its unmeasured warm-up request.
-			var cancelledAt time.Time
-
-			latencies, err := tt.ping(server, ctx, func(time.Duration) {
-				cancelledAt = time.Now()
-
-				cancel()
-			})
-
-			require.ErrorIs(t, err, context.Canceled)
-			assert.Len(t, latencies, 1, "the echo measured before cancelling is kept")
-			assert.Less(
-				t,
-				time.Since(cancelledAt),
-				100*time.Millisecond,
-				"the ping must not finish its wait",
-			)
-		})
-	}
-}
-
-// TestServer_PingTestContext_Cancelled checks that a cancelled ping keeps the server's earlier latency results.
-func TestServer_PingTestContext_Cancelled(t *testing.T) {
-	t.Parallel()
-
-	api := testserver.NewAPI(t)
-	server := &Server{
-		URL:     api.ServerUploadURL("1001"),
-		Latency: 42 * time.Millisecond,
-		Context: newTestClient(t),
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	require.ErrorIs(t, server.PingTestContext(ctx, nil), context.Canceled)
-
-	assert.Equal(t, 42*time.Millisecond, server.Latency)
-	assert.Nil(t, server.TestDuration.Ping)
-}
-
-// TestServer_ICMPPing_CancelDuringRead checks that cancelling a ping whose echo is never answered ends the pending
-// read at once, instead of after readTimeout. It needs raw ICMP sockets and an unanswered echo, so it skips unless
-// run privileged with echo replies disabled, such as in a network namespace with net.ipv4.icmp_echo_ignore_all=1.
-func TestServer_ICMPPing_CancelDuringRead(t *testing.T) {
-	t.Parallel()
-
-	server := &Server{URL: "http://127.0.0.1/speedtest/upload.php", Context: newTestClient(t)}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	time.AfterFunc(100*time.Millisecond, cancel)
-
-	start := time.Now()
-	_, err := server.ICMPPing(ctx, 5*time.Second, 1, time.Millisecond, nil)
-
-	switch {
-	case err != nil && strings.Contains(err.Error(), "failed to dial ICMP"):
-		t.Skipf("raw ICMP sockets need privileges: %v", err)
-	case err == nil:
-		t.Skip("loopback answered the echo, so no read was pending when the context ended")
-	}
-
-	require.ErrorIs(t, err, context.Canceled)
-	assert.Less(t, time.Since(start), time.Second, "the read must not wait for its 5s timeout")
-}
-
-// TestServer_SpeedTests_Cancel checks that cancelling a download or upload ends it well before the capture time
-// with the context's error, and leaves the server's earlier results untouched.
-func TestServer_SpeedTests_Cancel(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		run  func(*Server, context.Context) error
-		name string
-	}{
-		{name: "download", run: (*Server).DownloadTestContext},
-		{name: "upload", run: (*Server).UploadTestContext},
-		{
-			name: "multi download",
-			run: func(s *Server, ctx context.Context) error {
-				return s.MultiDownloadTestContext(ctx, Servers{s})
-			},
-		},
-		{
-			name: "multi upload",
-			run: func(s *Server, ctx context.Context) error {
-				return s.MultiUploadTestContext(ctx, Servers{s})
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			api := testserver.NewAPI(t)
-			client := newTestClient(t, WithConnections(2))
-			server := &Server{
-				ID:      "1001",
-				URL:     api.ServerUploadURL("1001"),
-				Latency: time.Millisecond,
-				DLSpeed: 42,
-				ULSpeed: 42,
-				Context: client,
-			}
-
-			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-			defer cancel()
-
-			start := time.Now()
-			err := tt.run(server, ctx)
-
-			require.ErrorIs(t, err, context.DeadlineExceeded)
-			assert.Less(t, time.Since(start), 2*time.Second, "the default capture time is 15s")
-			assert.InDelta(
-				t,
-				42,
-				float64(server.DLSpeed),
-				0,
-				"a cancelled test must not change the result",
-			)
-			assert.InDelta(
-				t,
-				42,
-				float64(server.ULSpeed),
-				0,
-				"a cancelled test must not change the result",
-			)
-			assert.Nil(t, server.TestDuration.Download)
-			assert.Nil(t, server.TestDuration.Upload)
-		})
-	}
-}
-
-// Test_checkSum_Verifies checks the property receivers rely on: a message carrying its checksum sums to zero.
-func Test_checkSum_Verifies(t *testing.T) {
-	t.Parallel()
-
-	packet := prepareICMPPacket()
-
-	sum := checkSum(packet)
-	packet[2], packet[3] = byte(sum>>8), byte(sum)
-
-	assert.Zero(t, checkSum(packet))
-}
-
-// TestServer_TCPPing_FakeServer checks that a client from New can TCP-ping a server. The dialer used to be nil
-// unless a source address was configured, which made this call panic.
-func TestServer_TCPPing_FakeServer(t *testing.T) {
-	t.Parallel()
-
-	tcp := testserver.NewTCPServer(t)
-	server := &Server{Host: tcp.Addr(), Context: newTestClient(t)}
-
-	var callbacks int
-
-	latencies, err := server.TCPPing(
-		context.Background(),
-		3,
-		time.Millisecond,
-		func(time.Duration) {
-			callbacks++
-		},
-	)
-	require.NoError(t, err)
-
-	assert.Len(t, latencies, 3)
-	assert.Equal(t, 3, callbacks)
-
-	var pings int
-
-	for _, command := range tcp.Commands() {
-		if strings.HasPrefix(command.Line, "PING ") {
-			pings++
-		}
-	}
-
-	assert.Equal(t, 6, pings, "each echo sends two PING commands")
-}
-
-// TestServer_TCPPing_ClosesConnection checks that TCP ping ends its session with QUIT and closes the socket, so
-// pinging every listed server does not leave one connection open per server.
-func TestServer_TCPPing_ClosesConnection(t *testing.T) {
-	t.Parallel()
-
-	tcp := testserver.NewTCPServer(t)
-	server := &Server{Host: tcp.Addr(), Context: newTestClient(t)}
-
-	_, err := server.TCPPing(context.Background(), 1, time.Millisecond, nil)
-	require.NoError(t, err)
-
-	// The server closes its side only after reading everything sent before the client closed, including QUIT.
-	require.Eventually(
-		t,
-		func() bool { return tcp.OpenConns() == 0 },
-		5*time.Second,
-		10*time.Millisecond,
-	)
-
-	commands := tcp.Commands()
-	require.NotEmpty(t, commands)
-	assert.Equal(t, "QUIT", commands[len(commands)-1].Line)
-}
-
-// TestServer_TCPPing_Refused checks that pinging a closed port reports an error instead of panicking.
-func TestServer_TCPPing_Refused(t *testing.T) {
-	t.Parallel()
-
-	var config net.ListenConfig
-
-	listener, err := config.Listen(context.Background(), "tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-
-	addr := listener.Addr().String()
-	require.NoError(t, listener.Close())
-
-	server := &Server{Host: addr, Context: newTestClient(t)}
-
-	_, err = server.TCPPing(context.Background(), 1, time.Millisecond, nil)
-	require.Error(t, err)
-}
-
-// TestServer_ICMPPing_Loopback checks that ICMP ping no longer panics on a nil dialer, and that a privileged run
-// gets a reply from loopback. The kernel only answers a request with a valid checksum, and the client must skip its
-// own request, which a raw socket also receives on loopback. Unprivileged runs fail to open the raw socket.
-func TestServer_ICMPPing_Loopback(t *testing.T) {
-	t.Parallel()
-
-	server := &Server{URL: "http://127.0.0.1/speedtest/upload.php", Context: newTestClient(t)}
-
-	var (
-		latencies []int64
-		err       error
-	)
-
-	require.NotPanics(t, func() {
-		latencies, err = server.ICMPPing(
-			context.Background(),
-			time.Second,
-			1,
-			time.Millisecond,
-			nil,
-		)
-	})
-
-	switch {
-	case err == nil:
-		assert.Len(t, latencies, 1)
-	case strings.Contains(err.Error(), "failed to dial ICMP"):
-		t.Logf("raw ICMP sockets need privileges: %v", err)
-	case runtime.GOOS == "linux":
-		require.NoError(t, err, "a privileged Linux run should receive the loopback echo reply")
-	default:
-		t.Skipf("raw ICMP on %s: %v", runtime.GOOS, err)
-	}
-}
-
-// Test_isEchoReply checks which packets read from a raw ICMP socket count as the reply to a request.
-func Test_isEchoReply(t *testing.T) {
-	t.Parallel()
-
-	request := prepareICMPPacket()
-
-	// ipv4 prefixes an ICMP message with a minimal IPv4 header, or one with options when optionWords is set.
-	ipv4 := func(optionWords int, icmp []byte) []byte {
-		headerLen := 20 + 4*optionWords
-
-		packet := make([]byte, headerLen+len(icmp))
-		packet[0] = 0x40 | byte(5+optionWords)
-		copy(packet[headerLen:], icmp)
-
-		return packet
-	}
-
-	reply := slices.Clone(request)
-	reply[0] = icmpEchoReply
-
-	otherPing := slices.Clone(reply)
-	otherPing[5] = 0x99
-
-	tests := []struct {
-		name   string
-		packet []byte
-		want   bool
-	}{
-		{name: "matching reply", packet: ipv4(0, reply), want: true},
-		{name: "reply after IP options", packet: ipv4(2, reply), want: true},
-		{name: "own request on loopback", packet: ipv4(0, request)},
-		{name: "reply to another ping", packet: ipv4(0, otherPing)},
-		{name: "truncated message", packet: ipv4(0, reply[:4])},
-		{name: "header longer than packet", packet: ipv4(0, reply)[:10]},
-		{name: "empty packet", packet: nil},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			assert.Equal(t, tt.want, isEchoReply(tt.packet, request))
-		})
-	}
-}
-
-func TestStandardDeviation(t *testing.T) {
-	t.Parallel()
-
-	type args struct {
-		vector []int64
-	}
-
-	tests := []struct {
-		name         string
-		args         args
-		wantMean     int64
-		wantVariance int64
-		wantStdDev   int64
-		wantMin      int64
-		wantMax      int64
-	}{
-		{
-			name:         "standard deviation of single value",
-			args:         args{vector: []int64{5}},
-			wantMean:     5,
-			wantVariance: 0,
-			wantStdDev:   0,
-			wantMin:      5,
-			wantMax:      5,
-		},
-		{
-			name:         "standard deviation of multiple values",
-			args:         args{vector: []int64{1, 2, 3, 4, 5}},
-			wantMean:     3,
-			wantVariance: 2,
-			wantStdDev:   1,
-			wantMin:      1,
-			wantMax:      5,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			gotMean, gotVariance, gotStdDev, gotMin, gotMax := StandardDeviation(tt.args.vector)
-			assert.Equal(t, tt.wantMean, gotMean)
-			assert.Equal(t, tt.wantVariance, gotVariance)
-			assert.Equal(t, tt.wantStdDev, gotStdDev)
-			assert.Equal(t, tt.wantMin, gotMin)
-			assert.Equal(t, tt.wantMax, gotMax)
-		})
-	}
 }
 
 // redirector is a server that answers every request with a redirect to one target, like an http upload URL that
@@ -1418,9 +289,9 @@ func (r *redirector) Methods() []string {
 	return slices.Clone(r.methods)
 }
 
-// TestServer_resolveUploadURL checks that each redirect status is resolved with a single HEAD request, that the
+// TestClient_resolveUploadURL checks that each redirect status is resolved with a single HEAD request, that the
 // upload then goes straight to the final URL and counts, and that the server's listed URL is unchanged.
-func TestServer_resolveUploadURL(t *testing.T) {
+func TestClient_resolveUploadURL(t *testing.T) {
 	t.Parallel()
 
 	wantSize := int64(ulSizes[0]*100-51) * 10
@@ -1438,16 +309,16 @@ func TestServer_resolveUploadURL(t *testing.T) {
 			final := api.ServerUploadURL("1001")
 			moved := newRedirector(t, final, status)
 
-			client, manager := meteredClient(t)
-			server := &Server{URL: moved.URL(), Context: client}
+			client := newTestClient(t)
+			request := requestTo(client, moved.URL())
+			request.uploadURL = client.resolveUploadURL(context.Background(), request.server)
 
-			server.resolveUploadURL(context.Background())
+			assert.Equal(t, final, request.uploadTarget())
+			assert.Equal(t, moved.URL(), request.server.URL, "the listed URL must stay as it was")
 
-			assert.Equal(t, final, server.uploadTarget())
-			assert.Equal(t, moved.URL(), server.URL, "the listed URL must stay as it was")
-
-			require.NoError(t, uploadRequest(context.Background(), server, 0))
-			assert.Equal(t, wantSize, manager.TotalUpload())
+			connection := uploadConnection()
+			require.NoError(t, uploadRequest(context.Background(), request, connection))
+			assert.Equal(t, wantSize, connection.Bytes())
 			assert.Equal(
 				t,
 				[]string{http.MethodHead},
@@ -1458,21 +329,21 @@ func TestServer_resolveUploadURL(t *testing.T) {
 	}
 }
 
-// TestServer_resolveUploadURLFallsBack checks that uploads use the listed URL when nothing redirects, when the HEAD
-// request fails, and when the server has no client, and that a failed resolution clears an earlier result.
-func TestServer_resolveUploadURLFallsBack(t *testing.T) {
+// TestClient_resolveUploadURLFallsBack checks that uploads use the listed URL when nothing redirects and when the
+// HEAD request fails.
+func TestClient_resolveUploadURLFallsBack(t *testing.T) {
 	t.Parallel()
 
 	t.Run("no redirect", func(t *testing.T) {
 		t.Parallel()
 
 		api := testserver.NewAPI(t)
-		server := &Server{URL: api.ServerUploadURL("1001"), Context: newTestClient(t)}
+		request := requestTo(newTestClient(t), api.ServerUploadURL("1001"))
 
-		server.resolveUploadURL(context.Background())
+		request.uploadURL = request.client.resolveUploadURL(context.Background(), request.server)
 
-		assert.Empty(t, server.uploadURL)
-		assert.Equal(t, server.URL, server.uploadTarget())
+		assert.Empty(t, request.uploadURL)
+		assert.Equal(t, request.server.URL, request.uploadTarget())
 	})
 
 	t.Run("failed request", func(t *testing.T) {
@@ -1481,75 +352,18 @@ func TestServer_resolveUploadURLFallsBack(t *testing.T) {
 		closed := httptest.NewServer(http.NotFoundHandler())
 		closed.Close()
 
-		server := &Server{
-			URL:       closed.URL + "/speedtest/upload.php",
-			Context:   newTestClient(t),
-			uploadURL: "http://stale.invalid/upload.php",
-		}
+		request := requestTo(newTestClient(t), closed.URL+"/speedtest/upload.php")
 
-		server.resolveUploadURL(context.Background())
+		request.uploadURL = request.client.resolveUploadURL(context.Background(), request.server)
 
-		assert.Empty(t, server.uploadURL)
-		assert.Equal(t, server.URL, server.uploadTarget())
-	})
-
-	t.Run("no client", func(t *testing.T) {
-		t.Parallel()
-
-		server := &Server{URL: "http://upload.invalid/speedtest/upload.php"}
-
-		assert.NotPanics(t, func() { server.resolveUploadURL(context.Background()) })
-		assert.Equal(t, server.URL, server.uploadTarget())
+		assert.Empty(t, request.uploadURL)
+		assert.Equal(t, request.server.URL, request.uploadTarget())
 	})
 }
 
-// TestServer_UploadTestContext_Redirect checks that a full upload test against a redirecting server measures a
-// rate, without ever posting to the redirecting URL.
-func TestServer_UploadTestContext_Redirect(t *testing.T) {
-	t.Parallel()
-
-	api := testserver.NewAPI(t)
-	moved := newRedirector(t, api.ServerUploadURL("1001"), http.StatusTemporaryRedirect)
-
-	client := newTestClient(t, WithConnections(2), WithTestDuration(300*time.Millisecond))
-
-	server := &Server{URL: moved.URL(), Context: client}
-
-	require.NoError(t, server.UploadTestContext(context.Background()))
-
-	assert.Positive(t, float64(server.ULSpeed))
-	assert.Positive(t, client.GetTotalUpload())
-	assert.Equal(t, []string{http.MethodHead}, moved.Methods())
-}
-
-// TestServer_MultiUploadTestContext_Redirect checks that multi-server uploads resolve every server in the pool
-// before the workers start.
-func TestServer_MultiUploadTestContext_Redirect(t *testing.T) {
-	t.Parallel()
-
-	api := testserver.NewAPI(t)
-	movedA := newRedirector(t, api.ServerUploadURL("1001"), http.StatusTemporaryRedirect)
-	movedB := newRedirector(t, api.ServerUploadURL("1002"), http.StatusFound)
-
-	client := newTestClient(t, WithConnections(2), WithTestDuration(300*time.Millisecond))
-
-	pool := Servers{
-		{ID: "1001", URL: movedA.URL(), Context: client},
-		{ID: "1002", URL: movedB.URL(), Context: client},
-	}
-
-	require.NoError(t, pool[0].MultiUploadTestContext(context.Background(), pool))
-
-	assert.Equal(t, api.ServerUploadURL("1001"), pool[0].uploadTarget())
-	assert.Equal(t, api.ServerUploadURL("1002"), pool[1].uploadTarget())
-	assert.Positive(t, float64(pool[0].ULSpeed))
-	assert.Equal(t, []string{http.MethodHead}, movedA.Methods())
-	assert.Equal(t, []string{http.MethodHead}, movedB.Methods())
-}
-
-// TestResolveUploadURLs checks that every server is resolved while no more than the limit of HEAD requests are in
-// flight at once.
-func TestResolveUploadURLs(t *testing.T) {
+// TestClient_resolveUploadURLs checks that every server is resolved while no more than the limit of HEAD requests
+// are in flight at once.
+func TestClient_resolveUploadURLs(t *testing.T) {
 	t.Parallel()
 
 	const limit = 2
@@ -1581,63 +395,37 @@ func TestResolveUploadURLs(t *testing.T) {
 	}))
 	t.Cleanup(moved.Close)
 
-	client := newTestClient(t)
 	servers := make(Servers, 0, 6)
 
 	for index := range 6 {
-		servers = append(
-			servers,
-			&Server{URL: fmt.Sprintf("%s/%d", moved.URL, index), Context: client},
-		)
+		servers = append(servers, &Server{URL: fmt.Sprintf("%s/%d", moved.URL, index)})
 	}
 
-	resolveUploadURLs(context.Background(), servers, limit)
+	resolved := newTestClient(t).resolveUploadURLs(context.Background(), servers, limit)
 
 	assert.LessOrEqual(t, maxInFlight.Load(), int32(limit))
 
-	for index, server := range servers {
-		assert.Equal(t, api.ServerUploadURL(strconv.Itoa(index)), server.uploadTarget())
+	for index := range servers {
+		assert.Equal(t, api.ServerUploadURL(strconv.Itoa(index)), resolved[index])
 	}
 }
 
-// TestServer_testContextFinalRate checks that single-server download and upload tests report the measured volume
-// over the capture window as their speed.
-func TestServer_testContextFinalRate(t *testing.T) {
-	t.Parallel()
-
-	request := func(_ context.Context, server *Server, _ int) error {
-		time.Sleep(100 * time.Millisecond)
-		server.Context.meter.AddTotalUpload(1_000_000)
-
-		return server.Context.meter.NewChunk().
-			DownloadHandler(bytes.NewReader(make([]byte, 1_000_000)))
-	}
-
-	synctest.Test(t, func(t *testing.T) {
-		client := newTestClient(t, WithConnections(1), WithTestDuration(1050*time.Millisecond))
-
-		server := &Server{Context: client}
-
-		require.NoError(t, server.downloadTestContext(context.Background(), request))
-		assert.InDelta(t, 10_000_000/1.05, float64(server.DLSpeed), 1e-6)
-
-		client.Reset()
-
-		require.NoError(t, server.uploadTestContext(context.Background(), request))
-		assert.InDelta(t, 10_000_000/1.05, float64(server.ULSpeed), 1e-6)
-	})
-}
-
-// TestUploadRequestClearsBacklog checks that a confirmed upload to the fake server leaves no backlog.
+// TestUploadRequestClearsBacklog checks that a confirmed upload to the fake server sent exactly what it confirmed.
 func TestUploadRequestClearsBacklog(t *testing.T) {
 	t.Parallel()
 
 	api := testserver.NewAPI(t)
-	client, manager := meteredClient(t)
-	server := &Server{URL: api.ServerUploadURL("1001"), Context: client}
+	connection := uploadConnection()
 
-	require.NoError(t, uploadRequest(context.Background(), server, 0))
+	require.NoError(
+		t,
+		uploadRequest(
+			context.Background(),
+			requestTo(newTestClient(t), api.ServerUploadURL("1001")),
+			connection,
+		),
+	)
 
-	assert.Zero(t, manager.UploadBacklog())
-	assert.InDelta(t, 1.0, manager.UploadConfirmationRatio(), 1e-9)
+	assert.Positive(t, connection.Bytes())
+	assert.Equal(t, connection.Sent(), connection.Bytes(), "every byte sent was confirmed")
 }

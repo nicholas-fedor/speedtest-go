@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/internal/meter"
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/transport"
 )
 
@@ -22,35 +23,6 @@ var (
 	// errNoTCPHost is returned for a server with neither a host nor a URL to reach its TCP service at.
 	errNoTCPHost = errors.New("server has no host for TCP tests")
 )
-
-// downloadRequestFor returns the download request function for the client's test mode.
-//
-// Returns:
-//   - downloadFunc: a TCP request in [TCPTest] mode, and an HTTP request otherwise.
-func (s *Server) downloadRequestFor() downloadFunc {
-	if s.usesTCP() {
-		return tcpDownloadRequest
-	}
-
-	return downloadRequest
-}
-
-// uploadRequestFor returns the upload request function for the client's test mode.
-//
-// Returns:
-//   - uploadFunc: a TCP request in [TCPTest] mode, and an HTTP request otherwise.
-func (s *Server) uploadRequestFor() uploadFunc {
-	if s.usesTCP() {
-		return tcpUploadRequest
-	}
-
-	return uploadRequest
-}
-
-// usesTCP reports whether the server's tests run over the TCP protocol.
-func (s *Server) usesTCP() bool {
-	return s.Context != nil && s.Context.settings.testMode == TCPTest
-}
 
 // tcpHost returns the host:port of a server's TCP service.
 //
@@ -90,18 +62,18 @@ func tcpHost(server *Server) (string, error) {
 //
 // Parameters:
 //   - ctx: cancellation for the dial.
-//   - server: the server, whose client supplies the dialer.
+//   - request: the server, and the client that supplies the dialer.
 //
 // Returns:
 //   - *transport.Client: the connected client. Disconnect it when done.
 //   - error: the host, client, or dial error.
-func connectTCP(ctx context.Context, server *Server) (*transport.Client, error) {
-	host, err := tcpHost(server)
+func connectTCP(ctx context.Context, request *transferRequest) (*transport.Client, error) {
+	host, err := tcpHost(request.server)
 	if err != nil {
 		return nil, err
 	}
 
-	client, err := transport.NewClient(server.Context.tcpDialer)
+	client, err := transport.NewClient(request.client.tcpDialer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create TCP client: %w", err)
 	}
@@ -118,21 +90,17 @@ func connectTCP(ctx context.Context, server *Server) (*transport.Client, error) 
 //
 // Parameters:
 //   - ctx: cancellation for the request.
-//   - server: the server.
-//   - writer: the index into the download sizes.
+//   - request: the server and the download size.
+//   - connection: the worker's connection, which counts the bytes.
 //
 // Returns:
 //   - error: the connection, handshake, or transfer error.
-func tcpDownloadRequest(ctx context.Context, server *Server, writer int) error {
-	if server == nil {
-		return ErrServerNil
-	}
-
-	if !server.hasMeter() {
-		return ErrUninitializedManager
-	}
-
-	client, err := connectTCP(ctx, server)
+func tcpDownloadRequest(
+	ctx context.Context,
+	request *transferRequest,
+	connection *meter.Connection,
+) error {
+	client, err := connectTCP(ctx, request)
 	if err != nil {
 		return err
 	}
@@ -144,9 +112,9 @@ func tcpDownloadRequest(ctx context.Context, server *Server, writer int) error {
 		return fmt.Errorf("TCP handshake failed: %w", err)
 	}
 
-	size := int64(dlSizes[writer]) * 1000
+	size := int64(dlSizes[request.size]) * 1000
 
-	err = client.Download(ctx, size, server.Context.meter.NewChunk().DownloadHandler)
+	err = client.Download(ctx, size, connection.NewChunk().DownloadHandler)
 	if err != nil {
 		return fmt.Errorf("TCP download failed: %w", err)
 	}
@@ -161,28 +129,24 @@ func tcpDownloadRequest(ctx context.Context, server *Server, writer int) error {
 //
 // Parameters:
 //   - ctx: cancellation for the request.
-//   - server: the server.
-//   - writer: the index into the upload sizes.
+//   - request: the server and the upload size.
+//   - connection: the worker's connection, which counts the confirmed bytes.
 //
 // Returns:
 //   - error: the connection, transfer, or confirmation error.
-func tcpUploadRequest(ctx context.Context, server *Server, writer int) error {
-	if server == nil {
-		return ErrServerNil
-	}
-
-	if !server.hasMeter() {
-		return ErrUninitializedManager
-	}
-
-	size := int64(ulSizes[writer]) * 1000
+func tcpUploadRequest(
+	ctx context.Context,
+	request *transferRequest,
+	connection *meter.Connection,
+) error {
+	size := int64(ulSizes[request.size]) * 1000
 
 	payload, err := transport.UploadPayloadSize(size)
 	if err != nil {
 		return fmt.Errorf("invalid TCP upload size: %w", err)
 	}
 
-	client, err := connectTCP(ctx, server)
+	client, err := connectTCP(ctx, request)
 	if err != nil {
 		return err
 	}
@@ -192,7 +156,7 @@ func tcpUploadRequest(ctx context.Context, server *Server, writer int) error {
 	confirmed, err := client.Upload(
 		ctx,
 		size,
-		server.Context.meter.NewChunk().UploadHandler(payload),
+		connection.NewChunk().UploadHandler(payload),
 	)
 	if err != nil {
 		return fmt.Errorf("TCP upload failed: %w", err)
@@ -208,7 +172,7 @@ func tcpUploadRequest(ctx context.Context, server *Server, writer int) error {
 		)
 	}
 
-	server.Context.meter.AddTotalUpload(confirmed - overhead)
+	connection.Confirm(confirmed - overhead)
 
 	return nil
 }
