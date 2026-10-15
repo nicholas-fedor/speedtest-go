@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github/codeql-action action to v4.39.0 by @renovate[bot] in [#501](https://github.com/nicholas-fedor/speedtest-go/pull/501)
 - Update module github.com/stretchr/objx to v0.8.0 by @renovate[bot] in [#499](https://github.com/nicholas-fedor/speedtest-go/pull/499)
 - Add an install script for GitHub Releases by @nicholas-fedor in [#491](https://github.com/nicholas-fedor/speedtest-go/pull/491)
 - Update module github.com/stretchr/objx to v0.7.0 by @renovate[bot] in [#483](https://github.com/nicholas-fedor/speedtest-go/pull/483)
