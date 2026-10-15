@@ -10,6 +10,8 @@ import (
 	"runtime/debug"
 	"strings"
 	"time"
+
+	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/internal/meter"
 )
 
 // modulePath is this module's path; used to resolve version from build info.
@@ -44,8 +46,8 @@ const (
 
 // Client is a speedtest client. [New] builds one from options.
 type Client struct {
-	Manager
-
+	// meter runs the transfer workers of download and upload tests and keeps their totals.
+	meter *meter.Meter
 	// doer sends HTTP requests.
 	doer *http.Client
 	// transport is the client's HTTP transport, built from its settings.
@@ -179,14 +181,6 @@ func defaultSettings() settings {
 // Returns:
 //   - *Client: the client.
 func newClient(cfg settings) *Client {
-	manager := NewDataManager()
-	manager.logger = cfg.logger
-	manager.SetNThread(cfg.connections)
-
-	if cfg.testDuration > 0 {
-		manager.SetCaptureTime(cfg.testDuration)
-	}
-
 	controls := append([]dialControl{cfg.source.control, dscpControl(cfg.dscp)}, cfg.controls...)
 	control := chainControl(controls...)
 
@@ -196,7 +190,12 @@ func newClient(cfg settings) *Client {
 	}
 
 	client := &Client{
-		Manager:  manager,
+		meter: meter.New(meter.Config{
+			Logger:               cfg.logger,
+			Connections:          cfg.connections,
+			CaptureTime:          cfg.testDuration,
+			RateCaptureFrequency: 0,
+		}),
 		settings: cfg,
 		tcpDialer: &net.Dialer{
 			LocalAddr: cfg.source.tcp,

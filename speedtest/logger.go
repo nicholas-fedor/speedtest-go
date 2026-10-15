@@ -25,8 +25,6 @@ const (
 	logKeyAddress = "address"
 	// logKeyArch is the architecture the program runs on.
 	logKeyArch = "arch"
-	// logKeyBacklog is the volume of uploaded data not yet confirmed, in bytes.
-	logKeyBacklog = "backlog"
 	// logKeyBaseURL is the speedtest API base URL.
 	logKeyBaseURL = "baseURL"
 	// logKeyBytes is a request body size in bytes.
@@ -41,28 +39,18 @@ const (
 	logKeyDirection = "direction"
 	// logKeyError is an error that the client recovered from.
 	logKeyError = "error"
-	// logKeyHandlers is the number of transfer handlers registered for a test.
-	logKeyHandlers = "handlers"
 	// logKeyLatency is a measured round-trip time.
 	logKeyLatency = "latency"
 	// logKeyLatencies is a list of measured round-trip times.
 	logKeyLatencies = "latencies"
-	// logKeyLimit is the most workers a test may run.
-	logKeyLimit = "limit"
-	// logKeyMainWorkers is the number of workers given to the main transfer handler.
-	logKeyMainWorkers = "mainWorkers"
 	// logKeyOS is the operating system the program runs on.
 	logKeyOS = "os"
-	// logKeyOtherWorkers is the number of workers shared by the other transfer handlers.
-	logKeyOtherWorkers = "otherWorkers"
 	// logKeyPingMode is the method used to ping servers.
 	logKeyPingMode = "pingMode"
 	// logKeyProtocol is the protocol used for download and upload tests.
 	logKeyProtocol = "protocol"
 	// logKeyProxy is the HTTP proxy, with any password redacted.
 	logKeyProxy = "proxy"
-	// logKeyRate is a confirmed transfer rate in bytes per second.
-	logKeyRate = "rate"
 	// logKeyResolved is the URL that a request was redirected to.
 	logKeyResolved = "resolved"
 	// logKeySearch is the keyword that filters the server list.
@@ -71,8 +59,6 @@ const (
 	logKeySource = "source"
 	// logKeyURL is the URL of a request.
 	logKeyURL = "url"
-	// logKeyWorkers is the number of workers currently running.
-	logKeyWorkers = "workers"
 )
 
 // noopLogger discards every message. Clients without a [Logger] use it.

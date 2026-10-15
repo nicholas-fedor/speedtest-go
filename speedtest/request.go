@@ -15,13 +15,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/internal/meter"
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/transport"
 )
 
 type (
 	downloadFunc func(context.Context, *Server, int) error
 	uploadFunc   func(context.Context, *Server, int) error
-	registerFunc func(func()) *TestDirection
+	registerFunc func(func()) *meter.Direction
 )
 
 var (
@@ -39,14 +40,22 @@ const (
 	maxConcurrentUploadResolves = 8
 )
 
-// ErrConnectTimeout is returned when server connection times out.
-var ErrConnectTimeout = errors.New("server connect timeout")
-
-// errNoHost reports a server URL that parses but names no host, such as a relative path.
-var errNoHost = errors.New("server URL has no host")
-
-// errUploadIncomplete reports a successful upload response that arrived before the server took the whole body.
-var errUploadIncomplete = errors.New("upload response arrived before the whole body was sent")
+// Errors of server tests and requests.
+var (
+	// ErrConnectTimeout is returned when server connection times out.
+	ErrConnectTimeout = errors.New("server connect timeout")
+	// ErrUninitializedManager is returned when a server's client was not built by [New], so it cannot measure a
+	// transfer.
+	ErrUninitializedManager = errors.New("uninitialized manager")
+	// ErrServerNil is returned when the server is nil.
+	ErrServerNil = errors.New("server is nil")
+	// ErrNoAvailableServers is returned when no available servers are found.
+	ErrNoAvailableServers = errors.New("not found available servers")
+	// errNoHost reports a server URL that parses but names no host, such as a relative path.
+	errNoHost = errors.New("server URL has no host")
+	// errUploadIncomplete reports a successful upload response that arrived before the server took the whole body.
+	errUploadIncomplete = errors.New("upload response arrived before the whole body was sent")
+)
 
 // countingReader counts the bytes read through it. The HTTP transport reads a request body on its own goroutine,
 // so the count is atomic.
@@ -72,13 +81,6 @@ func (r *countingReader) Read(buffer []byte) (int, error) {
 	return read, err //nolint:wrapcheck // io.Reader callers compare the error with io.EOF.
 }
 
-var (
-	// ErrServerNil is returned when the server is nil.
-	ErrServerNil = errors.New("server is nil")
-	// ErrNoAvailableServers is returned when no available servers are found.
-	ErrNoAvailableServers = errors.New("not found available servers")
-)
-
 func (s *Server) multiTestContext(
 	ctx context.Context,
 	servers Servers,
@@ -99,7 +101,7 @@ func (s *Server) multiTestContext(
 
 	mainIDIndex := 0
 
-	var testDirection *TestDirection
+	var testDirection *meter.Direction
 
 	_context, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -132,7 +134,7 @@ func (s *Server) multiTestContext(
 		return ErrUninitializedManager
 	}
 
-	testDirection.StartContext(ctx, cancel, mainIDIndex) // block here
+	testDirection.Run(ctx, cancel, mainIDIndex) // block here
 
 	// A cancelled test measured nothing useful, so leave the server's earlier results as they were.
 	err := ctx.Err()
@@ -142,7 +144,7 @@ func (s *Server) multiTestContext(
 
 	// The final rate is the measured volume over the capture window, not the live estimate, which starts at zero and
 	// reads low until it converges.
-	rate := ByteRate(testDirection.finalRate)
+	rate := ByteRate(testDirection.FinalRate())
 	setSpeed(rate)
 
 	if rate == 0 && float64(errorTimes)/float64(requestTimes) > 0.1 {
@@ -158,10 +160,14 @@ func (s *Server) MultiDownloadTestContext(ctx context.Context, servers Servers) 
 		return ErrServerNil
 	}
 
+	if !s.hasMeter() {
+		return ErrUninitializedManager
+	}
+
 	return s.multiTestContext(
 		ctx,
 		servers,
-		s.Context.RegisterDownloadHandler,
+		s.Context.meter.RegisterDownload,
 		s.downloadRequestFor(),
 		s.Context.downloadIndex(defaultDownloadIndex),
 		"Download",
@@ -175,6 +181,10 @@ func (s *Server) MultiUploadTestContext(ctx context.Context, servers Servers) er
 		return ErrServerNil
 	}
 
+	if !s.hasMeter() {
+		return ErrUninitializedManager
+	}
+
 	// Resolve before the handlers are registered, so no upload worker reads a URL while it changes. TCP tests use no
 	// HTTP upload URL.
 	if !s.usesTCP() {
@@ -184,7 +194,7 @@ func (s *Server) MultiUploadTestContext(ctx context.Context, servers Servers) er
 	return s.multiTestContext(
 		ctx,
 		servers,
-		s.Context.RegisterUploadHandler,
+		s.Context.meter.RegisterUpload,
 		s.uploadRequestFor(),
 		s.Context.uploadIndex(defaultMultiUploadIndex),
 		"Upload",
@@ -222,7 +232,7 @@ func (s *Server) testContext(
 		return ErrServerNil
 	}
 
-	if s.Context == nil {
+	if !s.hasMeter() {
 		return ErrUninitializedManager
 	}
 
@@ -244,7 +254,7 @@ func (s *Server) testContext(
 			atomic.AddInt64(&errorTimes, 1)
 		}
 	})
-	testDirection.StartContext(ctx, cancel, 0)
+	testDirection.Run(ctx, cancel, 0)
 
 	// A cancelled test measured nothing useful, so leave the server's earlier results as they were.
 	err := ctx.Err()
@@ -256,7 +266,7 @@ func (s *Server) testContext(
 
 	// The final rate is the measured volume over the capture window, not the live estimate, which starts at zero and
 	// reads low until it converges.
-	rate := ByteRate(testDirection.finalRate)
+	rate := ByteRate(testDirection.FinalRate())
 	if rate == 0 && float64(errorTimes)/float64(requestTimes) > 0.1 {
 		rate = -1 // N/A
 	}
@@ -273,11 +283,15 @@ func (s *Server) downloadTestContext(ctx context.Context, downloadRequest downlo
 		return ErrServerNil
 	}
 
+	if !s.hasMeter() {
+		return ErrUninitializedManager
+	}
+
 	return s.testContext(
 		ctx,
 		downloadRequest,
 		s.Context.downloadIndex(defaultDownloadIndex),
-		s.Context.RegisterDownloadHandler,
+		s.Context.meter.RegisterDownload,
 		func(rate ByteRate) { s.DLSpeed = rate },
 		func(d *time.Duration) { s.TestDuration.Download = d },
 	)
@@ -306,6 +320,10 @@ func (s *Server) uploadTestContext(ctx context.Context, uploadRequest uploadFunc
 		return ErrServerNil
 	}
 
+	if !s.hasMeter() {
+		return ErrUninitializedManager
+	}
+
 	// TCP tests use no HTTP upload URL, so there are no redirects to resolve.
 	if !s.usesTCP() {
 		s.resolveUploadURL(ctx)
@@ -315,7 +333,7 @@ func (s *Server) uploadTestContext(ctx context.Context, uploadRequest uploadFunc
 		ctx,
 		uploadRequest,
 		s.Context.uploadIndex(defaultUploadIndex),
-		s.Context.RegisterUploadHandler,
+		s.Context.meter.RegisterUpload,
 		func(rate ByteRate) { s.ULSpeed = rate },
 		func(d *time.Duration) { s.TestDuration.Upload = d },
 	)
@@ -326,7 +344,7 @@ func downloadRequest(ctx context.Context, server *Server, writer int) error {
 		return ErrServerNil
 	}
 
-	if server.Context == nil {
+	if !server.hasMeter() {
 		return ErrUninitializedManager
 	}
 
@@ -359,7 +377,7 @@ func downloadRequest(ctx context.Context, server *Server, writer int) error {
 		return fmt.Errorf("download request failed: %w", err)
 	}
 
-	err = server.Context.NewChunk().DownloadHandler(resp.Body)
+	err = server.Context.meter.NewChunk().DownloadHandler(resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to download data: %w", err)
 	}
@@ -452,13 +470,13 @@ func uploadRequest(ctx context.Context, server *Server, writer int) error {
 		return ErrServerNil
 	}
 
-	if server.Context == nil {
+	if !server.hasMeter() {
 		return ErrUninitializedManager
 	}
 
 	size := ulSizes[writer]
 	chunkSize := int64(size*100-51) * 10
-	body := &countingReader{reader: server.Context.NewChunk().UploadHandler(chunkSize)}
+	body := &countingReader{reader: server.Context.meter.NewChunk().UploadHandler(chunkSize)}
 
 	target := server.uploadTarget()
 
@@ -500,7 +518,7 @@ func uploadRequest(ctx context.Context, server *Server, writer int) error {
 		return fmt.Errorf("%w: %d of %d bytes", errUploadIncomplete, sent, chunkSize)
 	}
 
-	server.Context.AddTotalUpload(chunkSize)
+	server.Context.meter.AddTotalUpload(chunkSize)
 
 	return nil
 }

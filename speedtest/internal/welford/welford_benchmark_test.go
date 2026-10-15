@@ -1,10 +1,11 @@
-package internal
+package welford
 
 import (
 	"testing"
 	"time"
 )
 
+// BenchmarkWelford_Update measures an update with a constant sample for windows of 10, 100, and 1000 samples.
 func BenchmarkWelford_Update(b *testing.B) {
 	benchmarks := []struct {
 		name       string
@@ -33,6 +34,7 @@ func BenchmarkWelford_Update(b *testing.B) {
 	}
 }
 
+// BenchmarkWelford_UpdateWithVariedValues measures updates with samples that change on every call.
 func BenchmarkWelford_UpdateWithVariedValues(b *testing.B) {
 	welford := NewWelford(time.Second, 100*time.Millisecond)
 
@@ -45,6 +47,7 @@ func BenchmarkWelford_UpdateWithVariedValues(b *testing.B) {
 	}
 }
 
+// BenchmarkWelford_Mean measures reading the mean of a filled window.
 func BenchmarkWelford_Mean(b *testing.B) {
 	welford := NewWelford(time.Second, 100*time.Millisecond)
 	// Fill the window
@@ -57,6 +60,7 @@ func BenchmarkWelford_Mean(b *testing.B) {
 	}
 }
 
+// BenchmarkWelford_Variance measures computing the variance of a filled window.
 func BenchmarkWelford_Variance(b *testing.B) {
 	welford := NewWelford(time.Second, 100*time.Millisecond)
 	// Fill the window
@@ -69,6 +73,7 @@ func BenchmarkWelford_Variance(b *testing.B) {
 	}
 }
 
+// BenchmarkWelford_StandardDeviation measures reading the standard deviation of a filled window.
 func BenchmarkWelford_StandardDeviation(b *testing.B) {
 	welford := NewWelford(time.Second, 100*time.Millisecond)
 	// Fill the window
@@ -81,6 +86,7 @@ func BenchmarkWelford_StandardDeviation(b *testing.B) {
 	}
 }
 
+// BenchmarkWelford_CV measures reading the coefficient of variation of a filled window.
 func BenchmarkWelford_CV(b *testing.B) {
 	welford := NewWelford(time.Second, 100*time.Millisecond)
 	// Fill the window
@@ -93,6 +99,7 @@ func BenchmarkWelford_CV(b *testing.B) {
 	}
 }
 
+// BenchmarkWelford_EWMA measures computing the rate estimate of a filled window.
 func BenchmarkWelford_EWMA(b *testing.B) {
 	welford := NewWelford(time.Second, 100*time.Millisecond)
 	// Fill the window

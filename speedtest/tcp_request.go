@@ -17,8 +17,11 @@ import (
 // defaultTCPPort is the port speedtest.net servers serve their TCP protocol on.
 const defaultTCPPort = "8080"
 
-// errNoTCPHost is returned for a server with neither a host nor a URL to reach its TCP service at.
-var errNoTCPHost = errors.New("server has no host for TCP tests")
+// Errors of TCP tests.
+var (
+	// errNoTCPHost is returned for a server with neither a host nor a URL to reach its TCP service at.
+	errNoTCPHost = errors.New("server has no host for TCP tests")
+)
 
 // downloadRequestFor returns the download request function for the client's test mode.
 //
@@ -125,7 +128,7 @@ func tcpDownloadRequest(ctx context.Context, server *Server, writer int) error {
 		return ErrServerNil
 	}
 
-	if server.Context == nil {
+	if !server.hasMeter() {
 		return ErrUninitializedManager
 	}
 
@@ -143,7 +146,7 @@ func tcpDownloadRequest(ctx context.Context, server *Server, writer int) error {
 
 	size := int64(dlSizes[writer]) * 1000
 
-	err = client.Download(ctx, size, server.Context.NewChunk().DownloadHandler)
+	err = client.Download(ctx, size, server.Context.meter.NewChunk().DownloadHandler)
 	if err != nil {
 		return fmt.Errorf("TCP download failed: %w", err)
 	}
@@ -168,7 +171,7 @@ func tcpUploadRequest(ctx context.Context, server *Server, writer int) error {
 		return ErrServerNil
 	}
 
-	if server.Context == nil {
+	if !server.hasMeter() {
 		return ErrUninitializedManager
 	}
 
@@ -186,7 +189,11 @@ func tcpUploadRequest(ctx context.Context, server *Server, writer int) error {
 
 	defer func() { _ = client.Disconnect() }()
 
-	confirmed, err := client.Upload(ctx, size, server.Context.NewChunk().UploadHandler(payload))
+	confirmed, err := client.Upload(
+		ctx,
+		size,
+		server.Context.meter.NewChunk().UploadHandler(payload),
+	)
 	if err != nil {
 		return fmt.Errorf("TCP upload failed: %w", err)
 	}
@@ -201,7 +208,7 @@ func tcpUploadRequest(ctx context.Context, server *Server, writer int) error {
 		)
 	}
 
-	server.Context.AddTotalUpload(confirmed - overhead)
+	server.Context.meter.AddTotalUpload(confirmed - overhead)
 
 	return nil
 }
