@@ -110,6 +110,8 @@ func (m *Meter) SetCallbackUpload(callback func(rate float64)) {
 }
 
 // RegisterDownload adds a request handler to the download direction, unless it already has one per connection.
+// When the last download test has finished, a new download direction replaces it, so each test starts with its own
+// handlers and totals.
 //
 // Parameters:
 //   - handler: sends one download request.
@@ -117,10 +119,12 @@ func (m *Meter) SetCallbackUpload(callback func(rate float64)) {
 // Returns:
 //   - *Direction: the download direction, which runs the handlers.
 func (m *Meter) RegisterDownload(handler func()) *Direction {
-	return m.register(m.currentDownload(), handler)
+	return m.register(&m.download, kindDownload, handler)
 }
 
-// RegisterUpload adds a request handler to the upload direction, unless it already has one per connection.
+// RegisterUpload adds a request handler to the upload direction, unless it already has one per connection. When the
+// last upload test has finished, a new upload direction replaces it, so each test starts with its own handlers and
+// totals.
 //
 // Parameters:
 //   - handler: sends one upload request.
@@ -128,7 +132,7 @@ func (m *Meter) RegisterDownload(handler func()) *Direction {
 // Returns:
 //   - *Direction: the upload direction, which runs the handlers.
 func (m *Meter) RegisterUpload(handler func()) *Direction {
-	return m.register(m.currentUpload(), handler)
+	return m.register(&m.upload, kindUpload, handler)
 }
 
 // NewChunk returns a chunk that counts one request's data toward this meter.
@@ -198,15 +202,26 @@ func (m *Meter) Reset() {
 	m.upload = newDirection(m, kindUpload)
 }
 
-// register adds a handler to a direction, unless it already has one per connection.
+// register adds a handler to the direction in a slot, unless it already has one per connection. A direction whose
+// test has finished is first replaced with a new one.
 //
 // Parameters:
-//   - direction: the direction.
+//   - slot: the meter's download or upload direction, which mu guards.
+//   - testKind: the slot's direction of test.
 //   - handler: sends one request.
 //
 // Returns:
-//   - *Direction: the direction.
-func (m *Meter) register(direction *Direction, handler func()) *Direction {
+//   - *Direction: the direction that holds the handler.
+func (m *Meter) register(slot **Direction, testKind kind, handler func()) *Direction {
+	m.mu.Lock()
+
+	if (*slot).stopped.Load() {
+		*slot = newDirection(m, testKind)
+	}
+
+	direction := *slot
+	m.mu.Unlock()
+
 	direction.addHandler(handler, m.connections)
 
 	return direction

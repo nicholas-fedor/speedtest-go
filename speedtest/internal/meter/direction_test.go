@@ -36,6 +36,44 @@ func TestDirection_RunStopsWithContext(t *testing.T) {
 	})
 }
 
+// TestMeter_RegisterAfterTest checks that a second test on the same meter, without a reset, runs its own handlers
+// and reports its own rate, while its earlier direction keeps the first test's results.
+func TestMeter_RegisterAfterTest(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		meter := newTestMeter(1, 1050*time.Millisecond)
+
+		run := func(bytes int64) *Direction {
+			var direction *Direction
+
+			direction = meter.RegisterDownload(func() {
+				time.Sleep(100 * time.Millisecond)
+				direction.confirmed.Add(bytes)
+			})
+
+			_, cancel := context.WithCancel(context.Background())
+			direction.Run(context.Background(), cancel, 0)
+
+			return direction
+		}
+
+		first := run(1_000)
+		second := run(2_000)
+
+		require.NotSame(t, first, second, "a finished direction must not be reused")
+		assert.InDelta(t, 10_000/1.05, first.FinalRate(), 1e-6)
+		assert.InDelta(t, 20_000/1.05, second.FinalRate(), 1e-6)
+		assert.Len(t, second.snapshotHandlers(), 1, "the new direction holds only the new handler")
+		assert.Equal(
+			t,
+			second.confirmed.Load(),
+			meter.TotalDownload(),
+			"the totals are the latest test's",
+		)
+	})
+}
+
 // TestDirection_RunLogsWorkers checks that a test reports how its workers are shared to the meter's logger.
 func TestDirection_RunLogsWorkers(t *testing.T) {
 	t.Parallel()
