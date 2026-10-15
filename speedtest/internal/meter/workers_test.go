@@ -110,6 +110,8 @@ func TestAdaptUploadWorkers(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		td := newDirection(New(Config{}), kindUpload)
+		connection := newConnection(td, 0)
+		td.connections = []*Connection{connection}
 		td.maxWorkers = 8
 		td.activeWorkers = 2
 
@@ -136,7 +138,7 @@ func TestAdaptUploadWorkers(t *testing.T) {
 		got := make([]int, 0, len(steps))
 
 		for _, step := range steps {
-			td.confirmed.Add(step.confirmed)
+			connection.Confirm(step.confirmed)
 			td.read.Add(step.confirmed + step.backlog)
 
 			time.Sleep(uploadAdjustInterval)
@@ -161,6 +163,8 @@ func TestAdaptUploadWorkersStalled(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		td := newDirection(New(Config{}), kindUpload)
+		connection := newConnection(td, 0)
+		td.connections = []*Connection{connection}
 		td.maxWorkers = 8
 		td.activeWorkers = 4
 
@@ -185,7 +189,7 @@ func TestAdaptUploadWorkersStalled(t *testing.T) {
 		got := make([]int, 0, len(steps))
 
 		for _, step := range steps {
-			td.confirmed.Add(step.confirmed)
+			connection.Confirm(step.confirmed)
 			td.read.Add(step.read)
 
 			time.Sleep(uploadAdjustInterval)
@@ -284,7 +288,7 @@ func TestRunUploadWorkers(t *testing.T) {
 				)
 
 				td := newDirection(dm, tt.testKind)
-				td.addHandler(func() {
+				td.addHandler(func(*Connection) error {
 					mu.Lock()
 					running++
 					peak = max(peak, running)
@@ -295,6 +299,8 @@ func TestRunUploadWorkers(t *testing.T) {
 					mu.Lock()
 					running--
 					mu.Unlock()
+
+					return nil
 				}, threads)
 
 				_, cancel := context.WithCancel(context.Background())

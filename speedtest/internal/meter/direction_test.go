@@ -5,6 +5,7 @@ package meter
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -14,14 +15,45 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Errors of the test handlers.
+var (
+	// errRequest is the error of a request that fails.
+	errRequest = errors.New("request failed")
+)
+
+// confirming returns a handler that waits and then counts bytes toward its connection.
+//
+// Parameters:
+//   - wait: how long each request takes.
+//   - bytes: the bytes each request counts.
+//
+// Returns:
+//   - Handler: the handler.
+func confirming(wait time.Duration, bytes int64) Handler {
+	return func(connection *Connection) error {
+		time.Sleep(wait)
+		connection.Confirm(bytes)
+
+		return nil
+	}
+}
+
+// runTest runs a direction until it stops, with a cancel function that does nothing else.
+//
+// Parameters:
+//   - direction: the direction.
+func runTest(direction *Direction) {
+	_, cancel := context.WithCancel(context.Background())
+	direction.Run(context.Background(), cancel, 0)
+}
+
 // TestDirection_RunStopsWithContext checks that a test stops when its context ends, before the capture time, and
 // that its workers and chunks then see it as stopped.
 func TestDirection_RunStopsWithContext(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
-		meter := newTestMeter(2, time.Hour)
-		direction := meter.RegisterDownload(func() { time.Sleep(time.Millisecond) })
+		direction := newTestMeter(2, time.Hour).RegisterDownload(confirming(time.Millisecond, 0))
 
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
@@ -36,6 +68,87 @@ func TestDirection_RunStopsWithContext(t *testing.T) {
 	})
 }
 
+// TestDirection_Result checks a multi-handler test's result: the main handler's workers come first, the others share
+// the remaining handlers, every connection's bytes add up to the total, failed requests are counted, and each
+// connection's active time stays within the capture window.
+func TestDirection_Result(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		meter := newTestMeter(4, 1050*time.Millisecond)
+		meter.RegisterDownload(confirming(100*time.Millisecond, 1_000))
+		meter.RegisterDownload(func(*Connection) error {
+			time.Sleep(100 * time.Millisecond)
+
+			return errRequest
+		})
+		direction := meter.RegisterDownload(confirming(100*time.Millisecond, 2_000))
+
+		runTest(direction)
+
+		result := direction.Result()
+
+		handlers := make([]int, 0, len(result.Connections))
+
+		var (
+			bytes    int64
+			requests int
+			failures int
+		)
+
+		for _, connection := range result.Connections {
+			handlers = append(handlers, connection.Handler)
+			bytes += connection.Bytes
+			requests += connection.Requests
+			failures += connection.Failures
+
+			assert.LessOrEqual(t, connection.Active, result.Window)
+			assert.Positive(t, connection.Active)
+		}
+
+		assert.Equal(t, []int{0, 1, 2, 1}, handlers)
+		assert.Equal(t, result.Bytes, bytes, "the connections' bytes add up to the total")
+		assert.Equal(t, int64(10*(1_000+2_000)), result.Bytes)
+		assert.InDelta(t, float64(result.Bytes)/1.05, result.Rate, 1e-6)
+		assert.Equal(t, result.Requests, requests)
+		assert.Equal(t, result.Failures, failures)
+		assert.Equal(
+			t,
+			2*11,
+			result.Failures,
+			"each failing worker sends ten requests and one cut short",
+		)
+		assert.Zero(t, result.Sent, "a download sends nothing")
+	})
+}
+
+// TestDirection_ResultSent checks that an upload's result reports the bytes read into the transport by the stop.
+func TestDirection_ResultSent(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		direction := newTestMeter(
+			1,
+			250*time.Millisecond,
+		).RegisterUpload(func(connection *Connection) error {
+			time.Sleep(100 * time.Millisecond)
+
+			_, err := connection.NewChunk().
+				UploadHandler(readChunkSize).
+				Read(make([]byte, readChunkSize))
+			connection.Confirm(readChunkSize / 2)
+
+			return err
+		})
+
+		runTest(direction)
+
+		result := direction.Result()
+		assert.Equal(t, int64(2*readChunkSize), result.Sent)
+		assert.Equal(t, int64(readChunkSize), result.Bytes)
+	})
+}
+
 // TestMeter_RegisterAfterTest checks that a second test on the same meter, without a reset, runs its own handlers
 // and reports its own rate, while its earlier direction keeps the first test's results.
 func TestMeter_RegisterAfterTest(t *testing.T) {
@@ -44,33 +157,16 @@ func TestMeter_RegisterAfterTest(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		meter := newTestMeter(1, 1050*time.Millisecond)
 
-		run := func(bytes int64) *Direction {
-			var direction *Direction
+		first := meter.RegisterDownload(confirming(100*time.Millisecond, 1_000))
+		runTest(first)
 
-			direction = meter.RegisterDownload(func() {
-				time.Sleep(100 * time.Millisecond)
-				direction.confirmed.Add(bytes)
-			})
-
-			_, cancel := context.WithCancel(context.Background())
-			direction.Run(context.Background(), cancel, 0)
-
-			return direction
-		}
-
-		first := run(1_000)
-		second := run(2_000)
+		second := meter.RegisterDownload(confirming(100*time.Millisecond, 2_000))
+		runTest(second)
 
 		require.NotSame(t, first, second, "a finished direction must not be reused")
 		assert.InDelta(t, 10_000/1.05, first.FinalRate(), 1e-6)
 		assert.InDelta(t, 20_000/1.05, second.FinalRate(), 1e-6)
 		assert.Len(t, second.snapshotHandlers(), 1, "the new direction holds only the new handler")
-		assert.Equal(
-			t,
-			second.confirmed.Load(),
-			meter.TotalDownload(),
-			"the totals are the latest test's",
-		)
 	})
 }
 
@@ -80,18 +176,15 @@ func TestDirection_RunLogsWorkers(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		logger := &recordingLogger{messages: map[string][]any{}}
-		meter := New(
-			Config{
-				Logger:               logger,
-				Connections:          2,
-				CaptureTime:          100 * time.Millisecond,
-				RateCaptureFrequency: 0,
-			},
-		)
-		direction := meter.RegisterDownload(func() { time.Sleep(10 * time.Millisecond) })
+		meter := New(Config{
+			Logger:               logger,
+			OnRate:               nil,
+			Connections:          2,
+			CaptureTime:          100 * time.Millisecond,
+			RateCaptureFrequency: 0,
+		})
 
-		_, cancel := context.WithCancel(context.Background())
-		direction.Run(context.Background(), cancel, 0)
+		runTest(meter.RegisterDownload(confirming(10*time.Millisecond, 0)))
 
 		logger.mu.Lock()
 		defer logger.mu.Unlock()
@@ -105,39 +198,36 @@ func TestDirection_RunLogsWorkers(t *testing.T) {
 	})
 }
 
-// TestDirection_CallbackDuringRun checks that the live rate reaches a callback set while the test runs.
-func TestDirection_CallbackDuringRun(t *testing.T) {
+// TestDirection_OnRate checks that the configured callback receives the live rate while the test runs.
+func TestDirection_OnRate(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
-		meter := newTestMeter(1, 500*time.Millisecond)
-		direction := meter.RegisterDownload(func() {
-			time.Sleep(10 * time.Millisecond)
-			meter.currentDownload().confirmed.Add(1000)
-		})
-
 		var (
 			mu    sync.Mutex
-			rates int
+			rates []float64
 		)
 
-		go func() {
-			time.Sleep(100 * time.Millisecond)
-			meter.SetCallbackDownload(func(float64) {
+		meter := New(Config{
+			Logger: nil,
+			OnRate: func(rate float64) {
 				mu.Lock()
 				defer mu.Unlock()
 
-				rates++
-			})
-		}()
+				rates = append(rates, rate)
+			},
+			Connections:          1,
+			CaptureTime:          500 * time.Millisecond,
+			RateCaptureFrequency: 0,
+		})
 
-		_, cancel := context.WithCancel(context.Background())
-		direction.Run(context.Background(), cancel, 0)
+		runTest(meter.RegisterDownload(confirming(10*time.Millisecond, 1_000)))
 
 		mu.Lock()
 		defer mu.Unlock()
 
-		assert.Positive(t, rates)
+		require.NotEmpty(t, rates)
+		assert.Positive(t, rates[len(rates)-1])
 	})
 }
 
@@ -221,26 +311,26 @@ func TestDirection_rateCaptureBursts(t *testing.T) {
 			t.Parallel()
 
 			synctest.Test(t, func(t *testing.T) {
-				meter := newTestMeter(1, 0)
-				direction := newDirection(meter, tt.testKind)
-
 				var (
 					mu    sync.Mutex
 					rates []float64
 				)
 
-				record := func(rate float64) {
-					mu.Lock()
-					defer mu.Unlock()
+				meter := New(Config{
+					Logger: nil,
+					OnRate: func(rate float64) {
+						mu.Lock()
+						defer mu.Unlock()
 
-					rates = append(rates, rate)
-				}
-
-				if tt.testKind == kindUpload {
-					meter.SetCallbackUpload(record)
-				} else {
-					meter.SetCallbackDownload(record)
-				}
+						rates = append(rates, rate)
+					},
+					Connections:          1,
+					CaptureTime:          0,
+					RateCaptureFrequency: 0,
+				})
+				direction := newDirection(meter, tt.testKind)
+				connection := newConnection(direction, 0)
+				direction.connections = []*Connection{connection}
 
 				stop := make(chan struct{})
 				direction.rateCapture(time.Now(), stop)
@@ -250,7 +340,7 @@ func TestDirection_rateCaptureBursts(t *testing.T) {
 
 				for period := range 20 {
 					if period%2 == 0 {
-						direction.confirmed.Add(64 * 1024)
+						connection.Confirm(64 * 1024)
 					}
 
 					time.Sleep(defaultRateCaptureFrequency)
@@ -296,13 +386,9 @@ func TestDirection_FinalRate(t *testing.T) {
 	for _, testKind := range []kind{kindDownload, kindUpload} {
 		synctest.Test(t, func(t *testing.T) {
 			direction := newDirection(newTestMeter(1, 1050*time.Millisecond), testKind)
-			direction.addHandler(func() {
-				time.Sleep(100 * time.Millisecond)
-				direction.confirmed.Add(1_000_000)
-			}, 1)
+			direction.addHandler(confirming(100*time.Millisecond, 1_000_000), 1)
 
-			_, cancel := context.WithCancel(context.Background())
-			direction.Run(context.Background(), cancel, 0)
+			runTest(direction)
 
 			assert.InDelta(t, 10_000_000/1.05, direction.FinalRate(), 1e-6)
 
@@ -317,7 +403,7 @@ func TestDirection_FinalRate(t *testing.T) {
 }
 
 // TestDirection_FinalRateExcludesCancellation checks that bytes arriving while requests are cancelled, after the
-// capture stops, are left out of the final rate.
+// capture stops, are left out of the result.
 func TestDirection_FinalRateExcludesCancellation(t *testing.T) {
 	t.Parallel()
 
@@ -326,14 +412,21 @@ func TestDirection_FinalRateExcludesCancellation(t *testing.T) {
 
 		var once sync.Once
 
-		direction.addHandler(func() {
-			once.Do(func() { direction.confirmed.Add(1_000) })
+		direction.addHandler(func(connection *Connection) error {
+			once.Do(func() { connection.Confirm(1_000) })
 			time.Sleep(10 * time.Millisecond)
+
+			return nil
 		}, 1)
 
-		direction.Run(context.Background(), func() { direction.confirmed.Add(1_000_000) }, 0)
+		direction.Run(
+			context.Background(),
+			func() { direction.connections[0].Confirm(1_000_000) },
+			0,
+		)
 
-		assert.Equal(t, int64(1_001_000), direction.confirmed.Load())
+		assert.Equal(t, int64(1_001_000), direction.volume())
+		assert.Equal(t, int64(1_000), direction.Result().Bytes)
 		assert.InDelta(
 			t,
 			10_000.0,
@@ -351,23 +444,28 @@ func TestDirection_FinalRateIgnoresBlockedCallback(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
-		meter := newTestMeter(1, 100*time.Millisecond)
-		direction := newDirection(meter, kindDownload)
 		release := make(chan struct{})
-
-		meter.SetCallbackDownload(func(float64) { <-release })
+		meter := New(Config{
+			Logger:               nil,
+			OnRate:               func(float64) { <-release },
+			Connections:          1,
+			CaptureTime:          100 * time.Millisecond,
+			RateCaptureFrequency: 0,
+		})
+		direction := newDirection(meter, kindDownload)
 
 		var once sync.Once
 
-		direction.addHandler(func() {
-			once.Do(func() { direction.confirmed.Add(1_000) })
+		direction.addHandler(func(connection *Connection) error {
+			once.Do(func() { connection.Confirm(1_000) })
 			time.Sleep(10 * time.Millisecond)
+
+			return nil
 		}, 1)
 
 		start := time.Now()
 
-		_, cancel := context.WithCancel(context.Background())
-		direction.Run(context.Background(), cancel, 0)
+		runTest(direction)
 
 		// The stop comes at 100 ms. A worker that started another 10 ms request at that same instant finishes it first.
 		assert.LessOrEqual(
@@ -377,7 +475,7 @@ func TestDirection_FinalRateIgnoresBlockedCallback(t *testing.T) {
 			"a blocked callback must not delay the stop",
 		)
 
-		direction.confirmed.Add(1_000_000)
+		direction.connections[0].Confirm(1_000_000)
 		close(release)
 
 		assert.InDelta(

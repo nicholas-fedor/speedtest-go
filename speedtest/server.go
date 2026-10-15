@@ -16,8 +16,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/transport"
 )
 
 type payloadType int
@@ -38,35 +36,20 @@ var (
 
 // Server information.
 type Server struct {
-	URL          string          `json:"url"          xml:"url,attr"`
-	Lat          string          `json:"lat"          xml:"lat,attr"`
-	Lon          string          `json:"lon"          xml:"lon,attr"`
-	Name         string          `json:"name"         xml:"name,attr"`
-	Country      string          `json:"country"      xml:"country,attr"`
-	CC           string          `json:"cc"           xml:"cc,attr"`
-	Sponsor      string          `json:"sponsor"      xml:"sponsor,attr"`
-	ID           string          `json:"id"           xml:"id,attr"`
-	Host         string          `json:"host"         xml:"host,attr"`
-	Distance     float64         `json:"distance"     xml:"-"`
-	Latency      time.Duration   `json:"latency"      xml:"-"`
-	MaxLatency   time.Duration   `json:"maxLatency"   xml:"-"`
-	MinLatency   time.Duration   `json:"minLatency"   xml:"-"`
-	Jitter       time.Duration   `json:"jitter"       xml:"-"`
-	DLSpeed      ByteRate        `json:"dlSpeed"      xml:"-"`
-	ULSpeed      ByteRate        `json:"ulSpeed"      xml:"-"`
-	TestDuration TestDuration    `json:"testDuration" xml:"-"`
-	PacketLoss   transport.PLoss `json:"packetLoss"   xml:"-"`
-	Context      *Client         `json:"-"            xml:"-"`
-	// uploadURL is where uploads go once redirects from URL are resolved, or empty to use URL.
-	uploadURL string
-}
-
-// TestDuration holds the duration of different test phases.
-type TestDuration struct {
-	Ping     *time.Duration `json:"ping"`
-	Download *time.Duration `json:"download"`
-	Upload   *time.Duration `json:"upload"`
-	Total    *time.Duration `json:"total"`
+	URL      string  `json:"url"      xml:"url,attr"`
+	Lat      string  `json:"lat"      xml:"lat,attr"`
+	Lon      string  `json:"lon"      xml:"lon,attr"`
+	Name     string  `json:"name"     xml:"name,attr"`
+	Country  string  `json:"country"  xml:"country,attr"`
+	CC       string  `json:"cc"       xml:"cc,attr"`
+	Sponsor  string  `json:"sponsor"  xml:"sponsor,attr"`
+	ID       string  `json:"id"       xml:"id,attr"`
+	Host     string  `json:"host"     xml:"host,attr"`
+	Distance float64 `json:"distance" xml:"-"`
+	// Latency is the round trip of the quick probe that [Client.FetchServers] sends to each listed server, or
+	// [PingTimeout] when the probe failed. [Servers.Available] and [Servers.FindServer] rank servers by it.
+	// [Client.Ping] measures latency properly.
+	Latency time.Duration `json:"latency" xml:"-"`
 }
 
 // CustomServer given a URL string, return a new Server object, with as much
@@ -97,7 +80,6 @@ func (s *Client) CustomServer(host string) (*Server, error) {
 		Name:    parsedURL.Host,
 		Host:    parsedURL.Host,
 		Sponsor: "?",
-		Context: s,
 	}, nil
 }
 
@@ -240,8 +222,6 @@ func (s *Client) FetchServerByIDContext(ctx context.Context, serverID string) (*
 
 	for serverIndex := range list.Servers {
 		if list.Servers[serverIndex].ID == serverID {
-			list.Servers[serverIndex].Context = s
-
 			// The lookup lists servers without the host that packet loss and TCP tests connect to, so it comes from
 			// the URL, with the port the server list would report.
 			if list.Servers[serverIndex].Host == "" {
@@ -276,8 +256,13 @@ func (s *Client) FetchServerByIDContext(ctx context.Context, serverID string) (*
 	return nil, ErrServerNotFound
 }
 
-// pingServers pings all servers to measure latency.
-func pingServers(ctx context.Context, servers Servers, pingMode Proto) {
+// pingServers sends each server one quick probe with the client's ping mode and records its round trip as the
+// server's latency, or [PingTimeout] when the probe fails.
+//
+// Parameters:
+//   - ctx: ends the probes early.
+//   - servers: the servers.
+func (s *Client) pingServers(ctx context.Context, servers Servers) {
 	var waitGroup sync.WaitGroup
 
 	pCtx, cancelFunc := context.WithTimeout(ctx, time.Second*4)
@@ -291,16 +276,11 @@ func pingServers(ctx context.Context, servers Servers, pingMode Proto) {
 				errPing error
 			)
 
-			switch pingMode {
-			case TCP:
-				latency, errPing = serverPtr.TCPPing(pCtx, 1, time.Millisecond, nil)
-			case ICMP:
-				latency, errPing = serverPtr.ICMPPing(pCtx, 4*time.Second, 1, time.Millisecond, nil)
-			case HTTP:
-				latency, errPing = serverPtr.HTTPPing(pCtx, 1, time.Millisecond, nil)
-			default:
-				latency, errPing = serverPtr.HTTPPing(pCtx, 1, time.Millisecond, nil)
-			}
+			latency, errPing = s.pingWithMode(
+				pCtx,
+				serverPtr,
+				pingSettings{onLatency: nil, count: 1, interval: time.Millisecond},
+			)
 
 			if errPing != nil || len(latency) < 1 {
 				serverPtr.Latency = PingTimeout
@@ -460,14 +440,9 @@ func (s *Client) FetchServerListContext(ctx context.Context) (Servers, error) {
 		return servers, err
 	}
 
-	// set context for servers
-	for _, server := range servers {
-		server.Context = s
-	}
-
 	s.log().Debug(ctx, "pinging servers", logKeyCount, len(servers))
 
-	pingServers(ctx, servers, s.settings.pingMode)
+	s.pingServers(ctx, servers)
 
 	sortByDistance(servers, s.settings.location)
 
@@ -639,45 +614,4 @@ func (s *Server) String() string {
 	}
 
 	return fmt.Sprintf("[%4s] %.2fkm %s (%s) by %s", s.ID, s.Distance, s.Name, s.Country, s.Sponsor)
-}
-
-// CheckResultValid checks that results are logical given UL and DL speeds.
-func (s *Server) CheckResultValid() bool {
-	if s == nil {
-		return false
-	}
-
-	return s.DLSpeed*100 >= s.ULSpeed && s.DLSpeed <= s.ULSpeed*100
-}
-
-func (s *Server) testDurationTotalCount() {
-	if s == nil {
-		return
-	}
-
-	total := s.getNotNullValue(s.TestDuration.Ping) +
-		s.getNotNullValue(s.TestDuration.Download) +
-		s.getNotNullValue(s.TestDuration.Upload)
-
-	s.TestDuration.Total = &total
-}
-
-func (s *Server) getNotNullValue(time *time.Duration) time.Duration {
-	if time == nil {
-		return 0
-	}
-
-	return *time
-}
-
-// log returns the logger of the server's client, which discards messages when there is none.
-//
-// Returns:
-//   - Logger: the logger.
-func (s *Server) log() Logger {
-	if s == nil {
-		return noopLogger{}
-	}
-
-	return s.Context.log()
 }

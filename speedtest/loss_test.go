@@ -656,3 +656,39 @@ func TestPacketLossAnalyzer_UnresolvedSource(t *testing.T) {
 	require.ErrorContains(t, err, `source interface "bad host"`)
 	assert.Nil(t, loss)
 }
+
+// TestClient_PacketLoss checks that a measurement against the fake server returns the last sample that counted sent
+// packets, and that an unreachable server is reported as unsupported.
+func TestClient_PacketLoss(t *testing.T) {
+	t.Parallel()
+
+	t.Run("fake server", func(t *testing.T) {
+		t.Parallel()
+
+		srv := testserver.NewTCPServer(t)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+		defer cancel()
+
+		loss, err := newTestClient(t).PacketLoss(ctx, &Server{Host: srv.Addr()})
+		require.NoError(t, err)
+
+		assert.Positive(t, loss.Sent)
+	})
+
+	t.Run("unreachable server", func(t *testing.T) {
+		t.Parallel()
+
+		var config net.ListenConfig
+
+		listener, err := config.Listen(context.Background(), "tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+
+		addr := listener.Addr().String()
+		require.NoError(t, listener.Close())
+
+		loss, err := newTestClient(t).PacketLoss(context.Background(), &Server{Host: addr})
+		require.ErrorIs(t, err, transport.ErrUnsupported)
+		assert.Zero(t, loss.Sent)
+	})
+}

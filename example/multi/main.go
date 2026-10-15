@@ -21,9 +21,14 @@ func main() {
 		// Use s as main server and use targets as auxiliary servers.
 		// The main server is loaded at a greater proportion than the auxiliary servers.
 		s := targets[0]
-		checkError(s.MultiDownloadTestContext(context.TODO(), targets))
-		checkError(s.MultiUploadTestContext(context.TODO(), targets))
-		_, _ = fmt.Fprintf(os.Stdout, "Download: %s, Upload: %s\n", s.DLSpeed, s.ULSpeed)
+
+		download, err := speedtestClient.DownloadMulti(context.TODO(), s, serverList)
+		checkError(err)
+
+		upload, err := speedtestClient.UploadMulti(context.TODO(), s, serverList)
+		checkError(err)
+
+		_, _ = fmt.Fprintf(os.Stdout, "Download: %s, Upload: %s\n", download.Rate, upload.Rate)
 	}
 }
 

@@ -56,13 +56,19 @@ checkError(err)
 serverList, _ := speedtestClient.FetchServers()
 targets, _ := serverList.FindServer([]int{})
 
-for _, s := range targets {
-    checkError(s.PingTest(nil))
-    checkError(s.DownloadTest())
-    checkError(s.UploadTest())
+ctx := context.Background()
 
-    fmt.Printf("Latency: %s, Download: %s, Upload: %s\n", s.Latency, s.DLSpeed, s.ULSpeed)
-    s.Context.Reset()
+for _, s := range targets {
+    ping, err := speedtestClient.Ping(ctx, s)
+    checkError(err)
+
+    download, err := speedtestClient.Download(ctx, s)
+    checkError(err)
+
+    upload, err := speedtestClient.Upload(ctx, s)
+    checkError(err)
+
+    fmt.Printf("Latency: %s, Download: %s, Upload: %s\n", ping.Latency, download.Rate, upload.Rate)
 }
 ```
 
@@ -91,4 +97,4 @@ The `checkError` function provides basic error handling by logging fatal errors.
 
 - This example tests against all available servers, which may be time-consuming. For quicker tests, consider limiting the number of servers or selecting specific ones.
 - Ensure your firewall and network settings allow connections to Speedtest servers.
-- The `s.Context.Reset()` call is important to clean up resources between tests.
+- Each test measures on its own, so nothing needs resetting between servers.

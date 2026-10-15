@@ -264,43 +264,52 @@ func fetchServersByID(speedtestClient *speedtest.Client, ids []int) (speedtest.S
 	return found, nil
 }
 
-// runTest executes the bandwidth test based on configuration.
-func runTest(
+// runTransfer runs the download or upload test that the settings select.
+//
+// Parameters:
+//   - ctx: ends the test early.
+//   - client: the client.
+//   - server: the server.
+//   - servers: the pool for --multi.
+//   - cfg: the settings.
+//   - isDownload: whether the test downloads.
+//   - onRate: receives the live rate.
+//
+// Returns:
+//   - speedtest.Transfer: the measurement.
+//   - error: the test's error.
+func runTransfer(
+	ctx context.Context,
+	client *speedtest.Client,
 	server *speedtest.Server,
-	cfg config.Config,
-	task *task.Task,
-	isDownload bool,
 	servers speedtest.Servers,
-) {
+	cfg config.Config,
+	isDownload bool,
+	onRate func(rate speedtest.ByteRate),
+) (speedtest.Transfer, error) {
+	option := speedtest.WithRateCallback(onRate)
+
+	var (
+		transfer speedtest.Transfer
+		err      error
+	)
+
 	switch {
 	case cfg.Multi && isDownload:
-		task.CheckError(server.MultiDownloadTestContext(context.Background(), servers))
-	case cfg.Multi && !isDownload:
-		task.CheckError(server.MultiUploadTestContext(context.Background(), servers))
+		transfer, err = client.DownloadMulti(ctx, server, servers, option)
+	case cfg.Multi:
+		transfer, err = client.UploadMulti(ctx, server, servers, option)
 	case isDownload:
-		task.CheckError(server.DownloadTest())
+		transfer, err = client.Download(ctx, server, option)
 	default:
-		task.CheckError(server.UploadTest())
+		transfer, err = client.Upload(ctx, server, option)
 	}
-}
 
-// setCallback sets the appropriate callback for download or upload.
-func setCallback(
-	client *speedtest.Client,
-	isDownload bool,
-	unit speedtest.UnitType,
-	accEcho *echo.AccompanyEcho,
-	task *task.Task,
-) {
-	if isDownload {
-		client.SetCallbackDownload(func(downRate speedtest.ByteRate) {
-			updateWithLatency(task, downRate, unit, accEcho, "Download")
-		})
-	} else {
-		client.SetCallbackUpload(func(upRate speedtest.ByteRate) {
-			updateWithLatency(task, upRate, unit, accEcho, "Upload")
-		})
+	if err != nil {
+		return transfer, fmt.Errorf("failed to measure the transfer: %w", err)
 	}
+
+	return transfer, nil
 }
 
 // updateWithLatency updates the task with rate and latency information.
@@ -323,11 +332,14 @@ func updateWithLatency(
 	}
 }
 
-// runBandwidthTest performs download or upload bandwidth tests.
+// runBandwidthTest performs a download or upload test and shows its result.
+//
+// Returns:
+//   - *speedtest.Transfer: the measurement, or nil when the settings skip the test.
 func runBandwidthTest(
 	isDownload bool, server *speedtest.Server, cfg config.Config, taskManager *task.Manager,
 	accEcho *echo.AccompanyEcho, speedtestClient *speedtest.Client, servers speedtest.Servers,
-) {
+) *speedtest.Transfer {
 	taskName := "Download"
 	trigger := !cfg.NoDownload
 
@@ -336,35 +348,40 @@ func runBandwidthTest(
 		trigger = !cfg.NoUpload
 	}
 
+	var result *speedtest.Transfer
+
 	taskManager.RunWithTrigger(trigger, taskName, func(task *task.Task) {
 		accEcho.Run()
 
-		setCallback(speedtestClient, isDownload, cfg.Unit, accEcho, task)
+		transfer, err := runTransfer(
+			context.Background(),
+			speedtestClient,
+			server,
+			servers,
+			cfg,
+			isDownload,
+			func(rate speedtest.ByteRate) { updateWithLatency(task, rate, cfg.Unit, accEcho, taskName) },
+		)
+		task.CheckError(err)
 
-		runTest(server, cfg, task, isDownload, servers)
+		result = &transfer
 
 		accEcho.Stop()
 		mean, _, std, minL, maxL := speedtest.StandardDeviation(accEcho.Latencies())
 
-		speed := server.DLSpeed
-
-		total := float64(server.Context.GetTotalDownload())
-		used := fmt.Sprintf("Used: %.2fMB", total/bytesToMB)
-
+		used := fmt.Sprintf("Used: %.2fMB", float64(transfer.Bytes)/bytesToMB)
 		if !isDownload {
-			speed = server.ULSpeed
-			total = float64(server.Context.GetTotalUpload())
 			used = fmt.Sprintf(
 				"Used: %.2fMB Confirmed: %.1f%%",
-				total/bytesToMB,
-				server.Context.GetUploadConfirmationRatio()*percent,
+				float64(transfer.Bytes)/bytesToMB,
+				transfer.ConfirmationRatio()*percent,
 			)
 		}
 
 		task.Printf(
 			"%s: %s (%s) (Latency: %dms Jitter: %dms Min: %dms Max: %dms)",
 			taskName,
-			speed.Format(cfg.Unit),
+			transfer.Rate.Format(cfg.Unit),
 			used,
 			mean/nanoToMilli,
 			std/nanoToMilli,
@@ -373,60 +390,65 @@ func runBandwidthTest(
 		)
 		task.Complete()
 	})
+
+	return result
 }
 
-// runServerTests performs tests for a single server.
+// runServerTests performs the tests of one server and shows their results.
+//
+// Returns:
+//   - speedtest.Result: the server's measurements.
 func runServerTests(
 	server *speedtest.Server, cfg config.Config, taskManager *task.Manager,
 	speedtestClient *speedtest.Client, servers speedtest.Servers,
-) {
+) speedtest.Result {
+	result := speedtest.Result{
+		Server:     server,
+		Ping:       nil,
+		Download:   nil,
+		Upload:     nil,
+		PacketLoss: nil,
+	}
+
 	if !cfg.JSONOutput && !cfg.JSONLOutput {
 		fmt.Fprintln(os.Stdout)
 	}
 
 	taskManager.Println("Test Server: " + serverLine(server, cfg))
 	taskManager.Run("Latency: --", func(task *task.Task) {
-		task.CheckError(server.PingTest(func(latency time.Duration) {
-			task.Updatef("Latency: %v", latency)
-		}))
-		task.Printf("Latency: %v Jitter: %v Min: %v Max: %v",
-			server.Latency,
-			server.Jitter,
-			server.MinLatency,
-			server.MaxLatency,
+		stats, err := speedtestClient.Ping(
+			context.Background(),
+			server,
+			speedtest.WithLatencyCallback(func(latency time.Duration) {
+				task.Updatef("Latency: %v", latency)
+			}),
+		)
+		task.CheckError(err)
+
+		result.Ping = &stats
+
+		task.Printf(
+			"Latency: %v Jitter: %v Min: %v Max: %v",
+			stats.Latency,
+			stats.Jitter,
+			stats.Min,
+			stats.Max,
 		)
 		task.Complete()
 	})
 
-	// create a packet loss analyzer
-	analyzer := speedtestClient.NewPacketLossAnalyzer(nil)
-
 	blocker := sync.WaitGroup{}
-	packetLossAnalyzerCtx, packetLossAnalyzerCancel := context.WithTimeout(
+	packetLossCtx, packetLossCancel := context.WithTimeout(
 		context.Background(),
 		packetLossAnalyzerTimeout,
 	)
 
-	var (
-		lastValidLoss transport.PLoss
-		hasValidLoss  bool
-	)
+	var packetLoss transport.PLoss
 
 	taskManager.Run("Packet Loss Analyzer", func(task *task.Task) {
 		blocker.Go(func() {
-			err := analyzer.RunWithContext(
-				packetLossAnalyzerCtx,
-				server.Host,
-				func(packetLoss *transport.PLoss) {
-					if packetLoss.Sent != 0 {
-						lastValidLoss = *packetLoss
-						hasValidLoss = true
-					}
-				},
-			)
-			if errors.Is(err, transport.ErrUnsupported) {
-				packetLossAnalyzerCancel()
-			}
+			// A failed measurement keeps the samples it saw, and the result shows none when it saw nothing.
+			packetLoss, _ = speedtestClient.PacketLoss(packetLossCtx, server)
 		})
 
 		task.Println("Packet Loss Analyzer: Running in background (<= 30 Secs)")
@@ -434,9 +456,9 @@ func runServerTests(
 	})
 
 	// create accompany Echo
-	accEcho := echo.New(server, echoInterval)
+	accEcho := echo.New(speedtestClient, server, echoInterval)
 
-	runBandwidthTest(
+	result.Download = runBandwidthTest(
 		true,
 		server,
 		cfg,
@@ -445,7 +467,7 @@ func runServerTests(
 		speedtestClient,
 		servers,
 	)
-	runBandwidthTest(
+	result.Upload = runBandwidthTest(
 		false,
 		server,
 		cfg,
@@ -459,19 +481,21 @@ func runServerTests(
 		time.Sleep(sleepAfterTests)
 	}
 
-	packetLossAnalyzerCancel()
+	packetLossCancel()
 	blocker.Wait()
 
-	if hasValidLoss {
-		server.PacketLoss = lastValidLoss
+	// A server that answered no packet loss sample measured nothing, which is not the same as no loss.
+	if packetLoss.Sent > 0 {
+		result.PacketLoss = &packetLoss
 	}
 
 	if !cfg.JSONOutput && !cfg.JSONLOutput {
-		taskManager.Println(server.PacketLoss.String())
+		taskManager.Println(packetLoss.String())
 	}
 
 	taskManager.Reset()
-	speedtestClient.Reset()
+
+	return result
 }
 
 // runTests performs the actual speed tests on the selected servers.
@@ -491,8 +515,12 @@ func runTests(
 	cfg config.Config, taskManager *task.Manager, user func() *speedtest.User,
 ) error {
 	// 3. test each selected server with ping, download and upload.
+	results := make([]speedtest.Result, 0, len(targets))
 	for _, server := range targets {
-		runServerTests(server, cfg, taskManager, speedtestClient, servers)
+		results = append(
+			results,
+			runServerTests(server, cfg, taskManager, speedtestClient, servers),
+		)
 	}
 
 	taskManager.Stop()
@@ -505,15 +533,15 @@ func runTests(
 	}
 
 	if cfg.JSONOutput {
-		json, errMarshal := jsonReport(now, user(), targets)
+		json, errMarshal := jsonReport(now, user(), results)
 		if errMarshal != nil {
 			return fmt.Errorf("failed to marshal JSON: %w", errMarshal)
 		}
 
 		fmt.Fprintf(os.Stdout, "%s", json)
 	} else if cfg.JSONLOutput {
-		for _, server := range targets {
-			json, errMarshal := jsonlReport(now, user(), server)
+		for _, result := range results {
+			json, errMarshal := jsonlReport(now, user(), result)
 			if errMarshal != nil {
 				return fmt.Errorf(
 					"failed to marshal JSONL: %w",

@@ -16,28 +16,22 @@ const reportTimeLayout = "2006-01-02 15:04:05.000"
 
 // report is the --json report of a run, with every tested server.
 type report struct {
-	Timestamp reportTime      `json:"timestamp"`
-	UserInfo  *speedtest.User `json:"userInfo"`
-	// Servers holds [speedtest.Servers], or []maskedServer in a masked report.
+	// Timestamp is when the report was written.
+	Timestamp reportTime `json:"timestamp"`
+	// UserInfo is the user details, possibly masked, or nil when unknown.
+	UserInfo *speedtest.User `json:"userInfo"`
+	// Servers holds []speedtest.Result, or []speedtest.ResultReport without distances in a masked report.
 	Servers any `json:"servers"`
 }
 
 // serverReport is one line of the --jsonl report, with one tested server.
 type serverReport struct {
-	Timestamp reportTime      `json:"timestamp"`
-	UserInfo  *speedtest.User `json:"userInfo"`
-	// Server holds a *[speedtest.Server], or a maskedServer in a masked report.
+	// Timestamp is when the line was written.
+	Timestamp reportTime `json:"timestamp"`
+	// UserInfo is the user details, possibly masked, or nil when unknown.
+	UserInfo *speedtest.User `json:"userInfo"`
+	// Server holds a [speedtest.Result], or a [speedtest.ResultReport] without its distance in a masked report.
 	Server any `json:"server"`
-}
-
-// maskedServer is a server in a masked report. Its distance from the user is left out, because distances to servers
-// at known coordinates reveal where the user is. The empty Distance field takes precedence over the server's own,
-// so every other field keeps its name and order.
-type maskedServer struct {
-	*speedtest.Server
-
-	// Distance is always nil, which omits the server's distance.
-	Distance *float64 `json:"distance,omitempty"`
 }
 
 // reportTime is a report timestamp, written in [reportTimeLayout].
@@ -57,7 +51,7 @@ func (t reportTime) MarshalJSON() ([]byte, error) {
 // Parameters:
 //   - timestamp: the time of the report.
 //   - user: the user details to report, possibly masked, or nil when unknown.
-//   - servers: the tested servers.
+//   - results: the results of the tested servers.
 //
 // Returns:
 //   - []byte: the JSON document.
@@ -65,10 +59,10 @@ func (t reportTime) MarshalJSON() ([]byte, error) {
 func JSONReport(
 	timestamp time.Time,
 	user *speedtest.User,
-	servers speedtest.Servers,
+	results []speedtest.Result,
 ) ([]byte, error) {
 	data, err := json.Marshal(
-		report{Timestamp: reportTime(timestamp), UserInfo: user, Servers: servers},
+		report{Timestamp: reportTime(timestamp), UserInfo: user, Servers: results},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal the JSON report: %w", err)
@@ -82,7 +76,7 @@ func JSONReport(
 // Parameters:
 //   - timestamp: the time of the report.
 //   - user: the user details to report, possibly masked, or nil when unknown.
-//   - server: the tested server.
+//   - result: the result of the tested server.
 //
 // Returns:
 //   - []byte: the JSON document, without a newline.
@@ -90,10 +84,10 @@ func JSONReport(
 func JSONLReport(
 	timestamp time.Time,
 	user *speedtest.User,
-	server *speedtest.Server,
+	result speedtest.Result,
 ) ([]byte, error) {
 	data, err := json.Marshal(
-		serverReport{Timestamp: reportTime(timestamp), UserInfo: user, Server: server},
+		serverReport{Timestamp: reportTime(timestamp), UserInfo: user, Server: result},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal the JSONL report: %w", err)
@@ -108,7 +102,7 @@ func JSONLReport(
 // Parameters:
 //   - timestamp: the time of the report.
 //   - user: the user details, unmasked, or nil when unknown.
-//   - servers: the tested servers.
+//   - results: the results of the tested servers.
 //
 // Returns:
 //   - []byte: the JSON document.
@@ -116,11 +110,11 @@ func JSONLReport(
 func MaskedJSONReport(
 	timestamp time.Time,
 	user *speedtest.User,
-	servers speedtest.Servers,
+	results []speedtest.Result,
 ) ([]byte, error) {
-	masked := make([]maskedServer, 0, len(servers))
-	for _, server := range servers {
-		masked = append(masked, maskedServer{Server: server, Distance: nil})
+	masked := make([]speedtest.ResultReport, 0, len(results))
+	for _, result := range results {
+		masked = append(masked, maskedResult(result))
 	}
 
 	data, err := json.Marshal(
@@ -138,7 +132,7 @@ func MaskedJSONReport(
 // Parameters:
 //   - timestamp: the time of the report.
 //   - user: the user details, unmasked, or nil when unknown.
-//   - server: the tested server.
+//   - result: the result of the tested server.
 //
 // Returns:
 //   - []byte: the JSON document, without a newline.
@@ -146,16 +140,31 @@ func MaskedJSONReport(
 func MaskedJSONLReport(
 	timestamp time.Time,
 	user *speedtest.User,
-	server *speedtest.Server,
+	result speedtest.Result,
 ) ([]byte, error) {
 	data, err := json.Marshal(serverReport{
 		Timestamp: reportTime(timestamp),
 		UserInfo:  MaskUser(user),
-		Server:    maskedServer{Server: server, Distance: nil},
+		Server:    maskedResult(result),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal the JSONL report: %w", err)
 	}
 
 	return data, nil
+}
+
+// maskedResult returns the report form of a result without the server's distance, because distances to servers at
+// known coordinates reveal where the user is.
+//
+// Parameters:
+//   - result: the result.
+//
+// Returns:
+//   - speedtest.ResultReport: the report form, with no distance.
+func maskedResult(result speedtest.Result) speedtest.ResultReport {
+	masked := result.Report()
+	masked.Distance = nil
+
+	return masked
 }
