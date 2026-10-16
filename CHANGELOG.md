@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Move the transport package into an internal package by @nicholas-fedor in [#507](https://github.com/nicholas-fedor/speedtest-go/pull/507)
 - Measure servers with client methods that return results by @nicholas-fedor in [#505](https://github.com/nicholas-fedor/speedtest-go/pull/505)
 - Move the data manager into an internal meter package by @nicholas-fedor in [#503](https://github.com/nicholas-fedor/speedtest-go/pull/503)
 - Build the client from validated functional options by @nicholas-fedor in [#493](https://github.com/nicholas-fedor/speedtest-go/pull/493)
