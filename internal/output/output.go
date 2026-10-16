@@ -4,25 +4,29 @@ package output
 import (
 	"fmt"
 	"io"
-	"os"
 	"time"
 
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/version"
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
 
-// ShowServerList prints the list of available servers.
-func ShowServerList(servers speedtest.Servers) {
-	writeServerList(os.Stdout, servers, formatDistance)
-}
-
-// ShowMaskedServerList prints the list of available servers for --mask-isp, with each distance masked.
+// WriteServerList writes the list of available servers, one line per server.
 //
 // Parameters:
+//   - writer: where to write.
 //   - servers: the servers to list.
-func ShowMaskedServerList(servers speedtest.Servers) {
+func WriteServerList(writer io.Writer, servers speedtest.Servers) {
+	writeServerList(writer, servers, formatDistance)
+}
+
+// WriteMaskedServerList writes the list of available servers for --mask-isp, with each distance masked.
+//
+// Parameters:
+//   - writer: where to write.
+//   - servers: the servers to list.
+func WriteMaskedServerList(writer io.Writer, servers speedtest.Servers) {
 	writeServerList(
-		os.Stdout,
+		writer,
 		servers,
 		func(distance float64) string { return maskValue(formatDistance(distance)) },
 	)
@@ -65,13 +69,10 @@ func formatDistance(distance float64) string {
 	return fmt.Sprintf("%9.2f", distance)
 }
 
-// AppInfo prints application information.
-func AppInfo(jsonOutput, jsonlOutput bool) {
-	if jsonOutput || jsonlOutput {
-		return
-	}
-
-	_, _ = fmt.Fprintln(os.Stdout)
-	_, _ = fmt.Fprintf(os.Stdout, "    %s\n", version.Banner())
-	_, _ = fmt.Fprintln(os.Stdout)
+// WriteAppInfo writes the banner with the application's version, between blank lines.
+//
+// Parameters:
+//   - writer: where to write.
+func WriteAppInfo(writer io.Writer) {
+	_, _ = fmt.Fprintf(writer, "\n    %s\n\n", version.Banner())
 }

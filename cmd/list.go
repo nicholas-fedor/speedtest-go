@@ -24,7 +24,7 @@ func newListCommand() *cobra.Command {
 				return fmt.Errorf("failed to load config: %w", err)
 			}
 
-			return app.RunList(cmd.Context(), cfg)
+			return reportInterrupt(cmd, app.RunList(cmd.Context(), cfg, cmd.OutOrStdout()))
 		},
 	}
 

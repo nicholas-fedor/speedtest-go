@@ -2,6 +2,8 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -35,7 +37,7 @@ func NewRootCommand() *cobra.Command {
 				return fmt.Errorf("failed to load config: %w", err)
 			}
 
-			return app.RunSpeedtest(cmd.Context(), cfg)
+			return reportInterrupt(cmd, app.RunSpeedtest(cmd.Context(), cfg, cmd.OutOrStdout()))
 		},
 	}
 
@@ -53,4 +55,22 @@ func NewRootCommand() *cobra.Command {
 	)
 
 	return rootCmd
+}
+
+// reportInterrupt prints "Interrupted" in place of cobra's error message when an interrupt ended the command, so
+// every interrupted command ends the same way. Other errors keep cobra's message.
+//
+// Parameters:
+//   - cmd: the command that ran.
+//   - err: the command's error, or nil.
+//
+// Returns:
+//   - error: err, unchanged, so the exit code still reflects it.
+func reportInterrupt(cmd *cobra.Command, err error) error {
+	if errors.Is(err, context.Canceled) {
+		cmd.SilenceErrors = true
+		_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Interrupted")
+	}
+
+	return err
 }
