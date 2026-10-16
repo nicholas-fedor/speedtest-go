@@ -462,7 +462,8 @@ func (p PacketLossStats) String() string {
 // Loss returns the packet loss ratio.
 //
 // Counts that do not fit together, such as more unique datagrams than were sent, are held to the range 0 to 1, so
-// -1 always means that the server received nothing.
+// -1 always means that the server received nothing. A Max below 0 means that no datagram was expected, so nothing
+// counts as lost.
 //
 // Returns:
 //   - float64: the ratio from 0 to 1, or -1 when the server received nothing.
@@ -471,7 +472,12 @@ func (p PacketLossStats) Loss() float64 {
 		return -1
 	}
 
-	return min(max(1-float64(p.Sent-p.Dup)/float64(p.Max+1), 0), 1)
+	expected := p.Max + 1
+	if expected <= 0 {
+		return 0
+	}
+
+	return min(max(1-float64(p.Sent-p.Dup)/float64(expected), 0), 1)
 }
 
 // LossPercent returns the packet loss percentage.
