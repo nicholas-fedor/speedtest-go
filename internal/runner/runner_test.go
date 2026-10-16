@@ -32,6 +32,18 @@ func (r *recorder) Report(event Event) {
 	r.events = append(r.events, event)
 }
 
+// last returns the latest event.
+func (r *recorder) last() Event {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if len(r.events) == 0 {
+		return nil
+	}
+
+	return r.events[len(r.events)-1]
+}
+
 // names returns the type names of the events, without the live progress events, whose number varies.
 func (r *recorder) names() []string {
 	r.mu.Lock()
@@ -182,7 +194,7 @@ func TestRunner_Run_Interrupted(t *testing.T) {
 	require.NotEmpty(t, names)
 	assert.Equal(t, "RunFinished", names[len(names)-1])
 
-	finished, ok := events.events[len(events.events)-1].(RunFinished)
+	finished, ok := events.last().(RunFinished)
 	require.True(t, ok)
 	require.ErrorIs(t, finished.Err, context.Canceled)
 }

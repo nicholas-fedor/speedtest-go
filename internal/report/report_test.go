@@ -113,16 +113,7 @@ func TestLines(t *testing.T) {
 		runEvents(),
 	)
 
-	want := ""
-
-	var wantSb116 strings.Builder
-	for _, line := range resultLines {
-		wantSb116.WriteString(line + "\n")
-	}
-
-	want += wantSb116.String()
-
-	assert.Equal(t, want, out.String())
+	assert.Equal(t, strings.Join(resultLines, "\n")+"\n", out.String())
 }
 
 // TestLines_MaskISP checks that --mask-isp masks the user's address and coordinates and the server's distance.

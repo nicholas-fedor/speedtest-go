@@ -82,8 +82,14 @@ log-level: debug
 packages:
   # Top-level speedtest directory, recursively includes all subpackages
   github.com/nicholas-fedor/speedtest-go/v2/speedtest: {}
-  # The CLI's runner, whose Tester and Reporter interfaces the runner tests mock
-  github.com/nicholas-fedor/speedtest-go/v2/internal/runner: {}
+  # The CLI's runner, whose Tester and Reporter interfaces the runner tests mock. Event is left out: its only
+  # method is unexported, so a mock in another package could never satisfy it.
+  github.com/nicholas-fedor/speedtest-go/v2/internal/runner:
+    config:
+      all: false
+    interfaces:
+      Tester: {}
+      Reporter: {}
 
 # Generate mocks for all exported interfaces within specified packages or directories.
 # When true with packages section, processes all interfaces in listed packages.
