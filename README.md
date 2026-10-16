@@ -374,7 +374,7 @@ Upgrading from v1? The [migration guide](docs/v2-migration.md) maps each v1 func
 
 ### API Usage
 
-The [code](https://github.com/nicholas-fedor/speedtest-go/blob/master/example/naive/main.go) below finds the speedtest server with the lowest latency and tests the latency, download, and upload speeds.
+The code below, based on the [naive example](https://github.com/nicholas-fedor/speedtest-go/blob/master/example/naive/main.go), finds the speedtest server with the lowest latency and tests the latency, download and upload speeds, and packet loss.
 
 ```go
 package main
@@ -383,6 +383,7 @@ import (
  "context"
  "fmt"
  "log"
+ "time"
 
  "github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
@@ -437,6 +438,17 @@ func main() {
 
   // Note: Rate is in bytes per second, a float64 that prints in Mbps. Each test reports its own results.
   fmt.Printf("Latency: %s, Download: %s, Upload: %s\n", ping.Latency, download.Rate, upload.Rate)
+
+  // PacketLoss measures until its context ends, and a failed measurement still returns what it saw.
+  lossCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+  packetLoss, err := speedtestClient.PacketLoss(lossCtx, s)
+  cancel()
+
+  if err != nil {
+   log.Println(err)
+  }
+
+  fmt.Println(packetLoss)
  }
 }
 ```
@@ -445,21 +457,7 @@ Each test returns its own result. `Ping` returns `PingStats` with the mean laten
 
 ### Packet Loss
 
-`Client.PacketLoss` measures the packet loss to one server until its context ends. With the client and targets from the example above:
-
-```go
-server := targets[0]
-
-lossCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-defer cancel()
-
-packetLoss, err := speedtestClient.PacketLoss(lossCtx, server)
-if err != nil {
- log.Println(err)
-}
-
-fmt.Println(packetLoss)
-```
+`Client.PacketLoss` measures the packet loss to one server until its context ends, as the example above does with a 30-second timeout.
 
 The [code](https://github.com/nicholas-fedor/speedtest-go/blob/master/example/packet_loss/main.go) below uses the packet loss analyzer instead, which reports each sample as it arrives and can combine several servers.
 
