@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/transport"
+	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/internal/transport"
 )
 
 // PingStats is the latency measured by [Client.Ping].

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net"
 	"slices"
 	"strconv"
@@ -74,8 +75,19 @@ type Faults struct {
 // TCPHello is the HELLO reply the fake TCP server sends, in the format of real servers.
 const TCPHello = "HELLO 2.11 (2.11.0) testserver"
 
-// listenAttempts bounds the retries when the UDP port matching a new TCP port is already taken.
-const listenAttempts = 10
+// Ports tried for the TCP and UDP listeners.
+//
+// The listeners pick their own port instead of taking one from the system, because the UDP port matching a system
+// choice is often already taken on Windows, where nearby ports go to other sockets. The range sits below the
+// ephemeral port ranges of Linux, macOS, and Windows, so no system choice lands in it.
+const (
+	// listenAttempts bounds the ports tried before giving up.
+	listenAttempts = 50
+	// firstListenPort is the lowest port tried.
+	firstListenPort = 20000
+	// lastListenPort is the highest port tried.
+	lastListenPort = 32767
+)
 
 // Protocol command names.
 const (
@@ -518,30 +530,42 @@ func (srv *TCPServer) close() {
 	srv.wg.Wait()
 }
 
-// listenPair opens a TCP listener and a UDP listener on the same loopback port.
+// listenPair opens a TCP listener and a UDP listener on the same loopback port, trying random ports from
+// firstListenPort to lastListenPort.
 //
 // Returns:
 //   - net.Listener: the TCP listener.
 //   - net.PacketConn: the UDP listener.
-//   - error: errListen when no attempt found a port free for both.
+//   - error: errListen wrapping the last attempt's error when no attempt found a port free for both.
 func listenPair() (net.Listener, net.PacketConn, error) {
-	var config net.ListenConfig
+	var (
+		config  net.ListenConfig
+		lastErr error
+	)
 
 	for range listenAttempts {
-		listener, err := config.Listen(context.Background(), "tcp", "127.0.0.1:0")
+		//nolint:gosec // The port only has to avoid other listeners, not be unpredictable.
+		port := firstListenPort + rand.IntN(lastListenPort-firstListenPort+1)
+		address := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+
+		listener, err := config.Listen(context.Background(), "tcp", address)
 		if err != nil {
-			return nil, nil, fmt.Errorf("listen TCP: %w", err)
+			lastErr = err
+
+			continue
 		}
 
-		packets, err := config.ListenPacket(context.Background(), "udp", listener.Addr().String())
+		packets, err := config.ListenPacket(context.Background(), "udp", address)
 		if err == nil {
 			return listener, packets, nil
 		}
 
+		lastErr = err
+
 		_ = listener.Close()
 	}
 
-	return nil, nil, errListen
+	return nil, nil, fmt.Errorf("%w: %w", errListen, lastErr)
 }
 
 // writeLine writes one reply line.

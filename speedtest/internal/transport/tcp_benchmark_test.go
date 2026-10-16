@@ -89,59 +89,6 @@ func BenchmarkClient_Version(b *testing.B) {
 	}
 }
 
-func BenchmarkPLoss_Loss(b *testing.B) {
-	p := PLoss{Sent: 100, Dup: 5, Max: 100}
-
-	for b.Loop() {
-		_ = p.Loss()
-	}
-}
-
-func BenchmarkPLoss_LossPercent(b *testing.B) {
-	p := PLoss{Sent: 100, Dup: 5, Max: 100}
-
-	for b.Loop() {
-		_ = p.LossPercent()
-	}
-}
-
-func BenchmarkPLoss_String(b *testing.B) {
-	p := PLoss{Sent: 100, Dup: 5, Max: 100}
-
-	for b.Loop() {
-		_ = p.String()
-	}
-}
-
-// Benchmark with concurrent operations.
-func BenchmarkClient_WriteConcurrent(b *testing.B) {
-	client1, client2 := net.Pipe()
-
-	defer func() { _ = client2.Close() }()
-
-	client := &Client{conn: client1}
-
-	// Start reader
-	go func() {
-		buf := make([]byte, 1024)
-		for {
-			_, err := client2.Read(buf)
-			if err != nil {
-				return
-			}
-		}
-	}()
-
-	data := []byte("benchmark test data")
-
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			_ = client.Write(data)
-		}
-	})
-}
-
 // Benchmark memory allocation.
 func Benchmark_pingFormat_Alloc(b *testing.B) {
 	locTime := int64(1234567890)

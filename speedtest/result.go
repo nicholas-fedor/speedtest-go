@@ -7,8 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
-	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/transport"
 )
 
 // Result collects the measurements of one server. A measurement that was not taken is nil.
@@ -22,7 +20,7 @@ type Result struct {
 	// Upload is the upload test from [Client.Upload] or [Client.UploadMulti], or nil.
 	Upload *Transfer
 	// PacketLoss is the packet loss from [Client.PacketLoss], or nil.
-	PacketLoss *transport.PLoss
+	PacketLoss *PacketLossStats
 }
 
 // ResultReport is the JSON form of a [Result]: the server's details followed by its measurements, with the field
@@ -65,7 +63,7 @@ type ResultReport struct {
 	// TestDuration is how long each measurement took.
 	TestDuration TestDuration `json:"testDuration"`
 	// PacketLoss is the packet loss, or zero counts without a measurement.
-	PacketLoss transport.PLoss `json:"packetLoss"`
+	PacketLoss PacketLossStats `json:"packetLoss"`
 }
 
 // TestDuration is how long each measurement of a [ResultReport] took. A measurement that was not taken is nil.

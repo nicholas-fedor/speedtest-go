@@ -21,6 +21,7 @@
 //   - Client: The main client structure that manages speedtest operations
 //   - Server: Represents a speedtest server with its URL, location, and the Latency of a quick probe
 //   - Result: Collects a server's ping, download, upload, and packet loss measurements
+//   - PacketLossStats: Holds the counts a server reports for packet loss, with the loss ratio and percentage
 //   - User: Contains user information including IP, ISP, and coordinates
 //   - ByteRate: Represents data transfer rates with flexible unit formatting (bps, Kbps, Mbps, etc.)
 //
@@ -48,7 +49,7 @@
 //
 // # Subpackages
 //
-//   - transport: Implements TCP and UDP transport layers for low-level network operations
+//   - internal/transport: Implements the TCP and UDP speedtest protocols for latency, transfers, and packet loss
 //   - internal/meter: Runs the transfer workers and measures their rates
 //   - internal/welford: Provides Welford's algorithm for online statistical calculations
 //

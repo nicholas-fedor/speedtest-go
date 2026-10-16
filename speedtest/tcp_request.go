@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/internal/meter"
-	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/transport"
+	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/internal/transport"
 )
 
 // defaultTCPPort is the port speedtest.net servers serve their TCP protocol on.

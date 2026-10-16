@@ -16,7 +16,6 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/output"
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/task"
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
-	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/transport"
 )
 
 const (
@@ -443,7 +442,7 @@ func runServerTests(
 		packetLossAnalyzerTimeout,
 	)
 
-	var packetLoss transport.PLoss
+	var packetLoss speedtest.PacketLossStats
 
 	taskManager.Run("Packet Loss Analyzer", func(task *task.Task) {
 		blocker.Go(func() {

@@ -500,3 +500,18 @@ const errWSAConnReset = syscall.Errno(10054)
 func isReset(err error) bool {
 	return errors.Is(err, syscall.ECONNRESET) || errors.Is(err, errWSAConnReset)
 }
+
+// TestNewTCPServer_PortRange checks that the fake server listens on a port from its own range, which the system
+// never hands out to other sockets.
+func TestNewTCPServer_PortRange(t *testing.T) {
+	t.Parallel()
+
+	_, port, err := net.SplitHostPort(NewTCPServer(t).Addr())
+	require.NoError(t, err)
+
+	number, err := strconv.Atoi(port)
+	require.NoError(t, err)
+
+	assert.GreaterOrEqual(t, number, firstListenPort)
+	assert.LessOrEqual(t, number, lastListenPort)
+}

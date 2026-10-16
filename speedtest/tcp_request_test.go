@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/testserver"
-	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/transport"
+	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/internal/transport"
 )
 
 // TestTCPHost checks the TCP address taken from a server's Host and URL fields.

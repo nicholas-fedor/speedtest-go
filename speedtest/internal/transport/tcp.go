@@ -27,10 +27,6 @@ var (
 	ErrEchoData = errors.New("incorrect echo data")
 	// ErrEmptyConn is returned when the connection is empty.
 	ErrEmptyConn = errors.New("empty conn")
-	// ErrUnsupported is returned when the protocol is unsupported.
-	ErrUnsupported = errors.New(
-		"unsupported protocol",
-	) // Some servers have disabled ip:8080, we return this error.
 	// ErrUninitializedPacketLossInst is returned when the packet loss instance is not initialized.
 	ErrUninitializedPacketLossInst = errors.New("uninitialized packet loss inst")
 	// ErrInvalidPacketLossResponse is returned when the packet loss response is invalid.
@@ -49,6 +45,8 @@ var (
 	helloPrefix = []byte("HELLO ")
 	// okReply is the server's reply to INITPLOSS, and the first field of its reply to an upload.
 	okReply = []byte("OK")
+	// pongPrefix starts the server's reply to PING, which carries its clock in milliseconds.
+	pongPrefix = []byte("PONG ")
 )
 
 // Transfer command prefixes.
@@ -323,13 +321,9 @@ func (client *Client) PingContext(ctx context.Context) (int64, error) {
 			return 0, contextError(ctx, err)
 		}
 
-		if len(data) != 19 {
-			return 0, ErrEchoData
-		}
-
-		tx, err := strconv.ParseInt(string(data[5:18]), 10, 64)
+		tx, err := parsePong(data)
 		if err != nil {
-			return 0, fmt.Errorf("%w: %w", ErrEchoData, err)
+			return 0, err
 		}
 
 		accumulatedLatency += (t2 - t0) * 4 / 10 // 0.4
@@ -403,48 +397,14 @@ func (client *Client) InitPacketLossContext(ctx context.Context) error {
 	return nil
 }
 
-// PLoss Packet loss statistics
-// The packet loss here generally refers to uplink packet loss.
-// We use the following formula to calculate the packet loss:
-// packetLoss = [1 - (Sent - Dup) / (Max + 1)] * 100%.
+// PLoss holds the packet-loss counts the server reports for a client's UUID.
 type PLoss struct {
-	Sent int `json:"sent"` // Number of sent packets acknowledged by the remote.
-	Dup  int `json:"dup"`  // Number of duplicate packets acknowledged by the remote.
-	Max  int `json:"max"`  // The maximum index value received by the remote.
-}
-
-func (p PLoss) String() string {
-	if p.Sent == 0 {
-		// if p.Sent == 0, maybe all data is dropped by the upper gateway.
-		// we believe this feature is not applicable on this server now.
-		return "Packet Loss: N/A"
-	}
-
-	return fmt.Sprintf(
-		"Packet Loss: %.2f%% (Sent: %d/Dup: %d/Max: %d)",
-		p.Loss()*100,
-		p.Sent,
-		p.Dup,
-		p.Max,
-	)
-}
-
-// Loss returns the packet loss ratio.
-func (p PLoss) Loss() float64 {
-	if p.Sent == 0 {
-		return -1
-	}
-
-	return 1 - float64(p.Sent-p.Dup)/float64(p.Max+1)
-}
-
-// LossPercent returns the packet loss percentage.
-func (p PLoss) LossPercent() float64 {
-	if p.Sent == 0 {
-		return -1
-	}
-
-	return p.Loss() * 100
+	// Sent is the number of datagrams the server received.
+	Sent int
+	// Dup is the number of duplicate datagrams the server received.
+	Dup int
+	// Max is the highest datagram index the server received.
+	Max int
 }
 
 // PacketLoss retrieves the packet-loss counts from the server. See [Client.PacketLossContext].
@@ -817,6 +777,28 @@ func parseHello(message []byte) (string, error) {
 	}
 
 	return string(version), nil
+}
+
+// parsePong extracts the server's clock from a "PONG <milliseconds>" reply.
+//
+// Parameters:
+//   - reply: the reply line, ending in LF or CRLF.
+//
+// Returns:
+//   - int64: the server's clock in milliseconds.
+//   - error: an error wrapping [ErrEchoData] when the reply is not PONG or its clock is not a number.
+func parsePong(reply []byte) (int64, error) {
+	stamp, found := bytes.CutPrefix(bytes.TrimRight(reply, "\r\n"), pongPrefix)
+	if !found {
+		return 0, fmt.Errorf("%w: %q", ErrEchoData, reply)
+	}
+
+	milliseconds, err := strconv.ParseInt(string(stamp), 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %w", ErrEchoData, err)
+	}
+
+	return milliseconds, nil
 }
 
 // parsePLoss parses a "PLOSS <sent> <dup> <max>" reply.

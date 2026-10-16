@@ -29,10 +29,19 @@ func newClient(t *testing.T) *speedtest.Client {
 
 // TestAccompanyEcho_RecordsLatency checks that the echo pings the server through the client while it runs and keeps
 // each latency it measures.
+//
+// The server delays its latency replies, because a loopback reply can finish within one tick of a coarse clock, such
+// as the Windows one, and then measure as zero.
 func TestAccompanyEcho_RecordsLatency(t *testing.T) {
 	t.Parallel()
 
 	api := testserver.NewAPI(t)
+	api.SetResponse(testserver.PathLatency, testserver.Response{
+		Body:     "test=test",
+		Delay:    20 * time.Millisecond,
+		Location: "",
+		Status:   0,
+	})
 	server := &speedtest.Server{ID: "1001", URL: api.ServerUploadURL("1001")}
 	echo := New(newClient(t), server, 20*time.Millisecond)
 

@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/testserver"
-	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/transport"
 )
 
 func TestNewPacketLossAnalyzer(t *testing.T) {
@@ -146,7 +145,7 @@ func TestPacketLossAnalyzer_Run(t *testing.T) {
 
 	type args struct {
 		host     string
-		callback func(packetLoss *transport.PLoss)
+		callback func(packetLoss *PacketLossStats)
 	}
 
 	tests := []struct {
@@ -158,7 +157,7 @@ func TestPacketLossAnalyzer_Run(t *testing.T) {
 			name: "invalid host",
 			args: args{
 				host:     "invalid",
-				callback: func(_ *transport.PLoss) {},
+				callback: func(_ *PacketLossStats) {},
 			},
 			wantErr: true,
 		},
@@ -184,7 +183,7 @@ func TestPacketLossAnalyzer_RunWithContext(t *testing.T) {
 
 	type args struct {
 		host     string
-		callback func(packetLoss *transport.PLoss)
+		callback func(packetLoss *PacketLossStats)
 	}
 
 	tests := []struct {
@@ -196,7 +195,7 @@ func TestPacketLossAnalyzer_RunWithContext(t *testing.T) {
 			name: "invalid host with context",
 			args: args{
 				host:     "invalid",
-				callback: func(_ *transport.PLoss) {},
+				callback: func(_ *PacketLossStats) {},
 			},
 			wantErr: true,
 		},
@@ -236,7 +235,7 @@ func TestPacketLossAnalyzer_loopSampler(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel() // Cancel immediately
 
-			require.NoError(t, pla.loopSampler(ctx, nil, func(_ *transport.PLoss) {}))
+			require.NoError(t, pla.loopSampler(ctx, nil, func(_ *PacketLossStats) {}))
 		})
 	}
 }
@@ -328,12 +327,12 @@ func fastAnalyzer() *PacketLossAnalyzer {
 
 // sampleRecorder collects packet-loss samples from the analyzer's callback.
 type sampleRecorder struct {
-	samples []transport.PLoss
+	samples []PacketLossStats
 	mu      sync.Mutex
 }
 
 // record stores one sample.
-func (r *sampleRecorder) record(packetLoss *transport.PLoss) {
+func (r *sampleRecorder) record(packetLoss *PacketLossStats) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -341,11 +340,11 @@ func (r *sampleRecorder) record(packetLoss *transport.PLoss) {
 }
 
 // all returns a copy of the samples so far.
-func (r *sampleRecorder) all() []transport.PLoss {
+func (r *sampleRecorder) all() []PacketLossStats {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	return append([]transport.PLoss(nil), r.samples...)
+	return append([]PacketLossStats(nil), r.samples...)
 }
 
 // registeredUUID returns the UUID the analyzer registered with the fake server.
@@ -484,13 +483,13 @@ func TestPacketLossAnalyzer_RunWithContext_ConnectionDropped(t *testing.T) {
 	defer cancel()
 
 	start := time.Now()
-	err := fastAnalyzer().RunWithContext(ctx, srv.Addr(), func(*transport.PLoss) {})
+	err := fastAnalyzer().RunWithContext(ctx, srv.Addr(), func(*PacketLossStats) {})
 
 	require.ErrorIs(t, err, io.EOF)
 	require.NotErrorIs(
 		t,
 		err,
-		transport.ErrUnsupported,
+		ErrUnsupported,
 		"a failure after setup is not a setup failure",
 	)
 	assert.Less(t, time.Since(start), time.Second)
@@ -649,7 +648,7 @@ func TestPacketLossAnalyzer_UnresolvedSource(t *testing.T) {
 
 	analyzer := NewPacketLossAnalyzer(&PacketLossAnalyzerOptions{SourceInterface: "bad host"})
 
-	err := analyzer.RunWithContext(context.Background(), "127.0.0.1:9", func(*transport.PLoss) {})
+	err := analyzer.RunWithContext(context.Background(), "127.0.0.1:9", func(*PacketLossStats) {})
 	require.ErrorContains(t, err, `source interface "bad host"`)
 
 	loss, err := analyzer.RunMultiWithContext(context.Background(), []string{"127.0.0.1:9"})
@@ -688,7 +687,175 @@ func TestClient_PacketLoss(t *testing.T) {
 		require.NoError(t, listener.Close())
 
 		loss, err := newTestClient(t).PacketLoss(context.Background(), &Server{Host: addr})
-		require.ErrorIs(t, err, transport.ErrUnsupported)
+		require.ErrorIs(t, err, ErrUnsupported)
 		assert.Zero(t, loss.Sent)
 	})
+}
+
+// TestPacketLossStats_String checks the formatted loss, including the unavailable form for a server that received nothing.
+func TestPacketLossStats_String(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		p    PacketLossStats
+		want string
+	}{
+		{
+			name: "zero sent",
+			p:    PacketLossStats{Sent: 0, Dup: 0, Max: 0},
+			want: "Packet Loss: N/A",
+		},
+		{
+			name: "normal loss",
+			p:    PacketLossStats{Sent: 90, Dup: 5, Max: 100},
+			want: "Packet Loss: 15.84% (Sent: 90/Dup: 5/Max: 100)",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, tt.p.String())
+		})
+	}
+}
+
+// TestPacketLossStats_Loss checks the loss ratio, and -1 for a server that received nothing.
+func TestPacketLossStats_Loss(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		p    PacketLossStats
+		want float64
+	}{
+		{
+			name: "zero sent",
+			p:    PacketLossStats{Sent: 0, Dup: 0, Max: 0},
+			want: -1,
+		},
+		{
+			name: "normal loss",
+			p:    PacketLossStats{Sent: 90, Dup: 5, Max: 100},
+			want: 0.15841584158415845,
+		},
+		{
+			name: "no loss",
+			p:    PacketLossStats{Sent: 101, Dup: 0, Max: 100},
+			want: 0,
+		},
+		{
+			name: "more unique datagrams than sent",
+			p:    PacketLossStats{Sent: 10, Dup: 0, Max: 4},
+			want: 0,
+		},
+		{
+			name: "more duplicates than datagrams",
+			p:    PacketLossStats{Sent: 5, Dup: 10, Max: 4},
+			want: 1,
+		},
+		{
+			name: "no datagram expected",
+			p:    PacketLossStats{Sent: 5, Dup: 0, Max: -1},
+			want: 0,
+		},
+		{
+			name: "no datagram expected and only duplicates",
+			p:    PacketLossStats{Sent: 5, Dup: 5, Max: -1},
+			want: 0,
+		},
+		{
+			name: "negative expected count",
+			p:    PacketLossStats{Sent: 5, Dup: 0, Max: -3},
+			want: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.InDelta(t, tt.want, tt.p.Loss(), 1e-9)
+		})
+	}
+}
+
+// TestPacketLossStats_LossPercent checks the loss percentage, and -1 for a server that received nothing.
+func TestPacketLossStats_LossPercent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		p    PacketLossStats
+		want float64
+	}{
+		{
+			name: "zero sent",
+			p:    PacketLossStats{Sent: 0, Dup: 0, Max: 0},
+			want: -1,
+		},
+		{
+			name: "normal loss",
+			p:    PacketLossStats{Sent: 90, Dup: 5, Max: 100},
+			want: 15.841584158415845,
+		},
+		{
+			name: "no loss",
+			p:    PacketLossStats{Sent: 101, Dup: 0, Max: 100},
+			want: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.InDelta(t, tt.want, tt.p.LossPercent(), 1e-9)
+		})
+	}
+}
+
+// Test_combinePacketLoss checks that combined counts keep every server's expected datagrams, so servers without loss
+// combine to no loss, and that a single server's counts are unchanged.
+func Test_combinePacketLoss(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		results  map[string]*PacketLossStats
+		want     PacketLossStats
+		name     string
+		wantLoss float64
+	}{
+		{
+			name: "one server",
+			results: map[string]*PacketLossStats{
+				"a:8080": {Sent: 90, Dup: 5, Max: 100},
+			},
+			want:     PacketLossStats{Sent: 90, Dup: 5, Max: 100},
+			wantLoss: 0.15841584158415845,
+		},
+		{
+			name: "servers without loss",
+			results: map[string]*PacketLossStats{
+				"a:8080": {Sent: 101, Dup: 0, Max: 100},
+				"b:8080": {Sent: 51, Dup: 0, Max: 50},
+			},
+			want:     PacketLossStats{Sent: 152, Dup: 0, Max: 151},
+			wantLoss: 0,
+		},
+		{
+			name: "servers with loss",
+			results: map[string]*PacketLossStats{
+				"a:8080": {Sent: 96, Dup: 0, Max: 100},
+				"b:8080": {Sent: 99, Dup: 0, Max: 100},
+			},
+			want:     PacketLossStats{Sent: 195, Dup: 0, Max: 201},
+			wantLoss: 1 - 195.0/202,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := combinePacketLoss(tt.results)
+			assert.Equal(t, tt.want, *got)
+			assert.InDelta(t, tt.wantLoss, got.Loss(), 1e-9)
+		})
+	}
 }

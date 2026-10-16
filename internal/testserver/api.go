@@ -5,6 +5,7 @@ package testserver
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"encoding/xml"
 	"io"
@@ -16,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // API is a fake speedtest.net API and speedtest server backed by an [httptest.Server].
@@ -49,6 +51,9 @@ type Option func(*API)
 type Response struct {
 	// Body is the response body. An empty body is sent with Content-Length 0.
 	Body string
+	// Delay is waited before the response is sent, so a client measures a latency of at least that long. A request
+	// whose context ends first gets no response.
+	Delay time.Duration
 	// Location is the redirect target. Setting it without a Status sends 302 Found.
 	Location string
 	// Status is the HTTP status code. Zero means 200 OK, or 302 Found when Location is set.
@@ -333,7 +338,9 @@ func (api *API) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	api.mu.Unlock()
 
 	if overridden {
-		writeOverride(w, override)
+		if waitDelay(r.Context(), override.Delay) {
+			writeOverride(w, override)
+		}
 
 		return
 	}
@@ -526,6 +533,30 @@ func writeOverride(w http.ResponseWriter, resp Response) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(resp.Body)))
 	w.WriteHeader(status)
 	_, _ = io.WriteString(w, resp.Body)
+}
+
+// waitDelay waits for delay, or until ctx ends.
+//
+// Parameters:
+//   - ctx: the request's context.
+//   - delay: how long to wait. Zero or less returns at once.
+//
+// Returns:
+//   - bool: true when the delay passed, false when ctx ended first.
+func waitDelay(ctx context.Context, delay time.Duration) bool {
+	if delay <= 0 {
+		return true
+	}
+
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }
 
 // writeXML writes an XML document with its declaration.

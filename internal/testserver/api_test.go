@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -366,6 +367,37 @@ func TestAPI_SetResponse(t *testing.T) {
 			assert.True(t, api.Requested(tt.endpoint))
 		})
 	}
+}
+
+// TestAPI_SetResponse_Delay checks that a delayed response arrives no sooner than its delay, and that a client whose
+// context ends during the delay stops waiting.
+func TestAPI_SetResponse_Delay(t *testing.T) {
+	t.Parallel()
+
+	const delay = 50 * time.Millisecond
+
+	api := NewAPI(t)
+	api.SetResponse(PathLatency, Response{Body: "test=test", Delay: delay, Location: "", Status: 0})
+
+	start := time.Now()
+	got := do(t, http.MethodGet, api.URL()+PathLatency, "")
+
+	assert.GreaterOrEqual(t, time.Since(start), delay)
+	assert.Equal(t, http.StatusOK, got.status)
+	assert.Equal(t, "test=test", string(got.body))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, api.URL()+PathLatency, nil)
+	require.NoError(t, err)
+
+	response, err := http.DefaultClient.Do(request)
+	if response != nil {
+		_ = response.Body.Close()
+	}
+
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
 // TestAPI_Options checks that the user and server options replace the defaults.
