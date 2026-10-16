@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Cancel a run on Ctrl-C and exit with code 130 by @nicholas-fedor in [#513](https://github.com/nicholas-fedor/speedtest-go/pull/513)
 - Take a context in every client method that sends a request by @nicholas-fedor in [#511](https://github.com/nicholas-fedor/speedtest-go/pull/511)
 - Move the transport package into an internal package by @nicholas-fedor in [#507](https://github.com/nicholas-fedor/speedtest-go/pull/507)
 - Measure servers with client methods that return results by @nicholas-fedor in [#505](https://github.com/nicholas-fedor/speedtest-go/pull/505)
