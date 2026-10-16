@@ -848,6 +848,7 @@ func TestClient_FetchServers_ContextEndsDuringProbes(t *testing.T) {
 
 	servers, err := newBaseURLClient(t, api.URL()).FetchServers(ctx)
 
+	require.True(t, api.Requested(testserver.PathLatency), "the context must end during the probes")
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.Empty(t, servers)
 }
