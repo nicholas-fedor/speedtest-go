@@ -107,4 +107,4 @@ Mixed packets lossed: Packet Loss: 3.47% (Sent: 195/Dup: 0/Max: 201)
 - The mixed result provides an aggregate view across all tested servers
 - Actual packet loss will vary based on network conditions and server locations
 - Error handling is implemented via the `checkError` function, which will terminate the program on any errors
-- The example uses a 100ms interval between packet sends; this can be adjusted via the `PacketLossAnalyzerOptions`
+- The example uses a 100ms interval between packet sends, which `PacketLossAnalyzerOptions` can change

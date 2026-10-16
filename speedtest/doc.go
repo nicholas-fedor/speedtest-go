@@ -9,8 +9,8 @@
 //   - Server Discovery: Retrieves and manages lists of available speedtest servers,
 //     with automatic distance calculation based on user location
 //   - Latency Testing: Performs ping tests using HTTP, TCP, or ICMP protocols with jitter and latency statistics
-//   - Speed Testing: Measures download speeds via HTTP GET requests and upload speeds
-//     via HTTP POST requests to speedtest servers
+//   - Speed Testing: Measures download and upload speeds over HTTP, or over the speedtest.net TCP protocol with
+//     WithProtocol
 //   - Packet Loss: Calculates uplink packet loss using TCP and UDP transport implementations
 //   - Multi-server Testing: Supports concurrent testing across multiple servers for more accurate results
 //
@@ -41,11 +41,13 @@
 // # Key Features
 //
 //   - Multi-threaded Testing: Configurable concurrent connections for more accurate speed measurements
-//   - EWMA Rate Calculation: Uses Exponentially Weighted Moving Average for stable speed estimates
+//   - Measured Rates: Reports each test's rate from the bytes it counted, and passes a smoothed live estimate to
+//     WithRateCallback while it runs
 //   - Multiple Ping Protocols: Supports HTTP, TCP, and ICMP ping methods
 //   - Flexible Configuration: Validated options for proxy settings, source addresses, test sizes, and logging
 //   - Distance-based Server Selection: Automatically selects geographically optimal servers
-//   - Statistics: Comprehensive statistics including mean, standard deviation, and coefficient of variation
+//   - Statistics: StandardDeviation reports the mean, variance, standard deviation, minimum, and maximum of a set of
+//     values
 //
 // # Subpackages
 //
@@ -58,20 +60,48 @@
 // The package has minimal external dependencies, primarily using Go's standard library
 // with optional dependencies for CLI tooling and testing.
 //
+// # Migrating from v1
+//
+// The migration guide at https://github.com/nicholas-fedor/speedtest-go/blob/master/docs/v2-migration.md maps each
+// v1 function, method, and field to its v2 replacement.
+//
 // # Example Usage
 //
 //	client, err := speedtest.New(speedtest.WithConnections(4))
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
+//
+//	servers, err := client.FetchServers()
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//
+//	// FindServer without IDs returns the server with the lowest latency.
+//	targets, err := servers.FindServer(nil)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//
 //	ctx := context.Background()
-//	servers, _ := client.FetchServers()
-//	server := servers[0]
-//	ping, _ := client.Ping(ctx, server)
-//	download, _ := client.Download(ctx, server, speedtest.WithRateCallback(func(rate speedtest.ByteRate) {
+//	server := targets[0]
+//
+//	ping, err := client.Ping(ctx, server)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//
+//	download, err := client.Download(ctx, server, speedtest.WithRateCallback(func(rate speedtest.ByteRate) {
 //	    fmt.Println("Download:", rate)
 //	}))
-//	upload, _ := client.Upload(ctx, server)
-//	fmt.Printf("Download: %s, Upload: %s, Latency: %s\n",
-//	    download.Rate, upload.Rate, ping.Latency)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//
+//	upload, err := client.Upload(ctx, server)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//
+//	fmt.Printf("Latency: %s, Download: %s, Upload: %s\n", ping.Latency, download.Rate, upload.Rate)
 package speedtest

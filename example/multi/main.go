@@ -18,8 +18,8 @@ func main() {
 	targets, _ := serverList.FindServer([]int{})
 
 	if len(targets) > 0 {
-		// Use s as main server and use targets as auxiliary servers.
-		// The main server is loaded at a greater proportion than the auxiliary servers.
+		// Use s as the main server and the rest of the list as auxiliary servers.
+		// The main server always gets connections, and the auxiliary servers share the rest.
 		s := targets[0]
 
 		download, err := speedtestClient.DownloadMulti(context.TODO(), s, serverList)
