@@ -146,8 +146,9 @@ func settingsLocation(cfg config.Config) (*speedtest.Location, error) {
 }
 
 // retrieveServers fetches and selects the target servers. It returns the pool for --multi and the targets.
-// Servers named with --custom-url or --server are their own pool.
+// Servers named with --custom-url or --server are their own pool. ctx ends the lookups.
 func retrieveServers(
+	ctx context.Context,
 	speedtestClient *speedtest.Client,
 	cfg config.Config,
 	taskManager *task.Manager,
@@ -171,19 +172,19 @@ func retrieveServers(
 
 			task.Println("Skip: Using Custom Server")
 		case len(cfg.ServerIDs) > 0:
-			targets, err = fetchServersByID(speedtestClient, cfg.ServerIDs)
+			targets, err = fetchServersByID(ctx, speedtestClient, cfg.ServerIDs)
 			task.CheckError(err)
 
 			servers = targets
 			task.Printf("Found %d Specified Public Server(s)", len(targets))
 		default:
-			servers, err = speedtestClient.FetchServers()
+			servers, err = speedtestClient.FetchServers(ctx)
 			task.CheckError(err)
 
 			if len(cfg.CountryCodes) > 0 {
 				var codes []string
 
-				servers, codes, err = filterByCountry(speedtestClient, cfg, servers)
+				servers, codes, err = filterByCountry(ctx, speedtestClient, cfg, servers)
 				task.CheckError(err)
 				task.Printf(
 					"Found %d Public Servers in %s",
@@ -207,6 +208,7 @@ func retrieveServers(
 // fetchServersByID looks up each server ID concurrently.
 //
 // Parameters:
+//   - ctx: ends the lookups.
 //   - speedtestClient: the client that performs the lookups.
 //   - ids: the server IDs from --server.
 //
@@ -214,7 +216,11 @@ func retrieveServers(
 //   - speedtest.Servers: the servers in the order of ids.
 //   - error: an error wrapping [speedtest.ErrServerNotFound] that lists every unknown ID, joined with any other
 //     lookup errors.
-func fetchServersByID(speedtestClient *speedtest.Client, ids []int) (speedtest.Servers, error) {
+func fetchServersByID(
+	ctx context.Context,
+	speedtestClient *speedtest.Client,
+	ids []int,
+) (speedtest.Servers, error) {
 	found := make(speedtest.Servers, len(ids))
 	errs := make([]error, len(ids))
 
@@ -222,7 +228,7 @@ func fetchServersByID(speedtestClient *speedtest.Client, ids []int) (speedtest.S
 
 	for index, id := range ids {
 		wg.Go(func() {
-			found[index], errs[index] = speedtestClient.FetchServerByID(strconv.Itoa(id))
+			found[index], errs[index] = speedtestClient.FetchServerByID(ctx, strconv.Itoa(id))
 		})
 	}
 
@@ -592,6 +598,8 @@ func RunSpeedtest(cfg config.Config) error {
 	// Retrieve the configuration.
 	cfg = config.Setup(cfg)
 
+	ctx := context.Background()
+
 	// Create the speedtest client.
 	speedtestClient, err := setupSpeedtestClient(cfg)
 	if err != nil {
@@ -619,10 +627,10 @@ func RunSpeedtest(cfg config.Config) error {
 		func(userTask *task.Task) {
 			defer userFetched.Done()
 
-			ctx, cancel := context.WithTimeout(context.Background(), userInfoTimeout)
+			userCtx, cancel := context.WithTimeout(ctx, userInfoTimeout)
 			defer cancel()
 
-			u, err := speedtestClient.FetchUserInfoContext(ctx)
+			u, err := speedtestClient.FetchUserInfo(userCtx)
 			userTask.CheckError(err)
 
 			user = u
@@ -634,6 +642,7 @@ func RunSpeedtest(cfg config.Config) error {
 
 	// Fetch and select the target server.
 	servers, targets := retrieveServers(
+		ctx,
 		speedtestClient,
 		cfg, taskManager,
 	)

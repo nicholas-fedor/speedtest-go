@@ -399,15 +399,17 @@ func main() {
   log.Fatal(err)
  }
 
+ ctx := context.Background()
+
  // Get user's network information
- // user, _ := speedtestClient.FetchUserInfo()
+ // user, _ := speedtestClient.FetchUserInfo(ctx)
 
  // Search server using serverID.
  // eg: fetch server with ID 28910.
  // speedtest.ErrServerNotFound will be returned if the server cannot be found.
- // server, err := speedtestClient.FetchServerByID("28910")
+ // server, err := speedtestClient.FetchServerByID(ctx, "28910")
 
- serverList, err := speedtestClient.FetchServers()
+ serverList, err := speedtestClient.FetchServers(ctx)
  if err != nil {
   log.Fatal(err)
  }
@@ -417,8 +419,6 @@ func main() {
  if err != nil {
   log.Fatal(err)
  }
-
- ctx := context.Background()
 
  for _, s := range targets {
   ping, err := speedtestClient.Ping(ctx, s)
@@ -465,6 +465,7 @@ The [code](https://github.com/nicholas-fedor/speedtest-go/blob/master/example/pa
 package main
 
 import (
+ "context"
  "fmt"
  "github.com/nicholas-fedor/speedtest-go/v2/speedtest"
  "log"
@@ -482,7 +483,7 @@ func main() {
  // Retrieve the server with the lowest latency
  speedtestClient, err := speedtest.New()
  checkError(err)
- serverList, _ := speedtestClient.FetchServers()
+ serverList, _ := speedtestClient.FetchServers(context.Background())
  targets, _ := serverList.FindServer([]int{})
 
  // Create a packet loss analyzer that connects the way the client does, with default options

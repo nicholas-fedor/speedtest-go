@@ -43,7 +43,7 @@ func main() {
     speedtestClient, err := speedtest.New()
     checkError(err)
 
-    serverList, err := speedtestClient.FetchServers()
+    serverList, err := speedtestClient.FetchServers(context.Background())
     checkError(err)
 
     // 1. Retrieve available servers

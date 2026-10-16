@@ -31,13 +31,15 @@ type Users struct {
 }
 
 // FetchUserInfo returns information about the caller determined by speedtest.net. The client does not keep it.
-func (s *Client) FetchUserInfo() (*User, error) {
-	return s.FetchUserInfoContext(context.Background())
-}
-
-// FetchUserInfoContext returns information about the caller determined by speedtest.net, observing the given
-// context. The client does not keep it.
-func (s *Client) FetchUserInfoContext(ctx context.Context) (*User, error) {
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//
+// Returns:
+//   - *User: the caller's IP address, ISP, coordinates, and country.
+//   - error: [ErrInstanceNil] for a nil client, an error wrapping [ErrUnexpectedStatus] for a status outside 2xx,
+//     [ErrFetchUserInfo] when the reply describes no caller, or the request or decoding error.
+func (s *Client) FetchUserInfo(ctx context.Context) (*User, error) {
 	if s == nil {
 		return nil, ErrInstanceNil
 	}

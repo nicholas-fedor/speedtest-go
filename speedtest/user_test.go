@@ -11,22 +11,8 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/testserver"
 )
 
-// TestClient_FetchUserInfo checks the context-free wrapper against the fake API and with a nil client.
+// TestClient_FetchUserInfo covers decoding the user info response and failures.
 func TestClient_FetchUserInfo(t *testing.T) {
-	t.Parallel()
-
-	_, err := (*Client)(nil).FetchUserInfo()
-	require.ErrorIs(t, err, ErrInstanceNil)
-
-	api := testserver.NewAPI(t)
-
-	user, err := newBaseURLClient(t, api.URL()).FetchUserInfo()
-	require.NoError(t, err)
-	assert.Equal(t, testserver.DefaultUser().IP, user.IP)
-}
-
-// TestClient_FetchUserInfoContext covers decoding the user info response, storing the user, and failures.
-func TestClient_FetchUserInfoContext(t *testing.T) {
 	t.Parallel()
 
 	want := testserver.DefaultUser()
@@ -92,7 +78,7 @@ func TestClient_FetchUserInfoContext(t *testing.T) {
 				cancel()
 			}
 
-			got, err := client.FetchUserInfoContext(ctx)
+			got, err := client.FetchUserInfo(ctx)
 
 			switch {
 			case tt.wantErr != nil:
@@ -111,7 +97,7 @@ func TestClient_FetchUserInfoContext(t *testing.T) {
 	t.Run("nil client", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := (*Client)(nil).FetchUserInfoContext(context.Background())
+		_, err := (*Client)(nil).FetchUserInfo(context.Background())
 		require.ErrorIs(t, err, ErrInstanceNil)
 	})
 }

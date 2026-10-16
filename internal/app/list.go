@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strings"
@@ -18,8 +19,10 @@ func RunList(cfg config.Config) error {
 		return err
 	}
 
+	ctx := context.Background()
+
 	// retrieving servers
-	servers, err := speedtestClient.FetchServers()
+	servers, err := speedtestClient.FetchServers(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to fetch servers: %w", err)
 	}
@@ -27,7 +30,7 @@ func RunList(cfg config.Config) error {
 	if len(cfg.CountryCodes) > 0 {
 		var codes []string
 
-		servers, codes, err = filterByCountry(speedtestClient, cfg, servers)
+		servers, codes, err = filterByCountry(ctx, speedtestClient, cfg, servers)
 		if err != nil {
 			return err
 		}

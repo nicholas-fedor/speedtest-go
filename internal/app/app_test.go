@@ -72,7 +72,7 @@ func TestFetchServersByID(t *testing.T) {
 			api := testserver.NewAPI(t)
 			client := newTestClient(t, config.Config{BaseURL: api.URL()})
 
-			servers, err := fetchServersByID(client, tt.ids)
+			servers, err := fetchServersByID(t.Context(), client, tt.ids)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, serverIDs(servers))
 		})
@@ -87,7 +87,7 @@ func TestFetchServersByIDReportsMissingIDs(t *testing.T) {
 	api := testserver.NewAPI(t)
 	client := newTestClient(t, config.Config{BaseURL: api.URL()})
 
-	servers, err := fetchServersByID(client, []int{9999, 1001, 8888})
+	servers, err := fetchServersByID(t.Context(), client, []int{9999, 1001, 8888})
 	require.ErrorIs(t, err, speedtest.ErrServerNotFound)
 	assert.Contains(t, err.Error(), "--server 9999, 8888")
 	assert.Nil(t, servers)
@@ -101,7 +101,7 @@ func TestFetchServersByIDReportsLookupFailures(t *testing.T) {
 	api.SetResponse(testserver.PathServerLookup, testserver.Response{Status: http.StatusBadGateway})
 	client := newTestClient(t, config.Config{BaseURL: api.URL()})
 
-	_, err := fetchServersByID(client, []int{1001})
+	_, err := fetchServersByID(t.Context(), client, []int{1001})
 	require.ErrorIs(t, err, speedtest.ErrUnexpectedStatus)
 	require.NotErrorIs(t, err, speedtest.ErrServerNotFound)
 	assert.Contains(t, err.Error(), "server 1001")
@@ -143,6 +143,7 @@ func TestRetrieveServersPool(t *testing.T) {
 			cfg := tt.cfg(api)
 
 			pool, targets := retrieveServers(
+				t.Context(),
 				newTestClient(t, cfg),
 				cfg,
 				task.NewManager(true, false),
@@ -159,6 +160,7 @@ func TestRetrieveServersPool(t *testing.T) {
 		cfg := config.Config{BaseURL: api.URL()}
 
 		pool, targets := retrieveServers(
+			t.Context(),
 			newTestClient(t, cfg),
 			cfg,
 			task.NewManager(true, false),
@@ -205,10 +207,11 @@ func TestFilterByCountry(t *testing.T) {
 			api := testserver.NewAPI(t)
 			client := newTestClient(t, config.Config{BaseURL: api.URL()})
 
-			servers, err := client.FetchServers()
+			servers, err := client.FetchServers(t.Context())
 			require.NoError(t, err)
 
 			filtered, codes, err := filterByCountry(
+				t.Context(),
 				client,
 				config.Config{CountryCodes: tt.codes, City: tt.city},
 				servers,
@@ -236,7 +239,7 @@ func TestAutoCountryCity(t *testing.T) {
 	api := testserver.NewAPI(t)
 	client := newTestClient(t, config.Config{BaseURL: api.URL()})
 
-	_, err := autoCountry(client, config.Config{City: "atlantis"})
+	_, err := autoCountry(t.Context(), client, config.Config{City: "atlantis"})
 	require.ErrorIs(t, err, errUnknownCountry)
 	require.ErrorIs(t, err, speedtest.ErrNotFoundLocation)
 	assert.Contains(t, err.Error(), `--city "atlantis"`)
@@ -257,7 +260,7 @@ func TestAutoCountryUnknown(t *testing.T) {
 	)
 	client := newTestClient(t, config.Config{BaseURL: api.URL()})
 
-	_, err := autoCountry(client, config.Config{})
+	_, err := autoCountry(t.Context(), client, config.Config{})
 	require.ErrorIs(t, err, errUnknownCountry)
 }
 
@@ -268,7 +271,12 @@ func TestRetrieveServersCountryFilter(t *testing.T) {
 	api := testserver.NewAPI(t)
 	cfg := config.Config{BaseURL: api.URL(), CountryCodes: []string{"JP"}}
 
-	pool, targets := retrieveServers(newTestClient(t, cfg), cfg, task.NewManager(true, false))
+	pool, targets := retrieveServers(
+		t.Context(),
+		newTestClient(t, cfg),
+		cfg,
+		task.NewManager(true, false),
+	)
 	assert.ElementsMatch(t, []string{"1001", "1002"}, serverIDs(pool))
 	assert.Len(t, targets, 1)
 }
@@ -307,7 +315,7 @@ func TestSetupSpeedtestClientLocation(t *testing.T) {
 
 			api := testserver.NewAPI(t)
 
-			_, err := newTestClient(t, tt.cfg(api.URL())).FetchServers()
+			_, err := newTestClient(t, tt.cfg(api.URL())).FetchServers(t.Context())
 			require.NoError(t, err)
 
 			var found bool
