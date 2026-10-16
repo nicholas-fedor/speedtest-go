@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add a v2 migration guide and update the API documentation by @nicholas-fedor in [#509](https://github.com/nicholas-fedor/speedtest-go/pull/509)
 - Add --mask-isp to hide the user's location in all output by @nicholas-fedor in [#485](https://github.com/nicholas-fedor/speedtest-go/pull/485)
 - Add configurable download and upload sizes by @nicholas-fedor in [#475](https://github.com/nicholas-fedor/speedtest-go/pull/475)
 - Add a TCP test mode for download and upload by @nicholas-fedor in [#471](https://github.com/nicholas-fedor/speedtest-go/pull/471)
