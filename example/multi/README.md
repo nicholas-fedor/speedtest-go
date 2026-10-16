@@ -4,12 +4,12 @@ This example demonstrates how to perform a speed test using multiple servers sim
 
 ## Overview
 
-The program fetches a list of available SpeedTest servers, selects all of them as targets, and then performs both download and upload tests using multiple servers concurrently. The first server in the list is designated as the main server, which receives a greater proportion of the testing load compared to the auxiliary servers.
+The program fetches a list of Speedtest servers, picks the one with the lowest latency as the main server, and then performs both download and upload tests across the main server and the other available servers in the list at once. The main server always gets connections, and the auxiliary servers share the rest.
 
 ## Key Features
 
 - **Multi-server testing**: Utilizes multiple servers simultaneously for more accurate and comprehensive speed measurements
-- **Load distribution**: The main server handles a larger share of the traffic, while auxiliary servers assist in the testing process
+- **Load distribution**: The main server always gets connections, while the auxiliary servers share the rest
 - **Context support**: Uses Go contexts for proper cancellation and timeout handling
 
 ## How to Run
@@ -40,8 +40,8 @@ func main() {
     targets, _ := serverList.FindServer([]int{})
 
     if len(targets) > 0 {
-        // Use s as main server and use targets as auxiliary servers.
-        // The main server is loaded at a greater proportion than the auxiliary servers.
+        // Use s as the main server and the rest of the list as auxiliary servers.
+        // The main server always gets connections, and the auxiliary servers share the rest.
         s := targets[0]
         download, err := speedtestClient.DownloadMulti(context.TODO(), s, serverList)
         checkError(err)
@@ -57,7 +57,7 @@ func main() {
 ### Breakdown
 
 1. **Fetch Servers**: Retrieves the list of available speed test servers
-2. **Find Targets**: Selects servers to use (empty slice means use all available servers)
+2. **Find the Main Server**: Selects the server with the lowest latency, since an empty slice names no server IDs
 3. **Multi-Download Test**: Performs download speed test across multiple servers
 4. **Multi-Upload Test**: Performs upload speed test across multiple servers
 5. **Display Results**: Prints the measured download and upload speeds
@@ -74,4 +74,4 @@ Download: 45.67 Mbps, Upload: 12.34 Mbps
 
 - The actual speeds will vary based on your internet connection and the selected servers
 - Error handling is implemented via the `checkError` function, which will terminate the program on any errors
-- This example uses `context.TODO()` for simplicity; in production code, consider using proper context management for timeouts and cancellation
+- This example uses `context.TODO()` for simplicity. In production code, consider using proper context management for timeouts and cancellation

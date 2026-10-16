@@ -1,14 +1,14 @@
 # Naive Speed Test Example
 
-This example demonstrates a basic usage of the `speedtest-go` library to perform internet speed tests against multiple Speedtest servers. It fetches a list of available servers, selects all of them as targets, and runs ping, download, and upload tests for each server, printing the results.
+This example demonstrates a basic usage of the `speedtest-go` library to perform an internet speed test. It fetches a list of Speedtest servers, picks the one with the lowest latency, and runs ping, download, and upload tests against it, printing the results.
 
 ## What It Does
 
 The program performs the following steps:
 
 1. Fetches a list of Speedtest servers.
-2. Finds all available servers as test targets.
-3. For each target server:
+2. Picks the server with the lowest latency as the target.
+3. For the target server:
    - Performs a ping test to measure latency.
    - Runs a download speed test.
    - Runs an upload speed test.
@@ -16,7 +16,7 @@ The program performs the following steps:
 
 ## Prerequisites
 
-- Go 1.16 or later
+- Go 1.27 or later
 - Internet connection
 - Access to Speedtest servers (ensure your network allows connections to speedtest.net servers)
 
@@ -40,8 +40,6 @@ The program will automatically fetch servers and perform tests. Note that this m
 
 ```text
 Latency: 15.2ms, Download: 45.67 Mbps, Upload: 12.34 Mbps
-Latency: 22.1ms, Download: 42.89 Mbps, Upload: 11.98 Mbps
-...
 ```
 
 ## Code Explanation
@@ -72,9 +70,9 @@ for _, s := range targets {
 ```
 
 - `speedtest.New()` creates a client, and its `FetchServers()` method retrieves a list of available Speedtest servers.
-- `serverList.FindServer([]int{})` selects all servers since an empty slice is passed.
-- For each server, tests are run sequentially.
-- Speeds are reported in Mbps, latency in milliseconds.
+- `serverList.FindServer([]int{})` returns the server with the lowest latency, since an empty slice names no server IDs.
+- The ping, download, and upload tests run one after another, and each returns its own result.
+- Rates print in Mbps, and latencies print as durations.
 
 ## Additional Configuration Options
 
@@ -90,10 +88,10 @@ Uncomment and modify these lines as needed for more targeted testing.
 
 ## Error Handling
 
-The `checkError` function provides basic error handling by logging fatal errors. In a production application, you might want to implement more sophisticated error handling.
+The `checkError` function provides basic error handling by panicking on any error. In a production application, you might want to implement more sophisticated error handling.
 
 ## Notes
 
-- This example tests against all available servers, which may be time-consuming. For quicker tests, consider limiting the number of servers or selecting specific ones.
+- This example tests one server. Pass server IDs to `FindServer` to test specific servers instead.
 - Ensure your firewall and network settings allow connections to Speedtest servers.
 - Each test measures on its own, so nothing needs resetting between servers.

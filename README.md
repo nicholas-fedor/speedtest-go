@@ -370,9 +370,11 @@ For more details, please see [saving mode experimental result](https://github.co
 go get github.com/nicholas-fedor/speedtest-go/v2
 ```
 
+Upgrading from v1? The [migration guide](docs/v2-migration.md) maps each v1 function, method, and field to its v2 replacement.
+
 ### API Usage
 
-The [code](https://github.com/nicholas-fedor/speedtest-go/blob/master/example/naive/main.go) below finds the closest available speedtest server and tests the latency, download, and upload speeds.
+The [code](https://github.com/nicholas-fedor/speedtest-go/blob/master/example/naive/main.go) below finds the speedtest server with the lowest latency and tests the latency, download, and upload speeds.
 
 ```go
 package main
@@ -404,23 +406,62 @@ func main() {
  // speedtest.ErrServerNotFound will be returned if the server cannot be found.
  // server, err := speedtestClient.FetchServerByID("28910")
 
- serverList, _ := speedtestClient.FetchServers()
- targets, _ := serverList.FindServer([]int{})
+ serverList, err := speedtestClient.FetchServers()
+ if err != nil {
+  log.Fatal(err)
+ }
+
+ // Without server IDs, FindServer returns the server with the lowest latency.
+ targets, err := serverList.FindServer([]int{})
+ if err != nil {
+  log.Fatal(err)
+ }
+
+ ctx := context.Background()
 
  for _, s := range targets {
-  // Please make sure your host can access this test server,
-  // otherwise you will get an error.
-  // It is recommended to replace a server at this time
-  ping, _ := speedtestClient.Ping(context.Background(), s)
-  download, _ := speedtestClient.Download(context.Background(), s)
-  upload, _ := speedtestClient.Upload(context.Background(), s)
+  ping, err := speedtestClient.Ping(ctx, s)
+  if err != nil {
+   log.Fatal(err)
+  }
+
+  download, err := speedtestClient.Download(ctx, s)
+  if err != nil {
+   log.Fatal(err)
+  }
+
+  upload, err := speedtestClient.Upload(ctx, s)
+  if err != nil {
+   log.Fatal(err)
+  }
+
   // Note: Rate is in bytes per second, a float64 that prints in Mbps. Each test reports its own results.
   fmt.Printf("Latency: %s, Download: %s, Upload: %s\n", ping.Latency, download.Rate, upload.Rate)
  }
 }
 ```
 
-The [code](https://github.com/nicholas-fedor/speedtest-go/blob/master/example/packet_loss/main.go) will find the closest available speedtest server and analyze packet loss.
+Each test returns its own result. `Ping` returns `PingStats` with the mean latency, jitter, minimum, and maximum, and `Download` and `Upload` return a `Transfer` with the rate, the bytes counted, and the results of each connection. `DownloadMulti` and `UploadMulti` spread one test across a main server and the other servers in a list, as the [multi-server example](https://github.com/nicholas-fedor/speedtest-go/blob/master/example/multi/main.go) shows. `speedtest.JSON` and `speedtest.JSONL` write results in the CLI's JSON format.
+
+### Packet Loss
+
+`Client.PacketLoss` measures the packet loss to one server until its context ends. With the client and targets from the example above:
+
+```go
+server := targets[0]
+
+lossCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+defer cancel()
+
+packetLoss, err := speedtestClient.PacketLoss(lossCtx, server)
+if err != nil {
+ log.Println(err)
+}
+
+fmt.Println(packetLoss)
+```
+
+The [code](https://github.com/nicholas-fedor/speedtest-go/blob/master/example/packet_loss/main.go) below uses the packet loss analyzer instead, which reports each sample as it arrives and can combine several servers.
 
 ```go
 package main
@@ -440,7 +481,7 @@ func checkError(err error) {
 // Note: The current packet loss analyzer does not support udp over http.
 // This means we cannot get packet loss through a proxy.
 func main() {
- // Retrieve available servers
+ // Retrieve the server with the lowest latency
  speedtestClient, err := speedtest.New()
  checkError(err)
  serverList, _ := speedtestClient.FetchServers()
@@ -449,7 +490,7 @@ func main() {
  // Create a packet loss analyzer that connects the way the client does, with default options
  analyzer := speedtestClient.NewPacketLossAnalyzer(nil)
 
- // Perform packet loss analysis on all available servers
+ // Perform packet loss analysis on the target server
  for _, server := range targets {
   err := analyzer.Run(server.Host, func(packetLoss *speedtest.PacketLossStats) {
    fmt.Println(packetLoss, server.Host, server.Name)
@@ -458,8 +499,8 @@ func main() {
   checkError(err)
  }
 
- // or test all at the same time.
- packetLoss, err := analyzer.RunMulti(targets.Hosts())
+ // or test several servers at the same time.
+ packetLoss, err := analyzer.RunMulti(serverList.Available().Hosts())
  checkError(err)
  fmt.Println(packetLoss)
 }
