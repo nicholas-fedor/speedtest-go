@@ -146,7 +146,7 @@ func settingsLocation(cfg config.Config) (*speedtest.Location, error) {
 }
 
 // retrieveServers fetches and selects the target servers. It returns the pool for --multi and the targets.
-// Servers named with --custom-url or --server are their own pool. ctx ends the lookups.
+// Servers named with --custom-url or --server are their own pool.
 func retrieveServers(
 	ctx context.Context,
 	speedtestClient *speedtest.Client,
@@ -342,8 +342,14 @@ func updateWithLatency(
 // Returns:
 //   - *speedtest.Transfer: the measurement, or nil when the settings skip the test.
 func runBandwidthTest(
-	isDownload bool, server *speedtest.Server, cfg config.Config, taskManager *task.Manager,
-	accEcho *echo.AccompanyEcho, speedtestClient *speedtest.Client, servers speedtest.Servers,
+	ctx context.Context,
+	isDownload bool,
+	server *speedtest.Server,
+	cfg config.Config,
+	taskManager *task.Manager,
+	accEcho *echo.AccompanyEcho,
+	speedtestClient *speedtest.Client,
+	servers speedtest.Servers,
 ) *speedtest.Transfer {
 	taskName := "Download"
 	trigger := !cfg.NoDownload
@@ -356,10 +362,10 @@ func runBandwidthTest(
 	var result *speedtest.Transfer
 
 	taskManager.RunWithTrigger(trigger, taskName, func(task *task.Task) {
-		accEcho.Run()
+		accEcho.Run(ctx)
 
 		transfer, err := runTransfer(
-			context.Background(),
+			ctx,
 			speedtestClient,
 			server,
 			servers,
@@ -404,7 +410,7 @@ func runBandwidthTest(
 // Returns:
 //   - speedtest.Result: the server's measurements.
 func runServerTests(
-	server *speedtest.Server, cfg config.Config, taskManager *task.Manager,
+	ctx context.Context, server *speedtest.Server, cfg config.Config, taskManager *task.Manager,
 	speedtestClient *speedtest.Client, servers speedtest.Servers,
 ) speedtest.Result {
 	result := speedtest.Result{
@@ -422,7 +428,7 @@ func runServerTests(
 	taskManager.Println("Test Server: " + serverLine(server, cfg))
 	taskManager.Run("Latency: --", func(task *task.Task) {
 		stats, err := speedtestClient.Ping(
-			context.Background(),
+			ctx,
 			server,
 			speedtest.WithLatencyCallback(func(latency time.Duration) {
 				task.Updatef("Latency: %v", latency)
@@ -443,10 +449,7 @@ func runServerTests(
 	})
 
 	blocker := sync.WaitGroup{}
-	packetLossCtx, packetLossCancel := context.WithTimeout(
-		context.Background(),
-		packetLossAnalyzerTimeout,
-	)
+	packetLossCtx, packetLossCancel := context.WithTimeout(ctx, packetLossAnalyzerTimeout)
 
 	var packetLoss speedtest.PacketLossStats
 
@@ -464,6 +467,7 @@ func runServerTests(
 	accEcho := echo.New(speedtestClient, server, echoInterval)
 
 	result.Download = runBandwidthTest(
+		ctx,
 		true,
 		server,
 		cfg,
@@ -473,6 +477,7 @@ func runServerTests(
 		servers,
 	)
 	result.Upload = runBandwidthTest(
+		ctx,
 		false,
 		server,
 		cfg,
@@ -482,8 +487,12 @@ func runServerTests(
 		servers,
 	)
 
+	// Without transfers, the packet loss measurement gets its time here, unless the run is interrupted.
 	if cfg.NoUpload && cfg.NoDownload {
-		time.Sleep(sleepAfterTests)
+		select {
+		case <-time.After(sleepAfterTests):
+		case <-ctx.Done():
+		}
 	}
 
 	packetLossCancel()
@@ -506,6 +515,7 @@ func runServerTests(
 // runTests performs the actual speed tests on the selected servers.
 //
 // Parameters:
+//   - ctx: ends the tests. The reports are skipped when it ended.
 //   - speedtestClient: the client.
 //   - targets: the servers to test.
 //   - servers: the pool for --multi.
@@ -514,9 +524,9 @@ func runServerTests(
 //   - user: waits for and returns the caller's information for the reports.
 //
 // Returns:
-//   - error: the error of writing a report.
+//   - error: the context's error when it ended the tests, or the error of writing a report.
 func runTests(
-	speedtestClient *speedtest.Client, targets, servers speedtest.Servers,
+	ctx context.Context, speedtestClient *speedtest.Client, targets, servers speedtest.Servers,
 	cfg config.Config, taskManager *task.Manager, user func() *speedtest.User,
 ) error {
 	// 3. test each selected server with ping, download and upload.
@@ -524,11 +534,18 @@ func runTests(
 	for _, server := range targets {
 		results = append(
 			results,
-			runServerTests(server, cfg, taskManager, speedtestClient, servers),
+			runServerTests(ctx, server, cfg, taskManager, speedtestClient, servers),
 		)
 	}
 
 	taskManager.Stop()
+
+	// Measurements that ignore their errors, such as packet loss, end quietly with the context, so an interrupted run
+	// must not report them.
+	err := ctx.Err()
+	if err != nil {
+		return fmt.Errorf("speed test interrupted: %w", err)
+	}
 
 	now := time.Now()
 
@@ -594,13 +611,19 @@ func serverLine(server *speedtest.Server, cfg config.Config) string {
 }
 
 // RunSpeedtest executes the full speedtest on selected servers.
-func RunSpeedtest(cfg config.Config) error {
+//
+// Parameters:
+//   - ctx: ends the run. The CLI cancels it on an interrupt.
+//   - cfg: the settings.
+//
+// Returns:
+//   - error: an error wrapping the context's error when it ended the run, or the error of writing a report.
+func RunSpeedtest(ctx context.Context, cfg config.Config) error {
 	// Retrieve the configuration.
 	cfg = config.Setup(cfg)
 
-	ctx := context.Background()
-
 	// Create the speedtest client.
+	//nolint:contextcheck // speedtest.New takes no context, and only its debug log of the settings uses one.
 	speedtestClient, err := setupSpeedtestClient(cfg)
 	if err != nil {
 		return err
@@ -651,9 +674,17 @@ func RunSpeedtest(cfg config.Config) error {
 	taskManager.Reset()
 
 	// Perform the test.
-	return runTests(speedtestClient, targets, servers, cfg, taskManager, func() *speedtest.User {
-		userFetched.Wait()
+	return runTests(
+		ctx,
+		speedtestClient,
+		targets,
+		servers,
+		cfg,
+		taskManager,
+		func() *speedtest.User {
+			userFetched.Wait()
 
-		return user
-	})
+			return user
+		},
+	)
 }

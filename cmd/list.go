@@ -18,13 +18,13 @@ func newListCommand() *cobra.Command {
 		Use:   "list",
 		Short: "List available speedtest servers",
 		Long:  "Display a list of available speedtest.net servers with their details.",
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := config.Load()
 			if err != nil {
 				return fmt.Errorf("failed to load config: %w", err)
 			}
 
-			return app.RunList(cfg)
+			return app.RunList(cmd.Context(), cfg)
 		},
 	}
 

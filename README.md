@@ -188,6 +188,7 @@ SPEEDTEST_GO_PING_MODE=tcp SPEEDTEST_GO_DNS_BIND_SOURCE=true speedtest-go
 | `0` | The command succeeded. |
 | `1` | The command failed, such as a network error or a `--server` ID that speedtest.net does not list. Errors go to stderr. |
 | `2` | A setting is invalid, such as an unknown `--ping-mode` or `--unit`, a negative `--thread`, more than one of `--json`, `--jsonl` and `--unix`, or a config file that cannot be read. |
+| `130` | The run was interrupted with Ctrl-C, and no report was written. A second Ctrl-C ends a run that does not stop. |
 
 #### Version
 

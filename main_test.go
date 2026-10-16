@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -10,7 +11,8 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/config"
 )
 
-// TestExitCode checks that invalid settings exit with 2, even when wrapped or joined, and other failures with 1.
+// TestExitCode checks that interrupted runs exit with 130, invalid settings with 2, even when wrapped or joined, and
+// other failures with 1.
 func TestExitCode(t *testing.T) {
 	t.Parallel()
 
@@ -25,6 +27,11 @@ func TestExitCode(t *testing.T) {
 			name: "invalid setting",
 			err:  fmt.Errorf("failed to load config: %w", config.ErrInvalidSetting),
 			want: 2,
+		},
+		{
+			name: "interrupted",
+			err:  fmt.Errorf("failed to fetch servers: %w", context.Canceled),
+			want: 130,
 		},
 		{
 			name: "joined invalid setting",

@@ -1,6 +1,7 @@
 package echo
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -45,7 +46,7 @@ func TestAccompanyEcho_RecordsLatency(t *testing.T) {
 	server := &speedtest.Server{ID: "1001", URL: api.ServerUploadURL("1001")}
 	echo := New(newClient(t), server, 20*time.Millisecond)
 
-	echo.Run()
+	echo.Run(t.Context())
 	defer echo.Stop()
 
 	require.Eventually(
@@ -113,7 +114,7 @@ func TestAccompanyEcho_Run(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.NotPanics(t, func() { tt.ae.Run() })
+			assert.NotPanics(t, func() { tt.ae.Run(t.Context()) })
 			time.Sleep(10 * time.Millisecond) // let it start
 			assert.NotPanics(t, func() { tt.ae.Stop() })
 		})
@@ -135,7 +136,7 @@ func TestAccompanyEcho_Stop(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.NotPanics(t, func() { tt.ae.Run() })
+			assert.NotPanics(t, func() { tt.ae.Run(t.Context()) })
 			time.Sleep(10 * time.Millisecond)
 			assert.NotPanics(t, func() { tt.ae.Stop() })
 		})
@@ -188,4 +189,36 @@ func TestAccompanyEcho_Latencies(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// TestAccompanyEcho_RunEndsWithContext checks that the echo sends no more pings once its context ends, even before
+// Stop, so an interrupted run stops reaching the server.
+func TestAccompanyEcho_RunEndsWithContext(t *testing.T) {
+	t.Parallel()
+
+	api := testserver.NewAPI(t)
+	server := &speedtest.Server{ID: "1001", URL: api.ServerUploadURL("1001")}
+	echo := New(newClient(t), server, 10*time.Millisecond)
+
+	ctx, cancel := context.WithCancel(t.Context())
+
+	echo.Run(ctx)
+	defer echo.Stop()
+
+	require.Eventually(
+		t,
+		func() bool { return len(echo.Latencies()) > 0 },
+		5*time.Second,
+		10*time.Millisecond,
+	)
+
+	cancel()
+
+	// A ping already in flight may still arrive, so count once it has had time to finish.
+	time.Sleep(50 * time.Millisecond)
+
+	sent := len(api.Requests())
+
+	time.Sleep(100 * time.Millisecond)
+	assert.Len(t, api.Requests(), sent, "no ping may be sent after the context ends")
 }
