@@ -214,15 +214,6 @@ func TestClient_Write(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, ErrEmptyConn, err)
 	})
-
-	t.Run("write with nil conn", func(t *testing.T) {
-		t.Parallel()
-
-		client := &Client{}
-		err := client.Write([]byte("test"))
-		require.Error(t, err)
-		assert.Equal(t, ErrEmptyConn, err)
-	})
 }
 
 func TestClient_Read(t *testing.T) {
@@ -355,97 +346,6 @@ func TestClient_InitPacketLoss(t *testing.T) {
 	// Test with no conn, should return error
 	err := client.InitPacketLoss()
 	assert.Error(t, err)
-}
-
-func TestPLoss_String(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		p    PLoss
-		want string
-	}{
-		{
-			name: "zero sent",
-			p:    PLoss{Sent: 0, Dup: 0, Max: 0},
-			want: "Packet Loss: N/A",
-		},
-		{
-			name: "normal loss",
-			p:    PLoss{Sent: 90, Dup: 5, Max: 100},
-			want: "Packet Loss: 15.84% (Sent: 90/Dup: 5/Max: 100)",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tt.want, tt.p.String())
-		})
-	}
-}
-
-func TestPLoss_Loss(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		p    PLoss
-		want float64
-	}{
-		{
-			name: "zero sent",
-			p:    PLoss{Sent: 0, Dup: 0, Max: 0},
-			want: -1,
-		},
-		{
-			name: "normal loss",
-			p:    PLoss{Sent: 90, Dup: 5, Max: 100},
-			want: 0.15841584158415845,
-		},
-		{
-			name: "no loss",
-			p:    PLoss{Sent: 100, Dup: 0, Max: 100},
-			want: 0.00990099009900991,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			assert.InDelta(t, tt.want, tt.p.Loss(), 1e-9)
-		})
-	}
-}
-
-func TestPLoss_LossPercent(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		p    PLoss
-		want float64
-	}{
-		{
-			name: "zero sent",
-			p:    PLoss{Sent: 0, Dup: 0, Max: 0},
-			want: -1,
-		},
-		{
-			name: "normal loss",
-			p:    PLoss{Sent: 90, Dup: 5, Max: 100},
-			want: 15.841584158415845,
-		},
-		{
-			name: "no loss",
-			p:    PLoss{Sent: 100, Dup: 0, Max: 100},
-			want: 0.990099009900991,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			assert.InDelta(t, tt.want, tt.p.LossPercent(), 1e-9)
-		})
-	}
 }
 
 func TestClient_PacketLoss(t *testing.T) {
@@ -1164,6 +1064,37 @@ func TestUploadPayloadSize(t *testing.T) {
 	for _, size := range []int64{-1, 0, 12} {
 		_, err = UploadPayloadSize(size)
 		require.ErrorIs(t, err, ErrInvalidTransfer, size)
+	}
+}
+
+// Test_parsePong checks that the PONG parser accepts LF and CRLF endings and clocks of any length, and rejects
+// other replies.
+func Test_parsePong(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		reply string
+		want  int64
+	}{
+		{name: "LF", reply: "PONG 1710000000000\n", want: 1710000000000},
+		{name: "CRLF", reply: "PONG 1710000000000\r\n", want: 1710000000000},
+		{name: "short clock", reply: "PONG 42\n", want: 42},
+		{name: "long clock", reply: "PONG 17100000000000\n", want: 17100000000000},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := parsePong([]byte(tt.reply))
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+
+	for _, reply := range []string{"", "\n", "PONG \n", "PONG x\n", "PING 1710000000000\n", "HELLO 2.11\n"} {
+		_, err := parsePong([]byte(reply))
+		require.ErrorIs(t, err, ErrEchoData, reply)
 	}
 }
 

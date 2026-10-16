@@ -78,6 +78,14 @@ func TestPacketLossSender_Connect(t *testing.T) {
 		err = ps2.Connect(ctx, "invalid:99999")
 		require.Error(t, err)
 	})
+
+	t.Run("nil dialer", func(t *testing.T) {
+		t.Parallel()
+
+		ps3, err := NewPacketLossSender("test-uuid", nil)
+		require.NoError(t, err)
+		require.ErrorIs(t, ps3.Connect(ctx, listener.LocalAddr().String()), ErrNilDialer)
+	})
 }
 
 func TestPacketLossSender_Send(t *testing.T) {

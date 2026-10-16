@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
-	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/transport"
 )
 
 // update rewrites the golden files from the current output instead of comparing against them.
@@ -73,7 +72,7 @@ func reportResults() []speedtest.Result {
 			},
 			Download:   &speedtest.Transfer{Rate: 12_500_000, Duration: 10 * time.Second},
 			Upload:     &speedtest.Transfer{Rate: 2_500_000, Duration: 10 * time.Second},
-			PacketLoss: &transport.PLoss{Sent: 300, Dup: 1, Max: 301},
+			PacketLoss: &speedtest.PacketLossStats{Sent: 300, Dup: 1, Max: 301},
 		},
 		{
 			Server: &speedtest.Server{

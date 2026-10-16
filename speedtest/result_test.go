@@ -7,8 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/transport"
 )
 
 // Test_outputTime_MarshalJSON checks the quoted, millisecond-precision timestamp of the JSON reports.
@@ -104,7 +102,7 @@ func TestResult_Report(t *testing.T) {
 		},
 		Download:   &Transfer{Rate: 12_500_000, Duration: 10 * time.Second},
 		Upload:     &Transfer{Rate: 2_500_000, Duration: 10 * time.Second},
-		PacketLoss: &transport.PLoss{Sent: 300, Dup: 1, Max: 301},
+		PacketLoss: &PacketLossStats{Sent: 300, Dup: 1, Max: 301},
 	}
 
 	report := full.Report()
@@ -118,7 +116,7 @@ func TestResult_Report(t *testing.T) {
 	assert.Equal(t, time.Millisecond, report.Jitter)
 	assert.InDelta(t, 12_500_000, float64(report.DLSpeed), 1e-9)
 	assert.InDelta(t, 2_500_000, float64(report.ULSpeed), 1e-9)
-	assert.Equal(t, transport.PLoss{Sent: 300, Dup: 1, Max: 301}, report.PacketLoss)
+	assert.Equal(t, PacketLossStats{Sent: 300, Dup: 1, Max: 301}, report.PacketLoss)
 	assert.Equal(
 		t,
 		TestDuration{

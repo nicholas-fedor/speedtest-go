@@ -428,7 +428,6 @@ package main
 import (
  "fmt"
  "github.com/nicholas-fedor/speedtest-go/v2/speedtest"
- "github.com/nicholas-fedor/speedtest-go/v2/speedtest/transport"
  "log"
 )
 
@@ -452,7 +451,7 @@ func main() {
 
  // Perform packet loss analysis on all available servers
  for _, server := range targets {
-  err := analyzer.Run(server.Host, func(packetLoss *transport.PLoss) {
+  err := analyzer.Run(server.Host, func(packetLoss *speedtest.PacketLossStats) {
    fmt.Println(packetLoss, server.Host, server.Name)
    // fmt.Println(packetLoss.Loss())
   })

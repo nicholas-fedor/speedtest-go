@@ -49,8 +49,8 @@ func main() {
     // 1. Retrieve available servers
     targets := serverList.Available()
 
-    // 2. Create a packet loss analyzer, use default options
-    analyzer := speedtest.NewPacketLossAnalyzer(&speedtest.PacketLossAnalyzerOptions{
+    // 2. Create a packet loss analyzer that connects the way the client does, with a faster sending interval
+    analyzer := speedtestClient.NewPacketLossAnalyzer(&speedtest.PacketLossAnalyzerOptions{
         PacketSendingInterval: time.Millisecond * 100,
     })
 
@@ -60,7 +60,7 @@ func main() {
         wg.Add(1)
         go func(server *speedtest.Server, analyzer *speedtest.PacketLossAnalyzer) {
             defer wg.Done()
-            err = analyzer.Run(server.Host, func(packetLoss *transport.PLoss) {
+            err = analyzer.Run(server.Host, func(packetLoss *speedtest.PacketLossStats) {
                 fmt.Println(packetLoss, server.Host, server.Name)
             })
             if err != nil {
@@ -93,12 +93,12 @@ func main() {
 When run successfully, the program will output individual server packet loss results followed by mixed results:
 
 ```text
-{Loss:0.05 LossPercent:5.00} speedtest.example.com Example Server
-{Loss:0.02 LossPercent:2.00} speedtest2.example.com Example Server 2
+Packet Loss: 4.95% (Sent: 96/Dup: 0/Max: 100) speedtest.example.com:8080 Example Server
+Packet Loss: 1.98% (Sent: 99/Dup: 0/Max: 100) speedtest2.example.com:8080 Example Server 2
 ...
-Mixed packets lossed: 3.50%
-Mixed packets lossed: 0.04
-Mixed packets lossed: {Loss:0.035 LossPercent:3.50}
+Mixed packets lossed: 3.47%
+Mixed packets lossed: 0.03
+Mixed packets lossed: Packet Loss: 3.47% (Sent: 195/Dup: 0/Max: 201)
 ```
 
 ## Notes

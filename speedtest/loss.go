@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/transport"
+	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/internal/transport"
 )
 
 // PacketLossAnalyzerOptions configures the packet loss analyzer.
@@ -22,15 +22,33 @@ type PacketLossAnalyzerOptions struct {
 	UDPDialer              *net.Dialer // udp dialer for sending packet
 }
 
-// defaultPacketSendingTimeout bounds connecting the analyzer's sockets when the options set no timeout.
-const defaultPacketSendingTimeout = 5 * time.Second
-
 // PacketLossAnalyzer performs packet loss analysis on network connections.
 type PacketLossAnalyzer struct {
 	options *PacketLossAnalyzerOptions
 	// sourceErr is why SourceInterface did not resolve, returned by every run, or nil.
 	sourceErr error
 }
+
+// PacketLossStats holds the counts a server reports for the datagrams sent to it, which measure uplink packet loss.
+//
+// The loss is 1 - (Sent - Dup) / (Max + 1), since Max + 1 datagrams were sent by the time the server received the
+// one numbered Max. Counts combined from several servers keep that form: their Max is one less than the datagrams
+// sent to all of them.
+type PacketLossStats struct {
+	// Sent is the number of datagrams the server received.
+	Sent int `json:"sent"`
+	// Dup is the number of duplicate datagrams the server received.
+	Dup int `json:"dup"`
+	// Max is the highest datagram index the server received.
+	Max int `json:"max"`
+}
+
+// defaultPacketSendingTimeout bounds connecting the analyzer's sockets when the options set no timeout.
+const defaultPacketSendingTimeout = 5 * time.Second
+
+// ErrUnsupported is returned when a server does not serve the packet loss protocol. Some servers close the TCP port
+// it uses.
+var ErrUnsupported = errors.New("unsupported protocol")
 
 // NewPacketLossAnalyzer creates a new packet loss analyzer with the given options.
 //
@@ -144,7 +162,7 @@ func dialerWithTimeout(dialer *net.Dialer, timeout time.Duration) *net.Dialer {
 }
 
 // RunMulti Mix all servers to get the average packet loss.
-func (pla *PacketLossAnalyzer) RunMulti(hosts []string) (*transport.PLoss, error) {
+func (pla *PacketLossAnalyzer) RunMulti(hosts []string) (*PacketLossStats, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), pla.options.SamplingDuration)
 	defer cancel()
 
@@ -152,10 +170,12 @@ func (pla *PacketLossAnalyzer) RunMulti(hosts []string) (*transport.PLoss, error
 }
 
 // RunMultiWithContext runs packet loss analysis on multiple hosts concurrently with context.
+//
+// The result combines the last sample from each host that counted sent packets, as [combinePacketLoss] describes.
 func (pla *PacketLossAnalyzer) RunMultiWithContext(
 	ctx context.Context,
 	hosts []string,
-) (*transport.PLoss, error) {
+) (*PacketLossStats, error) {
 	if pla.sourceErr != nil {
 		return nil, fmt.Errorf(
 			"source interface %q: %w",
@@ -164,7 +184,7 @@ func (pla *PacketLossAnalyzer) RunMultiWithContext(
 		)
 	}
 
-	results := make(map[string]*transport.PLoss)
+	results := make(map[string]*PacketLossStats)
 	mutex := &sync.Mutex{}
 
 	wg := &sync.WaitGroup{}
@@ -174,9 +194,9 @@ func (pla *PacketLossAnalyzer) RunMultiWithContext(
 		go func(h string) {
 			defer wg.Done()
 
-			var lastValid *transport.PLoss
+			var lastValid *PacketLossStats
 
-			_ = pla.RunWithContext(ctx, h, func(packetLoss *transport.PLoss) {
+			_ = pla.RunWithContext(ctx, h, func(packetLoss *PacketLossStats) {
 				if packetLoss.Sent != 0 {
 					lastValid = packetLoss
 				}
@@ -193,21 +213,14 @@ func (pla *PacketLossAnalyzer) RunMultiWithContext(
 	wg.Wait()
 
 	if len(results) == 0 {
-		return nil, transport.ErrUnsupported
+		return nil, ErrUnsupported
 	}
 
-	var pLoss transport.PLoss
-	for _, hostPacketLoss := range results {
-		pLoss.Sent += hostPacketLoss.Sent
-		pLoss.Dup += hostPacketLoss.Dup
-		pLoss.Max += hostPacketLoss.Max
-	}
-
-	return &pLoss, nil
+	return combinePacketLoss(results), nil
 }
 
 // Run performs packet loss analysis on a single host.
-func (pla *PacketLossAnalyzer) Run(host string, callback func(packetLoss *transport.PLoss)) error {
+func (pla *PacketLossAnalyzer) Run(host string, callback func(packetLoss *PacketLossStats)) error {
 	ctx, cancel := context.WithTimeout(context.Background(), pla.options.SamplingDuration)
 	defer cancel()
 
@@ -226,12 +239,12 @@ func (pla *PacketLossAnalyzer) Run(host string, callback func(packetLoss *transp
 //   - callback: receives each sample.
 //
 // Returns:
-//   - error: the SourceInterface error when it did not resolve, [transport.ErrUnsupported] wrapping the cause when
+//   - error: the SourceInterface error when it did not resolve, [ErrUnsupported] wrapping the cause when
 //     setup fails, the sampling error when the connection fails during the run, or nil when ctx ends the run.
 func (pla *PacketLossAnalyzer) RunWithContext(
 	ctx context.Context,
 	host string,
-	callback func(packetLoss *transport.PLoss),
+	callback func(packetLoss *PacketLossStats),
 ) error {
 	if pla.sourceErr != nil {
 		return fmt.Errorf("source interface %q: %w", pla.options.SourceInterface, pla.sourceErr)
@@ -239,31 +252,31 @@ func (pla *PacketLossAnalyzer) RunWithContext(
 
 	samplerClient, err := transport.NewClient(pla.options.TCPDialer)
 	if err != nil {
-		return fmt.Errorf("%w: %w", transport.ErrUnsupported, err)
+		return fmt.Errorf("%w: %w", ErrUnsupported, err)
 	}
 
 	senderClient, err := transport.NewPacketLossSender(samplerClient.ID(), pla.options.UDPDialer)
 	if err != nil {
-		return fmt.Errorf("%w: %w", transport.ErrUnsupported, err)
+		return fmt.Errorf("%w: %w", ErrUnsupported, err)
 	}
 
 	err = samplerClient.Connect(ctx, host)
 	if err != nil {
-		return fmt.Errorf("%w: %w", transport.ErrUnsupported, err)
+		return fmt.Errorf("%w: %w", ErrUnsupported, err)
 	}
 
 	defer func() { _ = samplerClient.Disconnect() }()
 
 	err = senderClient.Connect(ctx, host)
 	if err != nil {
-		return fmt.Errorf("%w: %w", transport.ErrUnsupported, err)
+		return fmt.Errorf("%w: %w", ErrUnsupported, err)
 	}
 
 	defer func() { _ = senderClient.Close() }()
 
 	err = samplerClient.InitPacketLossContext(ctx)
 	if err != nil {
-		return fmt.Errorf("%w: %w", transport.ErrUnsupported, err)
+		return fmt.Errorf("%w: %w", ErrUnsupported, err)
 	}
 
 	// The send loop must stop before the sender is closed, so stop it and wait for it before the deferred Close.
@@ -293,7 +306,7 @@ func (pla *PacketLossAnalyzer) RunWithContext(
 func (pla *PacketLossAnalyzer) loopSampler(
 	ctx context.Context,
 	client *transport.Client,
-	callback func(packetLoss *transport.PLoss),
+	callback func(packetLoss *PacketLossStats),
 ) error {
 	ticker := time.NewTicker(pla.options.RemoteSamplingInterval)
 	defer ticker.Stop()
@@ -310,7 +323,9 @@ func (pla *PacketLossAnalyzer) loopSampler(
 				return fmt.Errorf("packet loss sampling failed: %w", err)
 			}
 
-			callback(packetLoss)
+			callback(
+				&PacketLossStats{Sent: packetLoss.Sent, Dup: packetLoss.Dup, Max: packetLoss.Max},
+			)
 		case <-ctx.Done():
 			return nil
 		}
@@ -342,6 +357,30 @@ func (pla *PacketLossAnalyzer) loopSender(
 	}
 }
 
+// combinePacketLoss adds up the counts of several servers into one set with the same loss formula.
+//
+// Each server expected Max + 1 datagrams, so the combined Max is the sum of those, less one. Adding the Max values
+// alone would lose one datagram from the denominator for every server after the first.
+//
+// Parameters:
+//   - results: each server's counts, keyed by host.
+//
+// Returns:
+//   - *PacketLossStats: the combined counts.
+func combinePacketLoss(results map[string]*PacketLossStats) *PacketLossStats {
+	var combined PacketLossStats
+
+	for _, hostPacketLoss := range results {
+		combined.Sent += hostPacketLoss.Sent
+		combined.Dup += hostPacketLoss.Dup
+		combined.Max += hostPacketLoss.Max + 1
+	}
+
+	combined.Max--
+
+	return &combined
+}
+
 // endedByContext reports whether a sampling error means the run's context ended rather than the connection failing.
 //
 // The sampler's connection deadline equals the context deadline, so the request can fail with a deadline error a
@@ -369,27 +408,27 @@ func endedByContext(ctx context.Context, err error) bool {
 //   - server: the server, whose host serves the protocols.
 //
 // Returns:
-//   - transport.PLoss: the last sample in which the server counted sent packets, or zero counts when none did. It is
+//   - PacketLossStats: the last sample in which the server counted sent packets, or zero counts when none did. It is
 //     also returned with an error, so a measurement that failed partway keeps what it saw.
 //   - error: [ErrServerNil], [ErrUninitializedManager] for a client not built by [New], an error wrapping
-//     [transport.ErrUnsupported] when the server cannot be reached, or the sampling error.
-func (s *Client) PacketLoss(ctx context.Context, server *Server) (transport.PLoss, error) {
+//     [ErrUnsupported] when the server cannot be reached, or the sampling error.
+func (s *Client) PacketLoss(ctx context.Context, server *Server) (PacketLossStats, error) {
 	if !s.ready() {
-		return transport.PLoss{}, ErrUninitializedManager
+		return PacketLossStats{}, ErrUninitializedManager
 	}
 
 	if server == nil {
-		return transport.PLoss{}, ErrServerNil
+		return PacketLossStats{}, ErrServerNil
 	}
 
 	host, err := tcpHost(server)
 	if err != nil {
-		return transport.PLoss{}, fmt.Errorf("%w: %w", transport.ErrUnsupported, err)
+		return PacketLossStats{}, fmt.Errorf("%w: %w", ErrUnsupported, err)
 	}
 
-	var last transport.PLoss
+	var last PacketLossStats
 
-	err = s.NewPacketLossAnalyzer(nil).RunWithContext(ctx, host, func(packetLoss *transport.PLoss) {
+	err = s.NewPacketLossAnalyzer(nil).RunWithContext(ctx, host, func(packetLoss *PacketLossStats) {
 		if packetLoss.Sent != 0 {
 			last = *packetLoss
 		}
@@ -399,4 +438,50 @@ func (s *Client) PacketLoss(ctx context.Context, server *Server) (transport.PLos
 	}
 
 	return last, nil
+}
+
+// String formats the packet loss as a percentage with the counts, or reports it unavailable when the server
+// received nothing, such as when a gateway drops every datagram.
+//
+// Returns:
+//   - string: the formatted packet loss.
+func (p PacketLossStats) String() string {
+	if p.Sent == 0 {
+		return "Packet Loss: N/A"
+	}
+
+	return fmt.Sprintf(
+		"Packet Loss: %.2f%% (Sent: %d/Dup: %d/Max: %d)",
+		p.Loss()*100,
+		p.Sent,
+		p.Dup,
+		p.Max,
+	)
+}
+
+// Loss returns the packet loss ratio.
+//
+// Counts that do not fit together, such as more unique datagrams than were sent, are held to the range 0 to 1, so
+// -1 always means that the server received nothing.
+//
+// Returns:
+//   - float64: the ratio from 0 to 1, or -1 when the server received nothing.
+func (p PacketLossStats) Loss() float64 {
+	if p.Sent == 0 {
+		return -1
+	}
+
+	return min(max(1-float64(p.Sent-p.Dup)/float64(p.Max+1), 0), 1)
+}
+
+// LossPercent returns the packet loss percentage.
+//
+// Returns:
+//   - float64: the percentage from 0 to 100, or -1 when the server received nothing.
+func (p PacketLossStats) LossPercent() float64 {
+	if p.Sent == 0 {
+		return -1
+	}
+
+	return p.Loss() * 100
 }

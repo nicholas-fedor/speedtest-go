@@ -47,7 +47,18 @@ func NewPacketLossSender(uuid string, dialer *net.Dialer) (*PacketLossSender, er
 }
 
 // Connect establishes a UDP connection to the specified host.
+//
+// Parameters:
+//   - ctx: cancellation for the dial.
+//   - host: the server's host:port.
+//
+// Returns:
+//   - error: [ErrNilDialer] when the sender has no dialer, or the dial error.
 func (ps *PacketLossSender) Connect(ctx context.Context, host string) error {
+	if ps.dialer == nil {
+		return ErrNilDialer
+	}
+
 	ps.host = host
 
 	conn, err := ps.dialer.DialContext(ctx, "udp", ps.host)

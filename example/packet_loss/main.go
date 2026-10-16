@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
-	"github.com/nicholas-fedor/speedtest-go/v2/speedtest/transport"
 )
 
 const packetSendingInterval = 100 * time.Millisecond
@@ -44,10 +43,10 @@ func main() {
 			defer waitGroup.Done()
 			// Note: Please call ctx.cancel at the appropriate time to release resources if you use analyzer.RunWithContext
 			// This example uses analyzer.Run(), which ends on its own after the sampling duration.
-			err = analyzer.Run(server.Host, func(packetLoss *transport.PLoss) {
+			err = analyzer.Run(server.Host, func(packetLoss *speedtest.PacketLossStats) {
 				_, _ = fmt.Fprintln(os.Stdout, packetLoss, server.Host, server.Name)
 			})
-			// err = analyzer.RunWithContext(ctx, server.Host, func(packetLoss *transport.PLoss) {
+			// err = analyzer.RunWithContext(ctx, server.Host, func(packetLoss *speedtest.PacketLossStats) {
 			//	fmt.Println(packetLoss, server.Host, server.Name)
 			// })
 			if err != nil {
