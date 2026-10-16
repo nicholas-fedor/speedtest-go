@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/config"
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/testserver"
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/version"
 )
 
@@ -132,14 +134,49 @@ func TestExecuteRunErrorSkipsUsage(t *testing.T) {
 	assert.NotContains(t, out, "Usage:")
 }
 
-// TestExecuteListInterrupted checks that the list command runs with the context it is executed with, so an interrupt
-// ends its server lookup with the context's error.
+// TestExecuteInterrupted checks that both commands run with the context they are executed with, so an interrupt ends
+// them with the context's error, and that they say "Interrupted" in place of cobra's error message.
 //
 //nolint:paralleltest // executeContext resets the global viper.
-func TestExecuteListInterrupted(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
+func TestExecuteInterrupted(t *testing.T) {
+	for _, args := range [][]string{{"list"}, {"--json"}} {
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
 
-	_, err := executeContext(ctx, t, "list", "--config", writeSettings(t))
-	require.ErrorIs(t, err, context.Canceled)
+		out, err := executeContext(ctx, t, append(args, "--config", writeSettings(t))...)
+		require.ErrorIs(t, err, context.Canceled, args)
+		assert.Equal(t, "Interrupted\n", out, args)
+	}
+}
+
+// TestExecuteJSON runs the speed test command against the fake API, as a script would: stdout holds exactly one
+// JSON document, and nothing else.
+//
+//nolint:paralleltest // The command binds flags to the global viper.
+func TestExecuteJSON(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	api := testserver.NewAPI(t)
+
+	var stdout, stderr bytes.Buffer
+
+	rootCmd := NewRootCommand()
+	rootCmd.SetOut(&stdout)
+	rootCmd.SetErr(&stderr)
+	rootCmd.SetArgs([]string{
+		"--config", writeSettings(t),
+		"--base-url", api.URL(),
+		"--json", "--no-download", "--no-upload",
+	})
+
+	require.NoError(t, rootCmd.ExecuteContext(t.Context()))
+
+	decoder := json.NewDecoder(&stdout)
+
+	var document map[string]any
+	require.NoError(t, decoder.Decode(&document))
+	assert.False(t, decoder.More(), "stdout must hold one JSON document")
+	assert.Contains(t, document, "servers")
+	assert.Empty(t, stderr.String())
 }

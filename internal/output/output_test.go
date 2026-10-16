@@ -7,53 +7,43 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/nicholas-fedor/speedtest-go/v2/internal/version"
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
 
-func TestShowServerList(t *testing.T) {
+// TestWriteServerList_Exported checks that the exported writers show and mask the distance column.
+func TestWriteServerList_Exported(t *testing.T) {
 	t.Parallel()
 
-	type args struct {
-		servers speedtest.Servers
-	}
-
-	tests := []struct {
-		name string
-		args args
-	}{
+	servers := speedtest.Servers{
 		{
-			name: "show server list",
-			args: args{
-				servers: []*speedtest.Server{
-					{ID: "1", Name: "Test Server", Sponsor: "Test", Country: "US", Distance: 10.0},
-				},
-			},
+			ID:       "1",
+			Name:     "Test Server",
+			Sponsor:  "Test",
+			Country:  "US",
+			Distance: 10.0,
+			Latency:  time.Millisecond,
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			assert.NotPanics(t, func() { ShowServerList(tt.args.servers) })
-		})
-	}
+
+	var plain, masked bytes.Buffer
+
+	WriteServerList(&plain, servers)
+	WriteMaskedServerList(&masked, servers)
+
+	assert.Equal(t, "[    1]     10.00km 1ms \tTest Server (US) by Test \n", plain.String())
+	assert.Equal(t, "[    1]     **.**km 1ms \tTest Server (US) by Test \n", masked.String())
 }
 
-func TestAppInfo(t *testing.T) {
+// TestWriteAppInfo checks that the banner names the version between blank lines.
+func TestWriteAppInfo(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name string
-	}{
-		{"test app info"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			assert.NotPanics(t, func() { AppInfo(false, false) })
-			assert.NotPanics(t, func() { AppInfo(true, false) })
-			assert.NotPanics(t, func() { AppInfo(false, true) })
-		})
-	}
+	var out bytes.Buffer
+
+	WriteAppInfo(&out)
+
+	assert.Equal(t, "\n    "+version.Banner()+"\n\n", out.String())
 }
 
 // TestWriteServerList checks the server list lines, with the distance column shown or masked.
