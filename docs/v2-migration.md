@@ -46,7 +46,9 @@ if err != nil {
     log.Fatal(err)
 }
 
-serverList, err := client.FetchServers()
+ctx := context.Background()
+
+serverList, err := client.FetchServers(ctx)
 if err != nil {
     log.Fatal(err)
 }
@@ -55,8 +57,6 @@ targets, err := serverList.FindServer([]int{})
 if err != nil {
     log.Fatal(err)
 }
-
-ctx := context.Background()
 
 for _, server := range targets {
     ping, err := client.Ping(ctx, server)
@@ -142,15 +142,16 @@ client, err := speedtest.New(speedtest.WithLogger(slogLogger{logger: slog.Defaul
 
 ## Package functions and client state
 
-The package-level functions that used a hidden default client are removed. Call the method on your own client instead:
+The package-level functions that used a hidden default client are removed. Call the method on your own client instead. Every method that sends a request takes a context, so the `Context` variants are removed as well:
 
 | v1 | v2 |
 | --- | --- |
-| `FetchUserInfo()`, `FetchUserInfoContext(ctx)` | `client.FetchUserInfo()`, `client.FetchUserInfoContext(ctx)` |
-| `FetchServers()` | `client.FetchServers()` |
-| `FetchServerListContext(ctx)` | `client.FetchServerListContext(ctx)` |
-| `FetchServerByID(id)` | `client.FetchServerByID(id)` |
-| `CustomServer(host)` | `client.CustomServer(host)` |
+| `FetchUserInfo()`, `FetchUserInfoContext(ctx)`, and the client methods of the same names | `client.FetchUserInfo(ctx)` |
+| `FetchServers()`, `FetchServerListContext(ctx)`, and the client methods of the same names | `client.FetchServers(ctx)` |
+| `FetchServerByID(id)`, `client.FetchServerByID(id)`, and `client.FetchServerByIDContext(ctx, id)` | `client.FetchServerByID(ctx, id)` |
+| `CustomServer(host)` | `client.CustomServer(host)`, which sends no request and takes no context |
+
+`FetchServers` returns the context's error when the context ends before its latency probes finish, instead of a list whose probes all failed.
 
 The client no longer keeps the caller's details. `GetUser` and `SetUser` are removed: keep the `*User` that `FetchUserInfo` returns and pass it to `JSON` or `JSONL`.
 
@@ -294,7 +295,7 @@ These are new:
 | `ErrInterfaceNotFound`, `ErrNoInterfaceAddress` | `ResolveInterface` is given a name that no interface has, or an interface without a usable address. |
 
 ```go
-_, err := client.FetchServers()
+_, err := client.FetchServers(ctx)
 
 var statusErr *speedtest.StatusError
 if errors.As(err, &statusErr) {

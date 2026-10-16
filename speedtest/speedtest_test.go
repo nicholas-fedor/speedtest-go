@@ -310,7 +310,7 @@ func TestClient_UserAgent(t *testing.T) {
 			api := testserver.NewAPI(t)
 			client := newTestClient(t, append([]Option{WithBaseURL(api.URL())}, tt.opts...)...)
 
-			_, err := client.FetchUserInfoContext(context.Background())
+			_, err := client.FetchUserInfo(context.Background())
 			require.NoError(t, err)
 
 			requests := api.Requests()
@@ -370,7 +370,7 @@ func TestClient_Proxy(t *testing.T) {
 	proxy, seen := proxyRecorder(t)
 	client := newTestClient(t, WithBaseURL("http://speedtest.invalid"), WithProxy(proxy))
 
-	user, err := client.FetchUserInfoContext(context.Background())
+	user, err := client.FetchUserInfo(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "Proxied ISP", user.Isp)
 	assert.Equal(
@@ -458,7 +458,7 @@ func TestWithHTTPClient(t *testing.T) {
 				opts = slices.Concat(others, []Option{httpClient})
 			}
 
-			_, err := newTestClient(t, opts...).FetchUserInfoContext(context.Background())
+			_, err := newTestClient(t, opts...).FetchUserInfo(context.Background())
 			require.NoError(t, err)
 			assert.Equal(
 				t,
@@ -530,7 +530,7 @@ func TestWithLogger(t *testing.T) {
 	api := testserver.NewAPI(t)
 	client := newTestClient(t, WithBaseURL(api.URL()), WithLogger(logger))
 
-	_, err := client.FetchUserInfoContext(context.Background())
+	_, err := client.FetchUserInfo(context.Background())
 	require.NoError(t, err)
 
 	logger.mu.Lock()

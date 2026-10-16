@@ -36,17 +36,19 @@ func main() {
     speedtestClient, err := speedtest.New()
     checkError(err)
 
-    serverList, _ := speedtestClient.FetchServers()
+    ctx := context.TODO()
+
+    serverList, _ := speedtestClient.FetchServers(ctx)
     targets, _ := serverList.FindServer([]int{})
 
     if len(targets) > 0 {
         // Use s as the main server and the rest of the list as auxiliary servers.
         // The main server always gets connections, and the auxiliary servers share the rest.
         s := targets[0]
-        download, err := speedtestClient.DownloadMulti(context.TODO(), s, serverList)
+        download, err := speedtestClient.DownloadMulti(ctx, s, serverList)
         checkError(err)
 
-        upload, err := speedtestClient.UploadMulti(context.TODO(), s, serverList)
+        upload, err := speedtestClient.UploadMulti(ctx, s, serverList)
         checkError(err)
 
         fmt.Printf("Download: %s, Upload: %s\n", download.Rate, upload.Rate)

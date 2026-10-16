@@ -4,6 +4,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -23,6 +24,7 @@ var (
 // filterByCountry keeps the servers in the configured countries.
 //
 // Parameters:
+//   - ctx: ends the user lookup for auto.
 //   - client: the client, which looks up the user's country for auto.
 //   - cfg: the settings, with the country codes and the city.
 //   - servers: the servers to filter.
@@ -32,6 +34,7 @@ var (
 //   - []string: the country codes used, with auto resolved.
 //   - error: the error resolving auto, or an error wrapping errNoServersInCountries when no server matches.
 func filterByCountry(
+	ctx context.Context,
 	client *speedtest.Client,
 	cfg config.Config,
 	servers speedtest.Servers,
@@ -40,7 +43,7 @@ func filterByCountry(
 
 	for _, code := range cfg.CountryCodes {
 		if code == config.CountryAuto {
-			country, err := autoCountry(client, cfg)
+			country, err := autoCountry(ctx, client, cfg)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -63,6 +66,7 @@ func filterByCountry(
 // the country speedtest.net reports for the user.
 //
 // Parameters:
+//   - ctx: ends the user lookup.
 //   - client: the client, which looks up the user's country.
 //   - cfg: the settings, with the city.
 //
@@ -70,7 +74,7 @@ func filterByCountry(
 //   - string: the upper-case country code.
 //   - error: an error wrapping errUnknownCountry and the lookup's error when the city label is unknown or the user
 //     lookup fails, or errUnknownCountry when no country is known.
-func autoCountry(client *speedtest.Client, cfg config.Config) (string, error) {
+func autoCountry(ctx context.Context, client *speedtest.Client, cfg config.Config) (string, error) {
 	if cfg.City != "" {
 		location, err := speedtest.GetLocation(cfg.City)
 		if err != nil {
@@ -80,7 +84,7 @@ func autoCountry(client *speedtest.Client, cfg config.Config) (string, error) {
 		return strings.ToUpper(location.CC), nil
 	}
 
-	user, err := client.FetchUserInfo()
+	user, err := client.FetchUserInfo(ctx)
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", errUnknownCountry, err)
 	}

@@ -171,13 +171,17 @@ func (b ByDistance) Less(i, j int) bool {
 	return b.Servers[i].Distance < b.Servers[j].Distance
 }
 
-// FetchServerByID retrieves a server by given serverID.
-func (s *Client) FetchServerByID(serverID string) (*Server, error) {
-	return s.FetchServerByIDContext(context.Background(), serverID)
-}
-
-// FetchServerByIDContext retrieves a server by given serverID, observing the given context.
-func (s *Client) FetchServerByIDContext(ctx context.Context, serverID string) (*Server, error) {
+// FetchServerByID retrieves a server by its ID.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the request.
+//   - serverID: the server's ID.
+//
+// Returns:
+//   - *Server: the server, with its distance from the location set with [WithLocation], or else from the caller.
+//   - error: [ErrServerNotFound] when speedtest.net does not list the ID, an error wrapping [ErrUnexpectedStatus]
+//     for a status outside 2xx, or the request or decoding error.
+func (s *Client) FetchServerByID(ctx context.Context, serverID string) (*Server, error) {
 	if s == nil {
 		return nil, errSpeedtestClientNil
 	}
@@ -296,11 +300,6 @@ func (s *Client) pingServers(ctx context.Context, servers Servers) {
 	cancelFunc()
 }
 
-// FetchServers retrieves a list of available servers.
-func (s *Client) FetchServers() (Servers, error) {
-	return s.FetchServerListContext(context.Background())
-}
-
 // buildServerListURL constructs the URL for fetching server list.
 func (s *Client) buildServerListURL() (*url.URL, error) {
 	parsedURL, err := s.endpoint(serversPath)
@@ -417,8 +416,21 @@ func (s *Client) decodeServerList(resp *http.Response, pType payloadType) (Serve
 	return servers, nil
 }
 
-// FetchServerListContext retrieves a list of available servers, observing the given context.
-func (s *Client) FetchServerListContext(ctx context.Context) (Servers, error) {
+// FetchServers retrieves the servers near the caller, or near the location set with [WithLocation], and probes the
+// latency of each one.
+//
+// Each server's Latency is the round trip of one quick probe with the client's ping mode, or [PingTimeout] when the
+// probe failed.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the requests and the probes.
+//
+// Returns:
+//   - Servers: the servers, sorted by distance.
+//   - error: [ErrServerNotFound] for an empty list, an error wrapping [ErrUnexpectedStatus] when the lists answer
+//     with a status outside 2xx, the context's error when it ended before the probes finished, or the request or
+//     decoding error.
+func (s *Client) FetchServers(ctx context.Context) (Servers, error) {
 	if s == nil {
 		return Servers{}, errSpeedtestClientNil
 	}
@@ -443,6 +455,12 @@ func (s *Client) FetchServerListContext(ctx context.Context) (Servers, error) {
 	s.log().Debug(ctx, "pinging servers", logKeyCount, len(servers))
 
 	s.pingServers(ctx, servers)
+
+	// Probes cut short by the context all fail, which must not look like servers that never answered.
+	err = ctx.Err()
+	if err != nil {
+		return Servers{}, fmt.Errorf("server probes ended by context: %w", err)
+	}
 
 	sortByDistance(servers, s.settings.location)
 

@@ -50,10 +50,10 @@ The main logic is in the `main()` function:
 speedtestClient, err := speedtest.New()
 checkError(err)
 
-serverList, _ := speedtestClient.FetchServers()
-targets, _ := serverList.FindServer([]int{})
-
 ctx := context.Background()
+
+serverList, _ := speedtestClient.FetchServers(ctx)
+targets, _ := serverList.FindServer([]int{})
 
 for _, s := range targets {
     ping, err := speedtestClient.Ping(ctx, s)
@@ -69,7 +69,7 @@ for _, s := range targets {
 }
 ```
 
-- `speedtest.New()` creates a client, and its `FetchServers()` method retrieves a list of available Speedtest servers.
+- `speedtest.New()` creates a client, and its `FetchServers(ctx)` method retrieves a list of available Speedtest servers.
 - `serverList.FindServer([]int{})` returns the server with the lowest latency, since an empty slice names no server IDs.
 - The ping, download, and upload tests run one after another, and each returns its own result.
 - Rates print in Mbps, and latencies print as durations.
@@ -78,11 +78,11 @@ for _, s := range targets {
 
 The code includes commented examples for additional configurations:
 
-- Fetch user information: `speedtestClient.FetchUserInfo()`
+- Fetch user information: `speedtestClient.FetchUserInfo(ctx)`
 - Choose servers near a city: `speedtest.New(speedtest.WithLocation(tokyo))`, with `tokyo` from `speedtest.GetLocation("tokyo")`
 - Choose servers near coordinates: `speedtest.ParseLocation("osaka", "34.69,135.50")` gives a location for `speedtest.WithLocation`
 - Send from an IP address or network interface: `speedtest.New(speedtest.WithSource("192.168.1.101"))`
-- Fetch specific server by ID: `speedtestClient.FetchServerByID("28910")`
+- Fetch specific server by ID: `speedtestClient.FetchServerByID(ctx, "28910")`
 
 Uncomment and modify these lines as needed for more targeted testing.
 

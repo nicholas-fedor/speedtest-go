@@ -231,22 +231,8 @@ func serverIDs(servers Servers) []string {
 	return ids
 }
 
-// TestClient_FetchServerByID checks the context-free wrapper against the fake API and with a nil client.
+// TestClient_FetchServerByID covers finding a server, computing its distance, and lookup failures.
 func TestClient_FetchServerByID(t *testing.T) {
-	t.Parallel()
-
-	_, err := (*Client)(nil).FetchServerByID("1001")
-	require.Error(t, err)
-
-	api := testserver.NewAPI(t)
-
-	server, err := newBaseURLClient(t, api.URL()).FetchServerByID("1001")
-	require.NoError(t, err)
-	assert.Equal(t, "1001", server.ID)
-}
-
-// TestClient_FetchServerByIDContext covers finding a server, computing its distance, and lookup failures.
-func TestClient_FetchServerByIDContext(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -277,7 +263,7 @@ func TestClient_FetchServerByIDContext(t *testing.T) {
 
 			client := newBaseURLClient(t, api.URL())
 
-			server, err := client.FetchServerByIDContext(context.Background(), tt.id)
+			server, err := client.FetchServerByID(context.Background(), tt.id)
 
 			switch {
 			case tt.wantErr != nil:
@@ -313,7 +299,7 @@ func TestClient_FetchServerByIDContext(t *testing.T) {
 		require.NoError(t, err)
 
 		server, err := newTestClient(t, WithBaseURL(api.URL()), WithLocation(osaka)).
-			FetchServerByIDContext(context.Background(), "1001")
+			FetchServerByID(context.Background(), "1001")
 		require.NoError(t, err)
 
 		assert.InDelta(t, 395, server.Distance, 15)
@@ -322,27 +308,13 @@ func TestClient_FetchServerByIDContext(t *testing.T) {
 	t.Run("nil client", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := (*Client)(nil).FetchServerByIDContext(context.Background(), "1001")
+		_, err := (*Client)(nil).FetchServerByID(context.Background(), "1001")
 		require.Error(t, err)
 	})
 }
 
-// TestClient_FetchServers checks the context-free wrapper against the fake API and with a nil client.
+// TestClient_FetchServers covers fetching, probing, and sorting the server list, and list failures.
 func TestClient_FetchServers(t *testing.T) {
-	t.Parallel()
-
-	_, err := (*Client)(nil).FetchServers()
-	require.Error(t, err)
-
-	api := testserver.NewAPI(t)
-
-	servers, err := newBaseURLClient(t, api.URL()).FetchServers()
-	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{"1001", "1002"}, serverIDs(servers))
-}
-
-// TestClient_FetchServerListContext covers fetching, probing, and sorting the server list, and list failures.
-func TestClient_FetchServerListContext(t *testing.T) {
 	t.Parallel()
 
 	t.Run("without a location keeps the API distance and order", func(t *testing.T) {
@@ -351,7 +323,7 @@ func TestClient_FetchServerListContext(t *testing.T) {
 		api := testserver.NewAPI(t)
 		client := newBaseURLClient(t, api.URL())
 
-		servers, err := client.FetchServerListContext(context.Background())
+		servers, err := client.FetchServers(context.Background())
 		require.NoError(t, err)
 
 		assert.Equal(
@@ -400,7 +372,7 @@ func TestClient_FetchServerListContext(t *testing.T) {
 			servers, err := newBaseURLClient(
 				t,
 				api.URL(),
-			).FetchServerListContext(context.Background())
+			).FetchServers(context.Background())
 			require.NoError(t, err)
 
 			assert.Equal(t, []string{"2002", "2004", "2001", "2003"}, serverIDs(servers))
@@ -430,7 +402,7 @@ func TestClient_FetchServerListContext(t *testing.T) {
 			require.NoError(t, err)
 
 			servers, err := newTestClient(t, WithBaseURL(api.URL()), WithLocation(location)).
-				FetchServerListContext(context.Background())
+				FetchServers(context.Background())
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.want, serverIDs(servers))
@@ -449,7 +421,7 @@ func TestClient_FetchServerListContext(t *testing.T) {
 		require.NoError(t, err)
 
 		servers, err := newTestClient(t, WithBaseURL(api.URL()), WithLocation(location)).
-			FetchServerListContext(context.Background())
+			FetchServers(context.Background())
 		require.NoError(t, err)
 		require.True(t, api.Requested(testserver.PathServersStatic))
 
@@ -473,7 +445,7 @@ func TestClient_FetchServerListContext(t *testing.T) {
 		require.NoError(t, err)
 
 		servers, err := newTestClient(t, WithBaseURL(api.URL()), WithLocation(location)).
-			FetchServerListContext(context.Background())
+			FetchServers(context.Background())
 		require.NoError(t, err)
 
 		assert.Equal(t, []string{"1001", "1002", "3001"}, serverIDs(servers))
@@ -485,7 +457,7 @@ func TestClient_FetchServerListContext(t *testing.T) {
 		api := testserver.NewAPI(t)
 		api.SetResponse(testserver.PathServers, testserver.Response{Body: "[]"})
 
-		_, err := newBaseURLClient(t, api.URL()).FetchServerListContext(context.Background())
+		_, err := newBaseURLClient(t, api.URL()).FetchServers(context.Background())
 		require.ErrorIs(t, err, ErrServerNotFound)
 	})
 
@@ -495,14 +467,14 @@ func TestClient_FetchServerListContext(t *testing.T) {
 		api := testserver.NewAPI(t)
 		api.SetResponse(testserver.PathServers, testserver.Response{Body: "[{"})
 
-		_, err := newBaseURLClient(t, api.URL()).FetchServerListContext(context.Background())
+		_, err := newBaseURLClient(t, api.URL()).FetchServers(context.Background())
 		require.Error(t, err)
 	})
 
 	t.Run("nil client", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := (*Client)(nil).FetchServerListContext(context.Background())
+		_, err := (*Client)(nil).FetchServers(context.Background())
 		require.Error(t, err)
 	})
 }
@@ -586,15 +558,15 @@ func TestServers_FindServer(t *testing.T) {
 	}
 }
 
-// TestFetchServerListContext_TCPPingMode checks that TCP ping mode probes every listed server over TCP.
-func TestFetchServerListContext_TCPPingMode(t *testing.T) {
+// TestFetchServers_TCPPingMode checks that TCP ping mode probes every listed server over TCP.
+func TestFetchServers_TCPPingMode(t *testing.T) {
 	t.Parallel()
 
 	tcp := testserver.NewTCPServer(t)
 	api := testserver.NewAPI(t, testserver.WithServerHost(tcp.Addr()))
 	client := newTestClient(t, WithBaseURL(api.URL()), WithPingMode(TCP))
 
-	servers, err := client.FetchServerListContext(context.Background())
+	servers, err := client.FetchServers(context.Background())
 	require.NoError(t, err)
 	require.Len(t, servers, 2)
 
@@ -612,10 +584,10 @@ func TestFetchServerListContext_TCPPingMode(t *testing.T) {
 	assert.False(t, api.Requested(testserver.PathLatency), "TCP mode must not use HTTP probes")
 }
 
-// TestFetchServerListContext_ErrorStatus checks how the server list handles error statuses: a failing JSON list
+// TestFetchServers_ErrorStatus checks how the server list handles error statuses: a failing JSON list
 // falls back to the XML list, a failing XML list is an error, and servers whose latency probe fails are marked as
 // timed out so that they cannot be selected.
-func TestFetchServerListContext_ErrorStatus(t *testing.T) {
+func TestFetchServers_ErrorStatus(t *testing.T) {
 	t.Parallel()
 
 	failure := testserver.Response{Status: http.StatusServiceUnavailable, Body: "unavailable"}
@@ -626,7 +598,7 @@ func TestFetchServerListContext_ErrorStatus(t *testing.T) {
 		api := testserver.NewAPI(t)
 		api.SetResponse(testserver.PathServers, failure)
 
-		servers, err := newBaseURLClient(t, api.URL()).FetchServerListContext(context.Background())
+		servers, err := newBaseURLClient(t, api.URL()).FetchServers(context.Background())
 		require.NoError(t, err)
 
 		assert.Len(t, servers, 2)
@@ -640,7 +612,7 @@ func TestFetchServerListContext_ErrorStatus(t *testing.T) {
 		api.SetResponse(testserver.PathServers, failure)
 		api.SetResponse(testserver.PathServersStatic, failure)
 
-		_, err := newBaseURLClient(t, api.URL()).FetchServerListContext(context.Background())
+		_, err := newBaseURLClient(t, api.URL()).FetchServers(context.Background())
 		require.ErrorIs(t, err, ErrUnexpectedStatus)
 	})
 
@@ -650,7 +622,7 @@ func TestFetchServerListContext_ErrorStatus(t *testing.T) {
 		api := testserver.NewAPI(t)
 		api.SetResponse(testserver.PathLatency, failure)
 
-		servers, err := newBaseURLClient(t, api.URL()).FetchServerListContext(context.Background())
+		servers, err := newBaseURLClient(t, api.URL()).FetchServers(context.Background())
 		require.NoError(t, err)
 		require.Len(t, servers, 2)
 
@@ -668,14 +640,14 @@ func TestFetchServerListContext_ErrorStatus(t *testing.T) {
 	})
 }
 
-// TestFetchServerByIDContext_ErrorStatus checks that a failing server lookup is reported as a status error.
-func TestFetchServerByIDContext_ErrorStatus(t *testing.T) {
+// TestFetchServerByID_ErrorStatus checks that a failing server lookup is reported as a status error.
+func TestFetchServerByID_ErrorStatus(t *testing.T) {
 	t.Parallel()
 
 	api := testserver.NewAPI(t)
 	api.SetResponse(testserver.PathServerLookup, testserver.Response{Status: http.StatusNotFound})
 
-	_, err := newBaseURLClient(t, api.URL()).FetchServerByIDContext(context.Background(), "1001")
+	_, err := newBaseURLClient(t, api.URL()).FetchServerByID(context.Background(), "1001")
 	require.ErrorIs(t, err, ErrUnexpectedStatus)
 }
 
@@ -819,7 +791,7 @@ func TestServerCountryCode(t *testing.T) {
 		servers, err := newBaseURLClient(
 			t,
 			testserver.NewAPI(t).URL(),
-		).FetchServerListContext(context.Background())
+		).FetchServers(context.Background())
 		require.NoError(t, err)
 		require.NotEmpty(t, servers)
 
@@ -834,7 +806,7 @@ func TestServerCountryCode(t *testing.T) {
 		api := testserver.NewAPI(t)
 		api.SetResponse(testserver.PathServers, testserver.Response{})
 
-		servers, err := newBaseURLClient(t, api.URL()).FetchServerListContext(context.Background())
+		servers, err := newBaseURLClient(t, api.URL()).FetchServers(context.Background())
 		require.NoError(t, err)
 		require.True(
 			t,
@@ -856,4 +828,27 @@ func TestLondonCountryCode(t *testing.T) {
 	location, err := GetLocation("london")
 	require.NoError(t, err)
 	assert.Equal(t, "gb", location.CC)
+}
+
+// TestClient_FetchServers_ContextEndsDuringProbes checks that a context ending while the latency probes run is
+// reported, instead of a list whose probes all look failed.
+func TestClient_FetchServers_ContextEndsDuringProbes(t *testing.T) {
+	t.Parallel()
+
+	api := testserver.NewAPI(t)
+	api.SetResponse(testserver.PathLatency, testserver.Response{
+		Body:     "test=test",
+		Delay:    time.Second,
+		Location: "",
+		Status:   0,
+	})
+
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+
+	servers, err := newBaseURLClient(t, api.URL()).FetchServers(ctx)
+
+	require.True(t, api.Requested(testserver.PathLatency), "the context must end during the probes")
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Empty(t, servers)
 }

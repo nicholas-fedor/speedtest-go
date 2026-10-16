@@ -202,13 +202,13 @@ func TestNew_BaseURL(t *testing.T) {
 	)
 }
 
-// TestFetchUserInfoContext_BaseURL checks that user info is fetched under the configured base path.
-func TestFetchUserInfoContext_BaseURL(t *testing.T) {
+// TestFetchUserInfo_BaseURL checks that user info is fetched under the configured base path.
+func TestFetchUserInfo_BaseURL(t *testing.T) {
 	t.Parallel()
 
 	api := newMirrorAPI(t)
 
-	user, err := newBaseURLClient(t, api.URL()).FetchUserInfoContext(context.Background())
+	user, err := newBaseURLClient(t, api.URL()).FetchUserInfo(context.Background())
 	require.NoError(t, err)
 
 	want := testserver.DefaultUser()
@@ -224,15 +224,15 @@ func TestFetchUserInfoContext_BaseURL(t *testing.T) {
 	)
 }
 
-// TestFetchServerListContext_BaseURL checks that the JSON server list is fetched under the base path with the
+// TestFetchServers_BaseURL checks that the JSON server list is fetched under the base path with the
 // search keyword, and that the latency probes reach the listed servers.
-func TestFetchServerListContext_BaseURL(t *testing.T) {
+func TestFetchServers_BaseURL(t *testing.T) {
 	t.Parallel()
 
 	api := newMirrorAPI(t)
 	client := newTestClient(t, WithBaseURL(api.URL()), WithSearch("fiber"))
 
-	servers, err := client.FetchServerListContext(context.Background())
+	servers, err := client.FetchServers(context.Background())
 	require.NoError(t, err)
 	require.Len(t, servers, len(testserver.DefaultServers()))
 
@@ -244,15 +244,15 @@ func TestFetchServerListContext_BaseURL(t *testing.T) {
 	assert.False(t, api.Requested(testserver.PathServersStatic))
 }
 
-// TestFetchServerListContext_BaseURLFallback checks that an empty JSON response falls back to the XML list
+// TestFetchServers_BaseURLFallback checks that an empty JSON response falls back to the XML list
 // under the same base path.
-func TestFetchServerListContext_BaseURLFallback(t *testing.T) {
+func TestFetchServers_BaseURLFallback(t *testing.T) {
 	t.Parallel()
 
 	api := newMirrorAPI(t)
 	api.SetResponse(testserver.PathServers, testserver.Response{})
 
-	servers, err := newBaseURLClient(t, api.URL()).FetchServerListContext(context.Background())
+	servers, err := newBaseURLClient(t, api.URL()).FetchServers(context.Background())
 	require.NoError(t, err)
 	require.Len(t, servers, len(testserver.DefaultServers()))
 
@@ -260,8 +260,8 @@ func TestFetchServerListContext_BaseURLFallback(t *testing.T) {
 	assert.Equal(t, mirrorPrefix+testserver.PathServersStatic, static.Path)
 }
 
-// TestFetchServerByIDContext_BaseURL checks that a server lookup is sent under the base path with the server ID.
-func TestFetchServerByIDContext_BaseURL(t *testing.T) {
+// TestFetchServerByID_BaseURL checks that a server lookup is sent under the base path with the server ID.
+func TestFetchServerByID_BaseURL(t *testing.T) {
 	t.Parallel()
 
 	api := newMirrorAPI(t)
@@ -269,7 +269,7 @@ func TestFetchServerByIDContext_BaseURL(t *testing.T) {
 	server, err := newBaseURLClient(
 		t,
 		api.URL(),
-	).FetchServerByIDContext(context.Background(), "1001")
+	).FetchServerByID(context.Background(), "1001")
 	require.NoError(t, err)
 
 	assert.Equal(t, "1001", server.ID)
@@ -296,7 +296,7 @@ func TestFetchers_InvalidBaseURL(t *testing.T) {
 		{
 			name: "user info",
 			fetch: func() error {
-				_, err := client.FetchUserInfoContext(context.Background())
+				_, err := client.FetchUserInfo(context.Background())
 
 				return err
 			},
@@ -304,7 +304,7 @@ func TestFetchers_InvalidBaseURL(t *testing.T) {
 		{
 			name: "server list",
 			fetch: func() error {
-				_, err := client.FetchServerListContext(context.Background())
+				_, err := client.FetchServers(context.Background())
 
 				return err
 			},
@@ -312,7 +312,7 @@ func TestFetchers_InvalidBaseURL(t *testing.T) {
 		{
 			name: "server by ID",
 			fetch: func() error {
-				_, err := client.FetchServerByIDContext(context.Background(), "1")
+				_, err := client.FetchServerByID(context.Background(), "1")
 
 				return err
 			},
@@ -369,7 +369,7 @@ func TestFetchers_CacheBust(t *testing.T) {
 			name:     "user info",
 			endpoint: testserver.PathUserConfig,
 			fetch: func(client *Client) error {
-				_, err := client.FetchUserInfoContext(context.Background())
+				_, err := client.FetchUserInfo(context.Background())
 
 				return err
 			},
@@ -378,7 +378,7 @@ func TestFetchers_CacheBust(t *testing.T) {
 			name:     "server by ID",
 			endpoint: testserver.PathServerLookup,
 			fetch: func(client *Client) error {
-				_, err := client.FetchServerByIDContext(context.Background(), "1001")
+				_, err := client.FetchServerByID(context.Background(), "1001")
 
 				return err
 			},

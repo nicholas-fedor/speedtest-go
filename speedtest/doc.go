@@ -72,7 +72,9 @@
 //	    log.Fatal(err)
 //	}
 //
-//	servers, err := client.FetchServers()
+//	ctx := context.Background()
+//
+//	servers, err := client.FetchServers(ctx)
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
@@ -83,7 +85,6 @@
 //	    log.Fatal(err)
 //	}
 //
-//	ctx := context.Background()
 //	server := targets[0]
 //
 //	ping, err := client.Ping(ctx, server)

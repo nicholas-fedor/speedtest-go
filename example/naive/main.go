@@ -20,16 +20,16 @@ func main() {
 	speedtestClient, err := speedtest.New()
 	checkError(err)
 
-	// _, _ = speedtestClient.FetchUserInfo()
+	ctx := context.Background()
+
+	// _, _ = speedtestClient.FetchUserInfo(ctx)
 
 	// Search server using serverID.
 	// eg: fetch server with ID 28910.
 	// speedtest.ErrServerNotFound will be returned if the server cannot be found.
-	// server, err := speedtestClient.FetchServerByID("28910")
-	serverList, _ := speedtestClient.FetchServers()
+	// server, err := speedtestClient.FetchServerByID(ctx, "28910")
+	serverList, _ := speedtestClient.FetchServers(ctx)
 	targets, _ := serverList.FindServer([]int{})
-
-	ctx := context.Background()
 
 	for _, server := range targets {
 		// Please make sure your host can access this test server,

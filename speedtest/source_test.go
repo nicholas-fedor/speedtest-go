@@ -205,7 +205,7 @@ func TestNew_SourceInterface(t *testing.T) {
 		}),
 	)
 
-	_, err := client.FetchUserInfoContext(context.Background())
+	_, err := client.FetchUserInfo(context.Background())
 	require.NoError(t, err)
 	assert.Positive(t, userControls.Load(), "the user Control function should run")
 }
