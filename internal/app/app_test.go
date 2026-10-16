@@ -5,6 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -220,8 +223,8 @@ func TestRunListInterrupted(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
-// TestNewReporter checks that the settings select the reporter: nothing besides the JSON reports, lines for
-// --unix, and spinners otherwise.
+// TestNewReporter checks that the settings select the reporter: nothing besides the JSON reports, and lines for
+// --unix, --debug, and output that is not a terminal, such as a file or a pipe.
 func TestNewReporter(t *testing.T) {
 	t.Parallel()
 
@@ -230,10 +233,16 @@ func TestNewReporter(t *testing.T) {
 	assert.IsType(t, report.Discard{}, newReporter(config.Config{JSONOutput: true}, &out))
 	assert.IsType(t, report.Discard{}, newReporter(config.Config{JSONLOutput: true}, &out))
 	assert.IsType(t, &report.Lines{}, newReporter(config.Config{UnixOutput: true}, &out))
+	assert.IsType(t, &report.Lines{}, newReporter(config.Config{Debug: true}, &out))
+	assert.IsType(t, &report.Lines{}, newReporter(config.Config{}, &out))
 
-	spinner := newReporter(config.Config{}, &out)
-	assert.IsType(t, &report.Spinner{}, spinner)
-	spinner.Report(runner.RunFinished{Err: nil})
+	file, err := os.Create(filepath.Join(t.TempDir(), "output"))
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = file.Close() })
+
+	assert.False(t, isTerminal(file), "a file is not a terminal")
+	assert.IsType(t, &report.Lines{}, newReporter(config.Config{}, file))
 }
 
 // TestRunSettings checks that the settings reach the run, and that the country code for the user's own country
@@ -289,4 +298,28 @@ func TestWriteReports_WriteError(t *testing.T) {
 		"disk full",
 	)
 	require.NoError(t, writeReports(failingWriter{}, config.Config{}, nil, results))
+}
+
+// TestSilenceStandardLogger checks that the standard logger is silenced only until the returned function runs, so
+// messages after a run still show.
+//
+//nolint:paralleltest // The test changes the standard logger, which every package shares.
+func TestSilenceStandardLogger(t *testing.T) {
+	var shown bytes.Buffer
+
+	previous := log.Writer()
+
+	log.SetOutput(&shown)
+
+	t.Cleanup(func() { log.SetOutput(previous) })
+
+	restore := silenceStandardLogger()
+
+	log.Print("during the run")
+
+	restore()
+	log.Print("after the run")
+
+	assert.NotContains(t, shown.String(), "during the run")
+	assert.Contains(t, shown.String(), "after the run")
 }

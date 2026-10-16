@@ -3,7 +3,7 @@
 
 // Package report shows the progress of a speed test run.
 //
-// Each reporter implements [runner.Reporter]: [Spinner] shows live progress with spinners, [Lines] writes one line
-// per result for --unix output, and [Discard] shows nothing, for the JSON reports. The text of each line is the same
-// in every reporter that shows it.
+// Each reporter implements [runner.Reporter]: [TUI] shows live progress in a terminal, [Lines] writes one line per
+// result for --unix output and for output that is not a terminal, and [Discard] shows nothing, for the JSON reports.
+// The text of each line is the same in every reporter that shows it.
 package report

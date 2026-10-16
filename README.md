@@ -184,7 +184,7 @@ SPEEDTEST_GO_PING_MODE=tcp SPEEDTEST_GO_DNS_BIND_SOURCE=true speedtest-go
 #### Exit codes
 
 | Code | Meaning |
-|---|---|
+| --- | --- |
 | `0` | The command succeeded. |
 | `1` | The command failed, such as a network error or a `--server` ID that speedtest.net does not list. Errors go to stderr. |
 | `2` | A setting is invalid, such as an unknown `--ping-mode` or `--unit`, a negative `--thread`, more than one of `--json`, `--jsonl` and `--unix`, or a config file that cannot be read. |
@@ -197,11 +197,11 @@ speedtest-go version
 # speedtest-go v1.8.0 (1559e47, 2026-05-02) go1.26.5 linux/amd64
 ```
 
-
-
 #### Test Internet Speed
 
 Simply use `speedtest-go` command. The closest server is selected by default. Use the `-m` flag to enable multi-measurement mode (recommended)
+
+In a terminal, each running test shows its live progress, and each result replaces it as a line. When the output is not a terminal, such as a pipe or a file, or with `--debug`, the results are plain lines without the progress, as with `--unix`.
 
 ```bash
 ## unix like format output
@@ -300,7 +300,7 @@ The ping method is chosen separately with `--ping-mode`, and the packet loss tes
 Each download and upload request moves one block of data. Larger blocks spend less of the test on starting requests, which can matter on fast links, while smaller blocks suit slow ones. `--dl-size` and `--ul-size` pick a block size from these tables:
 
 | Flag | Sizes | Default |
-|---|---|---|
+| --- | --- | --- |
 | `--dl-size` | 350, 500, 750, 1000, 1500, 2000, 2500, 3000, 3500, 4000 | 1000 |
 | `--ul-size` | 100, 300, 500, 800, 1000, 1500, 2500, 3000, 3500, 4000 | 1000, or 800 with `--multi` |
 
