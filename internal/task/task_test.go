@@ -2,7 +2,9 @@ package task
 
 import (
 	"bytes"
+	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -415,6 +417,27 @@ func TestTask_CheckErrorExitsWithFailure(t *testing.T) {
 			assert.Equal(t, "Fatal: retrieving servers, err: connection refused\n", stderr.String())
 		})
 	}
+}
+
+// TestTask_CheckErrorInterrupted checks that an error from the interrupt's cancelled context ends the process with
+// exit code 130 and an interrupted message instead of a failure.
+func TestTask_CheckErrorInterrupted(t *testing.T) {
+	t.Parallel()
+
+	var (
+		stderr bytes.Buffer
+		codes  []int
+	)
+
+	manager := NewManager(true, false)
+	manager.stderr = &stderr
+	manager.exit = func(code int) { codes = append(codes, code) }
+
+	task := &Task{manager: manager, title: "Download"}
+	task.CheckError(fmt.Errorf("failed to measure the transfer: %w", context.Canceled))
+
+	assert.Equal(t, []int{130}, codes)
+	assert.Equal(t, "Interrupted\n", stderr.String())
 }
 
 // TestTask_CheckErrorIgnoresNil checks that a nil error neither writes nor exits.

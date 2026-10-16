@@ -11,15 +11,21 @@ import (
 )
 
 // RunList lists available speedtest servers.
-func RunList(cfg config.Config) error {
+//
+// Parameters:
+//   - ctx: ends the server lookups. The CLI cancels it on an interrupt.
+//   - cfg: the settings.
+//
+// Returns:
+//   - error: the error of setting up the client or of a lookup, which wraps the context's error when it ended one.
+func RunList(ctx context.Context, cfg config.Config) error {
 	cfg = config.Setup(cfg)
 
+	//nolint:contextcheck // speedtest.New takes no context, and only its debug log of the settings uses one.
 	speedtestClient, err := setupSpeedtestClient(cfg)
 	if err != nil {
 		return err
 	}
-
-	ctx := context.Background()
 
 	// retrieving servers
 	servers, err := speedtestClient.FetchServers(ctx)

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -376,4 +377,39 @@ func TestServerLine(t *testing.T) {
 		"[6691] *.**km Shizuoka (Japan) by sudosan",
 		serverLine(server, config.Config{MaskISP: true}),
 	)
+}
+
+// TestRunTestsInterrupted checks that a run whose context ended writes no report and returns the context's error,
+// since measurements that ignore their errors, such as packet loss, end quietly with it.
+func TestRunTestsInterrupted(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.Config{JSONOutput: true}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := runTests(
+		ctx,
+		newTestClient(t, cfg),
+		nil,
+		nil,
+		cfg,
+		task.NewManager(true, false),
+		func() *speedtest.User { return nil },
+	)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+// TestRunListInterrupted checks that the list command returns the context's error when it ends the server lookup.
+func TestRunListInterrupted(t *testing.T) {
+	t.Parallel()
+
+	api := testserver.NewAPI(t)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := RunList(ctx, config.Config{BaseURL: api.URL()})
+	require.ErrorIs(t, err, context.Canceled)
 }

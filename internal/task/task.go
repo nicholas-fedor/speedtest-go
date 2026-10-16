@@ -2,6 +2,8 @@
 package task
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -10,8 +12,13 @@ import (
 	"github.com/chelnak/ysmrr"
 )
 
-// exitFailure is the process exit code for a fatal task error.
-const exitFailure = 1
+// Process exit codes for a task error.
+const (
+	// exitFailure is the exit code for a fatal task error.
+	exitFailure = 1
+	// exitInterrupted is the exit code for a task that an interrupt ended, as shells report SIGINT.
+	exitInterrupted = 130
+)
 
 // Manager manages tasks with spinners for CLI output.
 type Manager struct {
@@ -168,7 +175,8 @@ func (t *Task) Printf(format string, args ...any) {
 	t.spinner.UpdateMessagef(format, args...)
 }
 
-// CheckError ends the process with exit code 1 when err is not nil. The progress spinner shows the error when
+// CheckError ends the process with exit code 1 when err is not nil, or with 130 and an interrupted message when err
+// wraps [context.Canceled], which the CLI's interrupt handling causes. The progress spinner shows the error when
 // there is one. Otherwise the error goes to stderr, which keeps JSON and unix output on stdout intact.
 //
 // Parameters:
@@ -179,6 +187,13 @@ func (t *Task) CheckError(err error) {
 	}
 
 	message := fmt.Sprintf("Fatal: %s, err: %v", strings.ToLower(t.title), err)
+	code := exitFailure
+
+	// The CLI cancels its context only on an interrupt, which is not a failure of the task.
+	if errors.Is(err, context.Canceled) {
+		message = "Interrupted"
+		code = exitInterrupted
+	}
 
 	if t.spinner != nil {
 		t.spinner.UpdateMessage(message)
@@ -188,5 +203,5 @@ func (t *Task) CheckError(err error) {
 		_, _ = fmt.Fprintln(t.manager.stderr, message)
 	}
 
-	t.manager.exit(exitFailure)
+	t.manager.exit(code)
 }

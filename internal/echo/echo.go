@@ -50,10 +50,13 @@ func New(
 	}
 }
 
-// Run starts the periodic ping test in a goroutine.
-func (ae *AccompanyEcho) Run() {
+// Run starts the periodic ping test in a goroutine, which pings until Stop is called or ctx ends.
+//
+// Parameters:
+//   - ctx: ends the pings.
+func (ae *AccompanyEcho) Run(ctx context.Context) {
 	ae.latencies = make([]int64, 0)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 
 	go func() {
 		defer cancel()
@@ -64,6 +67,8 @@ func (ae *AccompanyEcho) Run() {
 		for {
 			select {
 			case <-ae.stopEcho:
+				return
+			case <-ctx.Done():
 				return
 			case <-ticker.C:
 				stats, err := ae.client.Ping(

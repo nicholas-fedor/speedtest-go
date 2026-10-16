@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,9 +15,17 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/version"
 )
 
-// execute runs a new root command with args and returns its error and combined output. It resets the global viper
-// state the command binds to, and always passes an unreachable --base-url, so no case can reach speedtest.net.
+// execute runs a new root command with args and returns its error and combined output. See [executeContext].
 func execute(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+
+	return executeContext(t.Context(), t, args...)
+}
+
+// executeContext runs a new root command with ctx and args and returns its error and combined output. It resets the
+// global viper state the command binds to, and always passes an unreachable --base-url, so no case can reach
+// speedtest.net.
+func executeContext(ctx context.Context, t *testing.T, args ...string) (string, error) {
 	t.Helper()
 
 	viper.Reset()
@@ -29,7 +38,7 @@ func execute(t *testing.T, args ...string) (string, error) {
 	rootCmd.SetErr(&out)
 	rootCmd.SetArgs(append(args, "--base-url", "http://127.0.0.1:9"))
 
-	err := rootCmd.Execute()
+	err := rootCmd.ExecuteContext(ctx)
 
 	return out.String(), err
 }
@@ -121,4 +130,16 @@ func TestExecuteRunErrorSkipsUsage(t *testing.T) {
 	require.ErrorIs(t, err, config.ErrInvalidSetting)
 	assert.Contains(t, out, `unknown ping mode "udp"`)
 	assert.NotContains(t, out, "Usage:")
+}
+
+// TestExecuteListInterrupted checks that the list command runs with the context it is executed with, so an interrupt
+// ends its server lookup with the context's error.
+//
+//nolint:paralleltest // executeContext resets the global viper.
+func TestExecuteListInterrupted(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := executeContext(ctx, t, "list", "--config", writeSettings(t))
+	require.ErrorIs(t, err, context.Canceled)
 }

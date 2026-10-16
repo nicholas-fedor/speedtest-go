@@ -29,13 +29,13 @@ func NewRootCommand() *cobra.Command {
 
 			return config.InitViper(cfgFile)
 		},
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := config.Load()
 			if err != nil {
 				return fmt.Errorf("failed to load config: %w", err)
 			}
 
-			return app.RunSpeedtest(cfg)
+			return app.RunSpeedtest(cmd.Context(), cfg)
 		},
 	}
 
