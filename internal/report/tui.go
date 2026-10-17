@@ -6,20 +6,27 @@ package report
 import (
 	"fmt"
 	"io"
+	"sync/atomic"
+
+	"charm.land/lipgloss/v2"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/runner"
+	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
 
-// TUI shows the progress of a run in the terminal: a spinner row for each running lookup or test, and a line for
-// each result printed above the rows.
+// TUI shows the progress of a run in the terminal: a spinner row for each running lookup or test, with a progress bar
+// and the estimated time left on a transfer test's row, and a line for each result printed above the rows. Each server ends with a
+// panel of its headline results.
 //
 // It draws inline, never on the alternate screen, so the results stay in the terminal's scrollback. It reads no
 // input, so Ctrl-C reaches the CLI's interrupt handling.
 type TUI struct {
 	// program draws the rows.
 	program *tea.Program
+	// width is the terminal width the model last saw, or 0 while it is unknown.
+	width *atomic.Int64
 	// err is the error that ended the program, set before done is closed.
 	err error
 	// done is closed when the program has ended.
@@ -41,13 +48,21 @@ var _ runner.Reporter = (*TUI)(nil)
 // Returns:
 //   - *TUI: the reporter, which stops drawing when the run finishes.
 func NewTUI(out io.Writer, options Options, programOptions ...tea.ProgramOption) *TUI {
-	program := tea.NewProgram(newModel(), append([]tea.ProgramOption{
+	width := &atomic.Int64{}
+
+	program := tea.NewProgram(newModel(options, width), append([]tea.ProgramOption{
 		tea.WithInput(nil),
 		tea.WithOutput(out),
 		tea.WithoutSignalHandler(),
 	}, programOptions...)...)
 
-	reporter := &TUI{program: program, err: nil, done: make(chan struct{}), options: options}
+	reporter := &TUI{
+		program: program,
+		width:   width,
+		err:     nil,
+		done:    make(chan struct{}),
+		options: options,
+	}
 
 	go func() {
 		defer close(reporter.done)
@@ -59,7 +74,8 @@ func NewTUI(out io.Writer, options Options, programOptions ...tea.ProgramOption)
 }
 
 // Report shows an event: a lookup or test that starts gets a row, its progress updates the row, and its result
-// replaces the row with a finished line. [runner.RunFinished] waits until everything is drawn.
+// replaces the row with a finished line. A finished server gets its summary panel, and [runner.RunFinished] waits
+// until everything is drawn.
 //
 // Parameters:
 //   - event: the event.
@@ -84,13 +100,21 @@ func (t *TUI) Report(event runner.Event) {
 	case runner.PacketLossStarted:
 		t.print(packetLossStartedLine)
 	case runner.TransferStarted:
-		t.send(startRow{text: reported.Direction.String(), key: testRow})
+		t.send(startTransfer{direction: reported.Direction})
 	case runner.TransferProgress:
-		t.send(updateRow{text: progressLine(reported, t.options), key: testRow})
+		t.send(updateTransfer{
+			rate:      reported.Rate,
+			latency:   reported.Latency,
+			elapsed:   reported.Elapsed,
+			remaining: reported.Remaining,
+		})
 	case runner.TransferFinished:
-		t.finish(testRow, transferLine(reported, t.options))
+		t.send(endTransfer{})
+		t.print(transferLine(reported, t.options))
 	case runner.PacketLossFinished:
 		t.print(reported.Stats.String())
+	case runner.ServerFinished:
+		t.printPanel(reported.Result)
 	case runner.RunFinished:
 		t.send(endRun{failed: reported.Err != nil})
 		<-t.done
@@ -125,6 +149,24 @@ func (t *TUI) Err() error {
 func (t *TUI) finish(key rowKey, line string) {
 	t.send(endRow{key: key})
 	t.print(line)
+}
+
+// printPanel prints the summary panel of a server below its result lines, when the terminal is wide enough to show it
+// as a block.
+//
+// Parameters:
+//   - result: the server's measurements.
+func (t *TUI) printPanel(result speedtest.Result) {
+	if int(t.width.Load()) < panelWidth {
+		return
+	}
+
+	panel := summaryPanel(result, t.options)
+	if lipgloss.Width(panel) > int(t.width.Load()) {
+		return
+	}
+
+	t.send(tea.Println(panel)())
 }
 
 // print prints a finished line above the rows.

@@ -26,7 +26,7 @@ type TransferStarted struct {
 	Direction Direction
 }
 
-// TransferProgress reports the live rate of a transfer test.
+// TransferProgress reports the live state of a transfer test.
 type TransferProgress struct {
 	// Direction is whether the test downloads or uploads.
 	Direction Direction
@@ -34,6 +34,10 @@ type TransferProgress struct {
 	Rate speedtest.ByteRate
 	// Latency is the latest round trip measured under the load, or 0 before the first.
 	Latency time.Duration
+	// Elapsed is the time since the test started measuring.
+	Elapsed time.Duration
+	// Remaining is the estimated time left, which assumes a settling rate keeps settling.
+	Remaining time.Duration
 }
 
 // TransferFinished reports the result of a transfer test.

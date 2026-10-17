@@ -665,3 +665,64 @@ func TestWelford_UpdateConverges(t *testing.T) {
 	require.NotEqual(t, -1, stableAt, "the series never became stable")
 	assert.Equal(t, len(measuredRates)-1, stableAt)
 }
+
+// TestWelford_UpdatesUntilStable checks the estimate against the real rate series: it never predicts a later stop
+// than the actual one, since it assumes every coming update is stable, it predicts the actual stop exactly once the
+// series has levelled off, and it reaches 0 at the stop.
+func TestWelford_UpdatesUntilStable(t *testing.T) {
+	t.Parallel()
+
+	welford := NewWelford(5*time.Second, 50*time.Millisecond)
+	stop := len(measuredRates) - 1
+
+	var predictions []int
+
+	for index, rate := range measuredRates {
+		welford.Update(rate, rate)
+
+		if remaining, ok := welford.UpdatesUntilStable(); ok {
+			assert.LessOrEqual(t, index+remaining, stop, "update %d predicts a later stop", index)
+			predictions = append(predictions, index+remaining)
+		}
+	}
+
+	require.GreaterOrEqual(t, len(predictions), 50)
+
+	for _, predicted := range predictions[len(predictions)-50:] {
+		assert.Equal(t, stop, predicted)
+	}
+
+	remaining, ok := welford.UpdatesUntilStable()
+	assert.True(t, ok)
+	assert.Zero(t, remaining)
+}
+
+// TestWelford_UpdatesUntilStable_Unsettled checks a series that keeps swinging: before its minimum number of updates
+// the estimate assumes it settles by then, and past the minimum it gives no estimate.
+func TestWelford_UpdatesUntilStable_Unsettled(t *testing.T) {
+	t.Parallel()
+
+	// A 1-second window of 50-millisecond samples has 20 samples, so its minimum is 40 updates.
+	welford := NewWelford(time.Second, 50*time.Millisecond)
+
+	welford.Update(10, 10)
+
+	remaining, ok := welford.UpdatesUntilStable()
+	assert.True(t, ok, "a series that just started is expected to settle by its minimum")
+	assert.Equal(t, 40, remaining)
+
+	for index := range 39 {
+		rate := float64(10 + 20*(index%2))
+		welford.Update(rate, rate)
+	}
+
+	remaining, ok = welford.UpdatesUntilStable()
+	assert.True(t, ok, "a swinging series before its minimum is still expected to settle")
+	assert.Equal(t, 6, remaining, "the window must still be stable for a third of it, rounded down")
+
+	welford.Update(10, 10)
+	welford.Update(30, 30)
+
+	_, ok = welford.UpdatesUntilStable()
+	assert.False(t, ok, "a swinging series past its minimum may take any time to settle")
+}

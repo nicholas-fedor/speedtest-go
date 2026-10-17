@@ -178,7 +178,7 @@ func TestDirection_RunLogsWorkers(t *testing.T) {
 		logger := &recordingLogger{messages: map[string][]any{}}
 		meter := New(Config{
 			Logger:               logger,
-			OnRate:               nil,
+			OnProgress:           nil,
 			Connections:          2,
 			CaptureTime:          100 * time.Millisecond,
 			RateCaptureFrequency: 0,
@@ -198,23 +198,24 @@ func TestDirection_RunLogsWorkers(t *testing.T) {
 	})
 }
 
-// TestDirection_OnRate checks that the configured callback receives the live rate while the test runs.
-func TestDirection_OnRate(t *testing.T) {
+// TestDirection_OnProgress checks that the configured callback receives the live state while the test runs: the
+// rate, the elapsed time, which only grows, and an estimate of the time left that never runs past the capture time.
+func TestDirection_OnProgress(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
 		var (
-			mu    sync.Mutex
-			rates []float64
+			mu      sync.Mutex
+			updates []Progress
 		)
 
 		meter := New(Config{
 			Logger: nil,
-			OnRate: func(rate float64) {
+			OnProgress: func(progress Progress) {
 				mu.Lock()
 				defer mu.Unlock()
 
-				rates = append(rates, rate)
+				updates = append(updates, progress)
 			},
 			Connections:          1,
 			CaptureTime:          500 * time.Millisecond,
@@ -226,9 +227,73 @@ func TestDirection_OnRate(t *testing.T) {
 		mu.Lock()
 		defer mu.Unlock()
 
-		require.NotEmpty(t, rates)
-		assert.Positive(t, rates[len(rates)-1])
+		require.NotEmpty(t, updates)
+		assert.Positive(t, updates[len(updates)-1].Rate)
+
+		for index, progress := range updates {
+			assert.LessOrEqual(t, progress.Elapsed+progress.Remaining, 500*time.Millisecond)
+
+			if index > 0 {
+				assert.Greater(t, progress.Elapsed, updates[index-1].Elapsed)
+			}
+		}
 	})
+}
+
+// Test_remaining checks the estimate of the time left: the rest of the capture time, or the time the stability
+// check still needs when the rate is settling and that comes first.
+func Test_remaining(t *testing.T) {
+	t.Parallel()
+
+	const frequency = 50 * time.Millisecond
+
+	tests := []struct {
+		name        string
+		elapsed     time.Duration
+		untilStable int
+		settling    bool
+		want        time.Duration
+	}{
+		{
+			name:        "not settling",
+			elapsed:     4 * time.Second,
+			untilStable: 10,
+			settling:    false,
+			want:        11 * time.Second,
+		},
+		{
+			name:        "settling",
+			elapsed:     4 * time.Second,
+			untilStable: 120,
+			settling:    true,
+			want:        6 * time.Second,
+		},
+		{
+			name:        "settling slower than the limit",
+			elapsed:     12 * time.Second,
+			untilStable: 120,
+			settling:    true,
+			want:        3 * time.Second,
+		},
+		{
+			name:        "past the limit",
+			elapsed:     16 * time.Second,
+			untilStable: 0,
+			settling:    false,
+			want:        0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(
+				t,
+				tt.want,
+				remaining(15*time.Second, tt.elapsed, tt.untilStable, tt.settling, frequency),
+			)
+		})
+	}
 }
 
 // TestDirection_rateCaptureStops checks that the capture goroutine ends when its stop channel closes. The bubble
@@ -318,11 +383,11 @@ func TestDirection_rateCaptureBursts(t *testing.T) {
 
 				meter := New(Config{
 					Logger: nil,
-					OnRate: func(rate float64) {
+					OnProgress: func(progress Progress) {
 						mu.Lock()
 						defer mu.Unlock()
 
-						rates = append(rates, rate)
+						rates = append(rates, progress.Rate)
 					},
 					Connections:          1,
 					CaptureTime:          0,
@@ -447,7 +512,7 @@ func TestDirection_FinalRateIgnoresBlockedCallback(t *testing.T) {
 		release := make(chan struct{})
 		meter := New(Config{
 			Logger:               nil,
-			OnRate:               func(float64) { <-release },
+			OnProgress:           func(Progress) { <-release },
 			Connections:          1,
 			CaptureTime:          100 * time.Millisecond,
 			RateCaptureFrequency: 0,
