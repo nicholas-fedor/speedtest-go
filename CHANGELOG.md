@@ -54,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Remove the unused codacy configuration by @nicholas-fedor in [#543](https://github.com/nicholas-fedor/speedtest-go/pull/543)
 - Add the license header to generated mocks by @nicholas-fedor in [#537](https://github.com/nicholas-fedor/speedtest-go/pull/537)
 - Align struct fields with betteralign by @nicholas-fedor in [#533](https://github.com/nicholas-fedor/speedtest-go/pull/533)
 - Update module github.com/xo/terminfo to v1.2.0 by @renovate[bot] in [#520](https://github.com/nicholas-fedor/speedtest-go/pull/520)
