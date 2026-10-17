@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Show progress bars with the estimated time left on transfer tests by @nicholas-fedor in [#522](https://github.com/nicholas-fedor/speedtest-go/pull/522)
 - Show live progress with a bubbletea terminal UI by @nicholas-fedor in [#517](https://github.com/nicholas-fedor/speedtest-go/pull/517)
 - Run speed tests through a runner that reports events by @nicholas-fedor in [#515](https://github.com/nicholas-fedor/speedtest-go/pull/515)
 - Cancel a run on Ctrl-C and exit with code 130 by @nicholas-fedor in [#513](https://github.com/nicholas-fedor/speedtest-go/pull/513)
