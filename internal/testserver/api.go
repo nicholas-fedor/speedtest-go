@@ -51,11 +51,11 @@ type Option func(*API)
 type Response struct {
 	// Body is the response body. An empty body is sent with Content-Length 0.
 	Body string
+	// Location is the redirect target. Setting it without a Status sends 302 Found.
+	Location string
 	// Delay is waited before the response is sent, so a client measures a latency of at least that long. A request
 	// whose context ends first gets no response.
 	Delay time.Duration
-	// Location is the redirect target. Setting it without a Status sends 302 Found.
-	Location string
 	// Status is the HTTP status code. Zero means 200 OK, or 302 Found when Location is set.
 	Status int
 }

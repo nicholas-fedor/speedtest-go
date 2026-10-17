@@ -68,9 +68,12 @@ tasks:
       - go run . {{.CLI_ARGS}}
 
   fmt:
-    desc: "Format code with golangci-lint fmt"
+    desc: "Format code with golangci-lint fmt and align structs with betteralign"
     cmds:
       - golangci-lint fmt --config {{.GOLANGCI_CONFIG}} ./...
+      # betteralign reorders struct fields for size and keeps their comments.
+      # golangci-lint's fieldalignment deletes them, so it stays disabled.
+      - betteralign -apply ./...
 
   vet:
     desc: "Run go vet"
@@ -104,9 +107,10 @@ tasks:
       - go tool cover -func=coverage.out | tail -1
 
   lint:
-    desc: "Run golangci-lint"
+    desc: "Run golangci-lint and the betteralign struct alignment check"
     cmds:
       - golangci-lint run --config {{.GOLANGCI_CONFIG}} ./...
+      - betteralign ./...
 
   bench:
     desc: "Run benchmarks"

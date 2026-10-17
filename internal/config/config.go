@@ -15,43 +15,43 @@ import (
 
 // Config holds the application configuration.
 type Config struct {
-	ServerIDs     []int
-	CustomURL     string
-	SavingMode    bool
-	JSONOutput    bool
-	JSONLOutput   bool
-	UnixOutput    bool
-	Location      string
-	City          string
-	Proxy         string
-	Source        string
-	DNSBindSource bool
-	Multi         bool
-	Thread        int
-	Search        string
-	UserAgent     string
-	NoDownload    bool
-	NoUpload      bool
-	PingMode      speedtest.Proto
+	CustomURL string
+	Location  string
+	City      string
+	Proxy     string
+	Source    string
+	Search    string
+	UserAgent string
+	BaseURL   string
+	ServerIDs []int
+	// CountryCodes are the upper-case two-letter country codes servers must be in, with AUTO for the user's own
+	// country. Empty keeps every server.
+	CountryCodes []string
+	Thread       int
+	PingMode     speedtest.Proto
 	// TestMode is the protocol for download and upload tests.
 	TestMode speedtest.TestMode
 	Unit     speedtest.UnitType
-	// UnitSet reports that Unit holds a resolved unit. The zero value of [speedtest.UnitType] is decimal bits,
-	// so a Config without it uses the default Mbps output.
-	UnitSet bool
-	Debug   bool
-	BaseURL string
 	// DSCP is the Differentiated Services code point to mark connections with, or 0 to leave them unmarked.
 	DSCP int
 	// DownloadSize is the download block size from the library's size table, or 0 for the default.
 	DownloadSize int
 	// UploadSize is the upload block size in kB from the library's size table, or 0 for the default.
-	UploadSize int
+	UploadSize    int
+	SavingMode    bool
+	JSONOutput    bool
+	JSONLOutput   bool
+	UnixOutput    bool
+	DNSBindSource bool
+	Multi         bool
+	NoDownload    bool
+	NoUpload      bool
+	// UnitSet reports that Unit holds a resolved unit. The zero value of [speedtest.UnitType] is decimal bits,
+	// so a Config without it uses the default Mbps output.
+	UnitSet bool
+	Debug   bool
 	// MaskISP masks the user's IP address, coordinates, and distances to servers in every output.
 	MaskISP bool
-	// CountryCodes are the upper-case two-letter country codes servers must be in, with AUTO for the user's own
-	// country. Empty keeps every server.
-	CountryCodes []string
 }
 
 // CountryAuto is the country filter entry that stands for the user's own country.

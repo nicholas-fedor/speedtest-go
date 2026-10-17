@@ -16,12 +16,14 @@ import (
 // See Welford, B. P. (1962). Note on a Method for Calculating Corrected Sums of Squares and Products.
 // Technometrics, 4(3), 419–420. https://doi.org/10.1080/00401706.1962.10490022
 type Welford struct {
+	// vector holds the window's cumulative averages, used as a ring once it is full.
+	vector []float64
+	// movingVector holds the window's scaled samples, in the same slots as vector.
+	movingVector []float64
 	// n is the number of samples in the window, up to cap.
 	n int
 	// cap is the window size in samples.
 	cap int
-	// vector holds the window's cumulative averages, used as a ring once it is full.
-	vector []float64
 	// mean is the mean of the cumulative averages in the window.
 	mean float64
 	// sum is the sum of squared differences from the mean, from which the variance follows.
@@ -47,8 +49,6 @@ type Welford struct {
 	beta float64
 	// scale converts a sample per sampling period to a rate per second.
 	scale float64
-	// movingVector holds the window's scaled samples, in the same slots as vector.
-	movingVector []float64
 	// movingAvg is the sum of the scaled samples in the window.
 	movingAvg float64
 }
