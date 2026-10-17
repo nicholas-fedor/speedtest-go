@@ -52,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Align struct fields with betteralign by @nicholas-fedor in [#533](https://github.com/nicholas-fedor/speedtest-go/pull/533)
 - Update module github.com/xo/terminfo to v1.2.0 by @renovate[bot] in [#520](https://github.com/nicholas-fedor/speedtest-go/pull/520)
 - Update module github.com/mattn/go-runewidth to v0.0.31 by @renovate[bot] in [#519](https://github.com/nicholas-fedor/speedtest-go/pull/519)
 - Update github/codeql-action action to v4.39.0 by @renovate[bot] in [#501](https://github.com/nicholas-fedor/speedtest-go/pull/501)
