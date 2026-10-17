@@ -11,7 +11,7 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/runner"
 )
 
-// RunList lists available speedtest servers.
+// runList lists the servers the settings select.
 //
 // Parameters:
 //   - ctx: ends the server lookups. The CLI cancels it on an interrupt.
@@ -20,7 +20,7 @@ import (
 //
 // Returns:
 //   - error: the error of setting up the client or of a lookup, which wraps the context's error when it ended one.
-func RunList(ctx context.Context, cfg config.Config, out io.Writer) error {
+func runList(ctx context.Context, cfg config.Config, out io.Writer) error {
 	cfg = config.Setup(cfg)
 
 	//nolint:contextcheck // speedtest.New takes no context, and only its debug log of the settings uses one.

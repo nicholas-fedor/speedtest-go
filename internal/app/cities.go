@@ -3,18 +3,9 @@ package app
 import (
 	"fmt"
 	"io"
-	"os"
 
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
-
-// ShowCities prints the predefined city labels to standard output.
-//
-// Returns:
-//   - error: the error of writing the list.
-func ShowCities() error {
-	return writeCities(os.Stdout)
-}
 
 // writeCities writes the predefined city labels, sorted by label, with their country codes and coordinates.
 //
