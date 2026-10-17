@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replace the docker build steps with the published image by @nicholas-fedor in [#535](https://github.com/nicholas-fedor/speedtest-go/pull/535)
 - Ship the lintian override in the locally built deb by @nicholas-fedor in [#531](https://github.com/nicholas-fedor/speedtest-go/pull/531)
 - Replace the makefile with a taskfile by @nicholas-fedor in [#529](https://github.com/nicholas-fedor/speedtest-go/pull/529)
 - Move the command tree into internal/cmd with injected services by @nicholas-fedor in [#527](https://github.com/nicholas-fedor/speedtest-go/pull/527)
