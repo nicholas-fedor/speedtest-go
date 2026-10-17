@@ -102,14 +102,14 @@ func UploadPayloadSize(size int64) (int64, error) {
 
 // Client represents a TCP client for speedtest operations.
 type Client struct {
-	id      string
-	conn    net.Conn
-	host    string
-	version string
+	conn net.Conn
 
 	dialer *net.Dialer
 
-	reader *bufio.Reader
+	reader  *bufio.Reader
+	id      string
+	host    string
+	version string
 }
 
 // NewClient creates a new TCP client with the given dialer.

@@ -13,13 +13,13 @@ import (
 
 // PacketLossAnalyzerOptions configures the packet loss analyzer.
 type PacketLossAnalyzerOptions struct {
+	TCPDialer              *net.Dialer // tcp dialer for sampling
+	UDPDialer              *net.Dialer // udp dialer for sending packet
+	SourceInterface        string      // source interface
 	RemoteSamplingInterval time.Duration
 	SamplingDuration       time.Duration
 	PacketSendingInterval  time.Duration
 	PacketSendingTimeout   time.Duration
-	SourceInterface        string      // source interface
-	TCPDialer              *net.Dialer // tcp dialer for sampling
-	UDPDialer              *net.Dialer // udp dialer for sending packet
 }
 
 // PacketLossAnalyzer performs packet loss analysis on network connections.

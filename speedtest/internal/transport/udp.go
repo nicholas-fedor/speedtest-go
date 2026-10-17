@@ -15,13 +15,13 @@ var loss = []byte{0x4c, 0x4f, 0x53, 0x53}
 
 // PacketLossSender handles UDP packet loss testing.
 type PacketLossSender struct {
-	ID            string   // UUID
-	nounce        int64    // Random int (maybe) [0,10000000000)
-	withTimestamp bool     // With timestamp (ten seconds level)
 	conn          net.Conn // UDP Conn
-	raw           []byte
-	host          string
 	dialer        *net.Dialer
+	ID            string // UUID
+	host          string
+	raw           []byte
+	nounce        int64 // Random int (maybe) [0,10000000000)
+	withTimestamp bool  // With timestamp (ten seconds level)
 }
 
 // NewPacketLossSender creates a new UDP packet loss sender.

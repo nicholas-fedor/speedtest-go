@@ -34,18 +34,18 @@ type TCPServer struct {
 	conns map[net.Conn]struct{}
 	// loss counts received datagrams per order number, keyed by client UUID.
 	loss map[string]map[int]int
+	// syncWaiters maps a pending SyncPackets token to the channel closed when its marker is handled.
+	syncWaiters map[int]chan struct{}
 	// commands records every command line received, in order.
 	commands []Command
 	// faults are the failures to inject.
 	faults Faults
-	// syncWaiters maps a pending SyncPackets token to the channel closed when its marker is handled.
-	syncWaiters map[int]chan struct{}
+	// wg tracks the accept, UDP, and connection goroutines.
+	wg sync.WaitGroup
 	// accepted counts every accepted connection.
 	accepted int
 	// syncSeq is the last token issued by SyncPackets.
 	syncSeq int
-	// wg tracks the accept, UDP, and connection goroutines.
-	wg sync.WaitGroup
 	// mu guards conns, loss, commands, faults, accepted, closed, syncWaiters, and syncSeq.
 	mu sync.Mutex
 	// closed is set when close starts, so connections accepted afterwards are closed instead of served.

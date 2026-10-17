@@ -26,8 +26,10 @@ type Result struct {
 // ResultReport is the JSON form of a [Result]: the server's details followed by its measurements, with the field
 // names of the speedtest-go JSON reports.
 //
+// The field order is the key order of the JSON reports, so betteralign leaves it alone.
+//
 //nolint:tagliatelle // Field names must match the speedtest-go JSON report format.
-type ResultReport struct {
+type ResultReport struct { // betteralign:ignore
 	// URL is the server's upload URL.
 	URL string `json:"url"`
 	// Lat is the server's latitude.

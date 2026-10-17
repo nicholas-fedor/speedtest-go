@@ -26,6 +26,8 @@ import (
 // running transfer test's row ends with a bar of its progress and its estimated time left. Finished lines are printed
 // above the rows, so they stay in the terminal's scrollback.
 type model struct {
+	// bar draws the progress of a transfer test.
+	bar progress.Model
 	// transfer is the running transfer test, or nil.
 	transfer *transferView
 	// width is shared with the reporter, which sizes the summary panels by it. It is 0 while the width is unknown.
@@ -34,8 +36,6 @@ type model struct {
 	rows []row
 	// spinner animates the rows.
 	spinner spinner.Model
-	// bar draws the progress of a transfer test.
-	bar progress.Model
 	// options format the rates.
 	options Options
 	// quitting is set when the run finished, so the last frame leaves nothing behind.
