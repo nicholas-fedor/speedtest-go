@@ -84,43 +84,21 @@ docker run --rm nickfedor/speedtest-go:latest --server 6691 --server 6087 --json
 docker run --rm nickfedor/speedtest-go:latest --location=60,-110
 ```
 
+Settings also come from environment variables and a settings file, as described in [Settings file and environment variables](#settings-file-and-environment-variables). The image runs as user 65534 with no home directory, so mount a settings file and name it with `SPEEDTEST_GO_CONFIG`. The file must be readable by that user.
+
+```bash
+# Set settings with environment variables
+docker run --rm -e SPEEDTEST_GO_PING_MODE=tcp -e SPEEDTEST_GO_SERVER=6691,6087 nickfedor/speedtest-go:latest
+
+# Read settings from a mounted file
+docker run --rm -v "$PWD/config.yaml:/config.yaml:ro" -e SPEEDTEST_GO_CONFIG=/config.yaml nickfedor/speedtest-go:latest
+```
+
+The [Docker example](example/docker) runs the image with Docker Compose and a commented settings file.
+
 ##### Kubernetes
 
-Here's an example Kubernetes pod specification that runs a speed test. The image's entrypoint is `speedtest-go`, so set only `args`. Setting `command` would replace the entrypoint.
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: speedtest
-spec:
-  containers:
-  - name: speedtest
-    image: nickfedor/speedtest-go:latest
-    # Optional flags for speedtest-go
-    args: ["--server", "6691", "--json"]
-  restartPolicy: Never
-```
-
-For a more complete deployment, you might want to use a CronJob to run periodic speedtests:
-
-```yaml
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: speedtest
-spec:
-  schedule: "0 */6 * * *"  # Run every 6 hours
-  jobTemplate:
-    spec:
-      template:
-        spec:
-          containers:
-          - name: speedtest
-            image: nickfedor/speedtest-go:latest
-            args: ["--json"]
-          restartPolicy: OnFailure
-```
+The image runs in Kubernetes as a pod or a CronJob, with its flags in `args`, since its entrypoint is `speedtest-go`. The [Kubernetes example](example/kubernetes) runs it both ways, with its settings in a ConfigMap and a hardened security context.
 
 ### Usage
 
@@ -142,7 +120,7 @@ Available Commands:
 Flags:
       --base-url string     Set the speedtest API base URL (default https://www.speedtest.net).
       --city string         Change the location with a predefined city label.
-      --config string       config file (default is $HOME/.speedtest-go.yaml)
+      --config string       settings file (default speedtest-go/config.yaml in the user config directory)
       --custom-url string   Specify the url of the server instead of fetching from speedtest.net.
       --debug               Enable debug mode.
       --dl-size int         Set the download block size, from 350 to 4000 (default 1000).
@@ -173,12 +151,25 @@ Flags:
 Use "speedtest-go [command] --help" for more information about a command.
 ```
 
-#### Environment variables
+#### Settings file and environment variables
 
-Every flag except `--config` can also be set with an environment variable named `SPEEDTEST_GO_` followed by the flag name in upper case, with hyphens as underscores. A flag on the command line takes precedence over the variable, and the variable over the config file.
+Every flag except `--help` can also be set with an environment variable, and every flag except `--help` and `--config` in a settings file. A flag on the command line takes precedence over the variable, the variable over the settings file, and the settings file over the default.
+
+The settings file is YAML at `$XDG_CONFIG_HOME/speedtest-go/config.yaml`, which is `~/.config/speedtest-go/config.yaml` on Linux, `~/Library/Application Support/speedtest-go/config.yaml` on macOS, and `%LOCALAPPDATA%\speedtest-go\config.yaml` on Windows. Its keys are the flag names in camelCase, such as `pingMode` for `--ping-mode`, `dlSize` for `--dl-size`, and `filterCC` for `--filter-cc`. A missing settings file means the defaults. `--config` or `SPEEDTEST_GO_CONFIG` names another file, which must exist. An unknown key, a repeated key, or a value of the wrong type is an error, so a typo never passes silently.
+
+```yaml
+pingMode: tcp
+unit: binary-bits
+server: [6691, 6087]
+filterCC: [gb, ie]
+maskISP: true
+```
+
+The environment variable of a flag is `SPEEDTEST_GO_` followed by the flag name in upper case, with hyphens as underscores. A list holds its entries separated by commas.
 
 ```bash
 SPEEDTEST_GO_PING_MODE=tcp SPEEDTEST_GO_DNS_BIND_SOURCE=true speedtest-go
+SPEEDTEST_GO_SERVER=6691,6087 speedtest-go
 ```
 
 #### Exit codes
@@ -187,7 +178,7 @@ SPEEDTEST_GO_PING_MODE=tcp SPEEDTEST_GO_DNS_BIND_SOURCE=true speedtest-go
 | --- | --- |
 | `0` | The command succeeded. |
 | `1` | The command failed, such as a network error or a `--server` ID that speedtest.net does not list. Errors go to stderr. |
-| `2` | A setting is invalid, such as an unknown `--ping-mode` or `--unit`, a negative `--thread`, more than one of `--json`, `--jsonl` and `--unix`, or a config file that cannot be read. |
+| `2` | A setting is invalid, such as an unknown `--ping-mode` or `--unit`, a negative `--thread`, more than one of `--json`, `--jsonl` and `--unix`, or a settings file that cannot be read or decoded. |
 | `130` | The run was interrupted with Ctrl-C, and no report was written. A second Ctrl-C ends a run that does not stop. |
 
 #### Version

@@ -1,0 +1,15 @@
+# Runs one speed test with the settings in config.yaml:
+#
+#   docker compose run --rm speedtest
+services:
+  speedtest:
+    image: ${SPEEDTEST_GO_IMAGE:-nickfedor/speedtest-go:latest}
+    environment:
+      SPEEDTEST_GO_CONFIG: /config.yaml
+    volumes:
+      - ./config.yaml:/config.yaml:ro
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

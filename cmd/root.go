@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -19,22 +20,18 @@ import (
 // Returns:
 //   - *cobra.Command: the root command, ready to execute.
 func NewRootCommand() *cobra.Command {
-	cfgFile := ""
-
 	rootCmd := &cobra.Command{
 		Use:   "speedtest-go",
 		Short: "Test internet bandwidth using speedtest.net",
 		Long:  "A command-line tool to test internet download and upload speeds using speedtest.net servers.",
 		// Flags have parsed by the time this runs, so later errors are not usage mistakes and skip the usage text.
-		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+		PersistentPreRun: func(cmd *cobra.Command, _ []string) {
 			cmd.SilenceUsage = true
-
-			return config.InitViper(cfgFile)
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, err := config.Load()
+			cfg, err := resolveSettings(cmd)
 			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
+				return err
 			}
 
 			return reportInterrupt(cmd, app.RunSpeedtest(cmd.Context(), cfg, cmd.OutOrStdout()))
@@ -46,7 +43,7 @@ func NewRootCommand() *cobra.Command {
 		return fmt.Errorf("%w: %w", config.ErrInvalidSetting, err)
 	})
 
-	flags.RegisterRootFlags(rootCmd, &cfgFile)
+	flags.RegisterRootFlags(rootCmd)
 
 	rootCmd.AddCommand(
 		newListCommand(),
@@ -73,4 +70,21 @@ func reportInterrupt(cmd *cobra.Command, err error) error {
 	}
 
 	return err
+}
+
+// resolveSettings reads a command's settings from its flags, the environment, and the settings file.
+//
+// Parameters:
+//   - cmd: the command that runs, with its parsed flags.
+//
+// Returns:
+//   - config.Config: the validated settings.
+//   - error: an error wrapping [config.ErrInvalidSetting] for every invalid setting.
+func resolveSettings(cmd *cobra.Command) (config.Config, error) {
+	cfg, err := config.Resolve(cmd.Flags(), os.LookupEnv, config.SystemDirs())
+	if err != nil {
+		return config.Config{}, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	return cfg, nil
 }

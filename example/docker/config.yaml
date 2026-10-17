@@ -1,0 +1,32 @@
+# Settings for speedtest-go.
+#
+# Each key is a flag name in camelCase, such as pingMode for --ping-mode.
+# Every key is optional.
+#
+# These settings can be overridden for a single run:
+#   - by a flag, such as --ping-mode http
+#   - by an environment variable, such as SPEEDTEST_GO_PING_MODE=http
+
+# How latency is measured: http or tcp.
+# ICMP does not work in the container image, which cannot open raw sockets.
+pingMode: tcp
+
+# The servers to test, by ID.
+# Run `speedtest-go list` to see the IDs.
+# Without this, the server with the lowest latency is tested.
+# server: [6691, 6087]
+
+# Only use servers in these countries, by two-letter code.
+# auto stands for your own country.
+# filterCC: [auto]
+
+# The unit of the rates.
+# One of decimal-bits, decimal-bytes, binary-bits, or binary-bytes.
+# Without this, rates are shown in Mbps.
+# unit: binary-bits
+
+# Hide your IP address, coordinates, and distances to servers.
+# maskISP: true
+
+# Write the results as one JSON document.
+json: true

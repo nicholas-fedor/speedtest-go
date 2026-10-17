@@ -1,0 +1,33 @@
+# Runs one speed test with the settings in the speedtest-settings ConfigMap.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: speedtest
+spec:
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: speedtest
+      image: nickfedor/speedtest-go:latest
+      # The image's entrypoint is speedtest-go, so flags go in args.
+      # Setting command would replace the entrypoint.
+      # args: ["--server", "6691"]
+      env:
+        - name: SPEEDTEST_GO_CONFIG
+          value: /etc/speedtest-go/config.yaml
+      securityContext:
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+      volumeMounts:
+        - name: settings
+          mountPath: /etc/speedtest-go
+          readOnly: true
+  volumes:
+    - name: settings
+      configMap:
+        name: speedtest-settings

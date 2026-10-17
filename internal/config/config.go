@@ -6,14 +6,10 @@ import (
 	"io"
 	"log"
 	"net"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/spf13/viper"
-
-	"github.com/nicholas-fedor/speedtest-go/v2/internal/parser"
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
 
@@ -69,6 +65,8 @@ const EnvPrefix = "SPEEDTEST_GO"
 var (
 	// ErrInvalidSetting is wrapped by every error that rejects a setting value. The CLI exits with code 2 for it.
 	ErrInvalidSetting = errors.New("invalid setting")
+	// errNotBoolean rejects a switch that does not parse as true or false.
+	errNotBoolean = errors.New("not true or false")
 	// errNotWholeNumber rejects a count that does not parse as an integer.
 	errNotWholeNumber = errors.New("not a whole number")
 	// errNegative rejects a count below zero.
@@ -117,140 +115,60 @@ func Setup(cfg Config) Config {
 	return cfg
 }
 
-// InitViper configures viper for config file and environment variable loading.
-// An empty cfgFile means the default $HOME/.speedtest-go.yaml is used.
-// Environment variables are read with [EnvPrefix]. A settings file that cannot be read or parsed is an error
-// wrapping [ErrInvalidSetting].
-func InitViper(cfgFile string) error {
-	if cfgFile != "" {
-		viper.SetConfigFile(cfgFile)
-	} else {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("failed to find home directory: %w", err)
-		}
-
-		viper.AddConfigPath(home)
-		viper.SetConfigType("yaml")
-		viper.SetConfigName(".speedtest-go")
-	}
-
-	viper.SetEnvPrefix(EnvPrefix)
-	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-	viper.AutomaticEnv()
-
-	err := viper.ReadInConfig()
-	if err == nil {
-		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
-
-		return nil
-	}
-
-	// Missing default config file is optional; any other read/parse error is fatal.
-	var notFound viper.ConfigFileNotFoundError
-	if cfgFile == "" && errors.As(err, &notFound) {
-		return nil
-	}
-
-	return fmt.Errorf("%w: failed to read config file: %w", ErrInvalidSetting, err)
-}
-
-// Load reads the current viper state and returns a validated Config.
+// parseServerIDs parses the IDs of the servers to test.
+//
+// Parameters:
+//   - entries: the IDs as text.
 //
 // Returns:
-//   - Config: the settings.
-//   - error: every invalid setting joined, each wrapping [ErrInvalidSetting].
-func Load() (Config, error) {
+//   - []int: the IDs, or nil when there are none.
+//   - error: an error wrapping errNotWholeNumber naming the first entry that is not an integer.
+func parseServerIDs(entries []string) ([]int, error) {
+	var ids []int
+
+	for _, entry := range entries {
+		id, err := strconv.Atoi(strings.TrimSpace(entry))
+		if err != nil {
+			return nil, fmt.Errorf("%q is %w", entry, errNotWholeNumber)
+		}
+
+		ids = append(ids, id)
+	}
+
+	return ids, nil
+}
+
+// checkBaseURL rejects a base URL the client could not use.
+//
+// Parameters:
+//   - raw: the setting value. Empty means the default.
+//
+// Returns:
+//   - error: the error wrapping [speedtest.ErrInvalidBaseURL], or nil.
+func checkBaseURL(raw string) error {
+	if raw == "" {
+		return nil
+	}
+
+	_, err := speedtest.ParseBaseURL(raw)
+	if err != nil {
+		return fmt.Errorf("cannot use this base URL: %w", err)
+	}
+
+	return nil
+}
+
+// checkCombinations rejects settings that are valid alone but not together.
+//
+// Parameters:
+//   - cfg: the settings to check.
+//
+// Returns:
+//   - []error: one error wrapping [ErrInvalidSetting] per problem, or none.
+func checkCombinations(cfg Config) []error {
 	var errs []error
 
-	invalid := func(flag string, err error) {
-		errs = append(errs, fmt.Errorf("%w --%s: %w", ErrInvalidSetting, flag, err))
-	}
-
-	pingMode, err := parser.ParseProto(viper.GetString("ping-mode"))
-	if err != nil {
-		invalid("ping-mode", err)
-	}
-
-	testMode, err := parser.ParseTestMode(viper.GetString("protocol"))
-	if err != nil {
-		invalid("protocol", err)
-	}
-
-	unit, err := parser.ParseUnit(viper.GetString("unit"))
-	if err != nil {
-		invalid("unit", err)
-	}
-
-	thread, err := parseThread(viper.GetString("thread"))
-	if err != nil {
-		invalid("thread", err)
-	}
-
-	err = checkSource(viper.GetString("source"))
-	if err != nil {
-		invalid("source", err)
-	}
-
-	dscp, err := parseDSCP(viper.GetString("dscp"))
-	if err != nil {
-		invalid("dscp", err)
-	}
-
-	countryCodes, err := parseCountryCodes(viper.GetStringSlice("filter-cc"))
-	if err != nil {
-		invalid("filter-cc", err)
-	}
-
-	downloadSize, err := parseTransferSize(viper.GetString("dl-size"), speedtest.CheckDownloadSize)
-	if err != nil {
-		invalid("dl-size", err)
-	}
-
-	uploadSize, err := parseTransferSize(viper.GetString("ul-size"), speedtest.CheckUploadSize)
-	if err != nil {
-		invalid("ul-size", err)
-	}
-
-	cfg := Config{
-		ServerIDs:     viper.GetIntSlice("server"),
-		CustomURL:     viper.GetString("custom-url"),
-		SavingMode:    viper.GetBool("saving-mode"),
-		JSONOutput:    viper.GetBool("json"),
-		JSONLOutput:   viper.GetBool("jsonl"),
-		UnixOutput:    viper.GetBool("unix"),
-		Location:      viper.GetString("location"),
-		City:          viper.GetString("city"),
-		Proxy:         viper.GetString("proxy"),
-		Source:        viper.GetString("source"),
-		DNSBindSource: viper.GetBool("dns-bind-source"),
-		Multi:         viper.GetBool("multi"),
-		Thread:        thread,
-		Search:        viper.GetString("search"),
-		UserAgent:     viper.GetString("ua"),
-		NoDownload:    viper.GetBool("no-download"),
-		NoUpload:      viper.GetBool("no-upload"),
-		PingMode:      pingMode,
-		TestMode:      testMode,
-		Unit:          unit,
-		UnitSet:       true,
-		Debug:         viper.GetBool("debug"),
-		BaseURL:       viper.GetString("base-url"),
-		DSCP:          dscp,
-		DownloadSize:  downloadSize,
-		UploadSize:    uploadSize,
-		CountryCodes:  countryCodes,
-		MaskISP:       viper.GetBool("mask-isp"),
-	}
-
-	if cfg.BaseURL != "" {
-		_, err = speedtest.ParseBaseURL(cfg.BaseURL)
-		if err != nil {
-			invalid("base-url", err)
-		}
-	}
-
-	err = checkOutputFormats(cfg)
+	err := checkOutputFormats(cfg)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -265,11 +183,7 @@ func Load() (Config, error) {
 		errs = append(errs, fmt.Errorf("%w: %w", ErrInvalidSetting, errProxyWithTCP))
 	}
 
-	if len(errs) > 0 {
-		return Config{}, errors.Join(errs...)
-	}
-
-	return cfg, nil
+	return errs
 }
 
 // parseThread parses the connection count.
@@ -329,7 +243,47 @@ func parseDSCP(raw string) (int, error) {
 	return dscp, nil
 }
 
-// checkLocation rejects location settings the client could not honor.
+// checkCity rejects a city that is not one of the predefined labels.
+//
+// Parameters:
+//   - city: the setting value. Empty means no city.
+//
+// Returns:
+//   - error: an error wrapping errUnknownCity, or nil.
+func checkCity(city string) error {
+	if city == "" {
+		return nil
+	}
+
+	_, err := speedtest.GetLocation(city)
+	if err != nil {
+		return fmt.Errorf("%q is %w", city, errUnknownCity)
+	}
+
+	return nil
+}
+
+// checkCoordinates rejects coordinates that do not parse.
+//
+// Parameters:
+//   - location: the setting value, as lat,lon. Empty means no coordinates.
+//
+// Returns:
+//   - error: the parse error, or nil.
+func checkCoordinates(location string) error {
+	if location == "" {
+		return nil
+	}
+
+	_, _, err := speedtest.ParseCoordinates(location)
+	if err != nil {
+		return fmt.Errorf("cannot use these coordinates: %w", err)
+	}
+
+	return nil
+}
+
+// checkLocation rejects location settings that conflict with each other or with the chosen servers.
 //
 // Parameters:
 //   - cfg: the settings to check.
@@ -338,23 +292,6 @@ func parseDSCP(raw string) (int, error) {
 //   - []error: one error wrapping [ErrInvalidSetting] per problem, or none.
 func checkLocation(cfg Config) []error {
 	var errs []error
-
-	if cfg.City != "" {
-		_, err := speedtest.GetLocation(cfg.City)
-		if err != nil {
-			errs = append(
-				errs,
-				fmt.Errorf("%w --city: %q is %w", ErrInvalidSetting, cfg.City, errUnknownCity),
-			)
-		}
-	}
-
-	if cfg.Location != "" {
-		_, _, err := speedtest.ParseCoordinates(cfg.Location)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("%w --location: %w", ErrInvalidSetting, err))
-		}
-	}
 
 	if cfg.City != "" && cfg.Location != "" {
 		errs = append(errs, fmt.Errorf("%w: %w", ErrInvalidSetting, errCityWithLocation))
