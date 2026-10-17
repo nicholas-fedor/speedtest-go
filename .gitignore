@@ -25,6 +25,3 @@ go.work.sum
 
 # VSCode dotfile directory
 .vscode
-
-# Node dependencies
-node_modules/
