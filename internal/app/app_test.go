@@ -115,7 +115,7 @@ func TestRunSpeedtest_JSON(t *testing.T) {
 
 	var out bytes.Buffer
 
-	err := RunSpeedtest(
+	err := runSpeedtest(
 		t.Context(),
 		config.Config{BaseURL: api.URL(), JSONOutput: true, NoDownload: true, NoUpload: true},
 		&out,
@@ -141,7 +141,7 @@ func TestRunSpeedtest_JSONL(t *testing.T) {
 
 	var out bytes.Buffer
 
-	err := RunSpeedtest(
+	err := runSpeedtest(
 		t.Context(),
 		config.Config{
 			BaseURL:     api.URL(),
@@ -173,7 +173,7 @@ func TestRunSpeedtest_Interrupted(t *testing.T) {
 
 	var out bytes.Buffer
 
-	err := RunSpeedtest(ctx, config.Config{BaseURL: api.URL(), JSONOutput: true}, &out)
+	err := runSpeedtest(ctx, config.Config{BaseURL: api.URL(), JSONOutput: true}, &out)
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Empty(t, out.String())
 }
@@ -186,7 +186,7 @@ func TestRunSpeedtest_Unix(t *testing.T) {
 
 	var out bytes.Buffer
 
-	err := RunSpeedtest(
+	err := runSpeedtest(
 		t.Context(),
 		config.Config{BaseURL: api.URL(), UnixOutput: true, NoDownload: true, NoUpload: true},
 		&out,
@@ -206,7 +206,7 @@ func TestRunList(t *testing.T) {
 
 	var out bytes.Buffer
 
-	require.NoError(t, RunList(t.Context(), config.Config{BaseURL: api.URL()}, &out))
+	require.NoError(t, runList(t.Context(), config.Config{BaseURL: api.URL()}, &out))
 	assert.Len(t, strings.Split(strings.TrimSuffix(out.String(), "\n"), "\n"), 2)
 }
 
@@ -219,7 +219,7 @@ func TestRunListInterrupted(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	err := RunList(ctx, config.Config{BaseURL: api.URL()}, &bytes.Buffer{})
+	err := runList(ctx, config.Config{BaseURL: api.URL()}, &bytes.Buffer{})
 	require.ErrorIs(t, err, context.Canceled)
 }
 

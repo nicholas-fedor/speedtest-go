@@ -1,4 +1,3 @@
-// Package app provides application logic for speedtest operations.
 package app
 
 import (
@@ -134,7 +133,7 @@ func settingsLocation(cfg config.Config) (*speedtest.Location, error) {
 	}
 }
 
-// RunSpeedtest runs the speed test on the selected servers, showing its progress, and writes the JSON report when
+// runSpeedtest runs the speed test on the selected servers, showing its progress, and writes the JSON report when
 // one is requested.
 //
 // Parameters:
@@ -145,7 +144,7 @@ func settingsLocation(cfg config.Config) (*speedtest.Location, error) {
 // Returns:
 //   - error: an error wrapping [config.ErrInvalidSetting] for a setting the client rejects, the error that ended the
 //     run, which wraps the context's error when the context ended it, or the error of writing a report.
-func RunSpeedtest(ctx context.Context, cfg config.Config, out io.Writer) error {
+func runSpeedtest(ctx context.Context, cfg config.Config, out io.Writer) error {
 	cfg = config.Setup(cfg)
 
 	//nolint:contextcheck // speedtest.New takes no context, and only its debug log of the settings uses one.

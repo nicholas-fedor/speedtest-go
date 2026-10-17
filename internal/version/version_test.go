@@ -9,35 +9,35 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Package-level version/commit/date vars are mutated below; tests stay serial.
+// The tests below set the package-level Version, CommitSHA, and BuildTime, so they stay serial.
 
 func TestGet_ldflags(t *testing.T) { //nolint:paralleltest // mutates package-level ldflag vars
 	t.Cleanup(resetVars)
 
-	version = "v1.2.3"
-	commit = "abcdef0123456789"
-	date = "2026-05-02T12:00:00Z"
+	Version = "v1.2.3"
+	CommitSHA = "abcdef0123456789"
+	BuildTime = "2026-05-02T12:00:00Z"
 
 	got := Get()
 
 	assert.Equal(t, "1.2.3", got.Version)
-	assert.Equal(t, "abcdef0123456789", got.Commit)
-	assert.Equal(t, "2026-05-02T12:00:00Z", got.BuildDate)
+	assert.Equal(t, "abcdef0123456789", got.CommitSHA)
+	assert.Equal(t, "2026-05-02T12:00:00Z", got.BuildTime)
 	assert.Equal(t, runtime.Version(), got.GoVersion)
 }
 
 func TestGet_defaults(t *testing.T) { //nolint:paralleltest // mutates package-level ldflag vars
 	t.Cleanup(resetVars)
 
-	version = ""
-	commit = ""
-	date = ""
+	Version = ""
+	CommitSHA = ""
+	BuildTime = ""
 
 	got := Get()
 
 	assert.NotEmpty(t, got.Version)
-	assert.NotEmpty(t, got.Commit)
-	assert.NotEmpty(t, got.BuildDate)
+	assert.NotEmpty(t, got.CommitSHA)
+	assert.NotEmpty(t, got.BuildTime)
 	assert.Equal(t, runtime.Version(), got.GoVersion)
 
 	if got.Version != "dev" {
@@ -49,9 +49,9 @@ func TestGet_defaults(t *testing.T) { //nolint:paralleltest // mutates package-l
 func TestString_release(t *testing.T) { //nolint:paralleltest // mutates package-level ldflag vars
 	t.Cleanup(resetVars)
 
-	version = "1.8.0"
-	commit = "1559e47abcdef"
-	date = "2026-05-02T15:04:05Z"
+	Version = "1.8.0"
+	CommitSHA = "1559e47abcdef"
+	BuildTime = "2026-05-02T15:04:05Z"
 
 	got := String()
 	wantSuffix := " " + cleanGoVersion(
@@ -68,9 +68,9 @@ func TestString_release(t *testing.T) { //nolint:paralleltest // mutates package
 func TestString_gitDescribeOmitsDuplicateCommit(t *testing.T) {
 	t.Cleanup(resetVars)
 
-	version = "1.8.0-209-g8000595-dirty"
-	commit = "8000595"
-	date = "2026-07-25T15:04:05Z"
+	Version = "1.8.0-209-g8000595-dirty"
+	CommitSHA = "8000595"
+	BuildTime = "2026-07-25T15:04:05Z"
 
 	got := String()
 
@@ -84,9 +84,9 @@ func TestString_gitDescribeOmitsDuplicateCommit(t *testing.T) {
 func TestString_omitsUnknownMeta(t *testing.T) {
 	t.Cleanup(resetVars)
 
-	version = "1.8.0"
-	commit = "unknown"
-	date = "unknown"
+	Version = "1.8.0"
+	CommitSHA = "unknown"
+	BuildTime = "unknown"
 
 	got := String()
 
@@ -102,9 +102,9 @@ func TestString_omitsUnknownMeta(t *testing.T) {
 func TestBanner(t *testing.T) { //nolint:paralleltest // mutates package-level ldflag vars
 	t.Cleanup(resetVars)
 
-	version = "1.8.0"
-	commit = "1559e47abcdef"
-	date = "2026-05-02T15:04:05Z"
+	Version = "1.8.0"
+	CommitSHA = "1559e47abcdef"
+	BuildTime = "2026-05-02T15:04:05Z"
 
 	assert.Equal(t, "speedtest-go v1.8.0 (1559e47, 2026-05-02)", Banner())
 }
@@ -113,9 +113,9 @@ func TestBanner(t *testing.T) { //nolint:paralleltest // mutates package-level l
 func TestBanner_gitDescribe(t *testing.T) {
 	t.Cleanup(resetVars)
 
-	version = "1.8.0-209-g8000595-dirty"
-	commit = "8000595abcdef"
-	date = "2026-07-25T12:00:00Z"
+	Version = "1.8.0-209-g8000595-dirty"
+	CommitSHA = "8000595abcdef"
+	BuildTime = "2026-07-25T12:00:00Z"
 
 	assert.Equal(t, "speedtest-go v1.8.0-209-g8000595-dirty (2026-07-25)", Banner())
 }
@@ -139,7 +139,7 @@ func TestHelpers(t *testing.T) {
 }
 
 func resetVars() {
-	version = ""
-	commit = ""
-	date = ""
+	Version = ""
+	CommitSHA = ""
+	BuildTime = ""
 }

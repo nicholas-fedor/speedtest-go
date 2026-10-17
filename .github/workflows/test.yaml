@@ -6,7 +6,6 @@ on:
     branches: ["master"]
     paths:
       - speedtest/**
-      - cmd/**
       - internal/**
       - example/**
       - main.go

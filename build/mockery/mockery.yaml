@@ -90,6 +90,23 @@ packages:
     interfaces:
       Tester: {}
       Reporter: {}
+  # The services each command calls, which the command tests mock.
+  github.com/nicholas-fedor/speedtest-go/v2/internal/cmd:
+    config:
+      all: false
+      recursive: false
+    interfaces:
+      SpeedTester: {}
+  github.com/nicholas-fedor/speedtest-go/v2/internal/cmd/list:
+    config:
+      all: false
+    interfaces:
+      Lister: {}
+  github.com/nicholas-fedor/speedtest-go/v2/internal/cmd/cities:
+    config:
+      all: false
+    interfaces:
+      Writer: {}
 
 # Generate mocks for all exported interfaces within specified packages or directories.
 # When true with packages section, processes all interfaces in listed packages.

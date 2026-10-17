@@ -7,36 +7,43 @@ import (
 	"strings"
 )
 
-// ldflags targets set by Makefile and GoReleaser.
-var (
-	version string
-	commit  string
-	date    string
-)
-
 // Info holds resolved application version metadata.
 type Info struct {
-	Version   string
-	Commit    string
-	BuildDate string
+	// Version is the release version, without a leading v.
+	Version string
+	// CommitSHA is the source revision.
+	CommitSHA string
+	// BuildTime is the build timestamp.
+	BuildTime string
+	// GoVersion is the Go runtime version.
 	GoVersion string
 }
+
+// Build metadata set at link time by the Makefile and GoReleaser. Empty values fall back to Go's build info.
+var (
+	// Version is the release version, with or without a leading v.
+	Version string
+	// CommitSHA is the source revision.
+	CommitSHA string
+	// BuildTime is the build timestamp.
+	BuildTime string
+)
 
 // Get returns resolved application version metadata.
 //
 // Resolution order per field:
 //   - Version: ldflag, then debug.BuildInfo Main.Version, then "dev"
-//   - Commit: ldflag, then vcs.revision, then "unknown"
-//   - BuildDate: ldflag, then vcs.time, then "unknown"
+//   - CommitSHA: ldflag, then vcs.revision, then "unknown"
+//   - BuildTime: ldflag, then vcs.time, then "unknown"
 //   - GoVersion: runtime.Version()
 //
 // Returns:
 //   - Info: populated version metadata
 func Get() Info {
 	info := Info{
-		Version:   normalizeVersion(version),
-		Commit:    commit,
-		BuildDate: date,
+		Version:   normalizeVersion(Version),
+		CommitSHA: CommitSHA,
+		BuildTime: BuildTime,
 		GoVersion: runtime.Version(),
 	}
 
@@ -52,12 +59,12 @@ func Get() Info {
 	}
 
 	settings := buildSettings(buildInfo)
-	if info.Commit == "" {
-		info.Commit = settings["vcs.revision"]
+	if info.CommitSHA == "" {
+		info.CommitSHA = settings["vcs.revision"]
 	}
 
-	if info.BuildDate == "" {
-		info.BuildDate = settings["vcs.time"]
+	if info.BuildTime == "" {
+		info.BuildTime = settings["vcs.time"]
 	}
 
 	return finalize(info)
@@ -110,12 +117,12 @@ func Banner() string {
 func formatMeta(info Info) string {
 	fields := make([]string, 0, 2)
 
-	short := shortCommit(info.Commit)
+	short := shortCommit(info.CommitSHA)
 	if short != "unknown" && !versionEmbedsCommit(info.Version, short) {
 		fields = append(fields, short)
 	}
 
-	built := shortDate(info.BuildDate)
+	built := shortDate(info.BuildTime)
 	if built != "unknown" {
 		fields = append(fields, built)
 	}
@@ -152,12 +159,12 @@ func finalize(info Info) Info {
 		info.Version = "dev"
 	}
 
-	if info.Commit == "" {
-		info.Commit = "unknown"
+	if info.CommitSHA == "" {
+		info.CommitSHA = "unknown"
 	}
 
-	if info.BuildDate == "" {
-		info.BuildDate = "unknown"
+	if info.BuildTime == "" {
+		info.BuildTime = "unknown"
 	}
 
 	return info
