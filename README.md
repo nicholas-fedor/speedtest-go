@@ -558,7 +558,7 @@ distance = distance to testing server
 
 ## Contributors
 
-See [Contributors](https://github.com/nicholas-fedor/speedtest-go/graphs/contributors), PRs are welcome!
+See [Contributors](https://github.com/nicholas-fedor/speedtest-go/graphs/contributors), PRs are welcome! The [contributing guide](CONTRIBUTING.md) covers the development tools, tasks, and conventions.
 
 ## Issues
 
