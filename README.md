@@ -48,21 +48,37 @@ Releases before v2.0.0 publish their packages under different names, so the scri
 
 Download the `.zip` for your architecture from [GitHub Releases](https://github.com/nicholas-fedor/speedtest-go/releases) and extract `speedtest-go.exe`.
 
-#### Docker Build
+#### Docker Image
 
-To build a multi-architecture Docker image:
+The image is published to two registries:
+
+- Docker Hub: `nickfedor/speedtest-go`
+- GitHub Container Registry: `ghcr.io/nicholas-fedor/speedtest-go`
 
 ```bash
-# Check if you already have a builder instance
-docker buildx ls
-
-# Only create a new builder if you don't have one
-# If the above command shows no builders or none are in use, run:
-docker buildx create --name mybuilder --use
-
-# Build and push for multiple platforms
-docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 -t nickfedor/speedtest-go:latest --push .
+docker pull nickfedor/speedtest-go:latest
+docker pull ghcr.io/nicholas-fedor/speedtest-go:latest
 ```
+
+Tags:
+
+| Tag | Image |
+| --- | --- |
+| `latest` | The newest release |
+| `1.8.4` | That release |
+| `1.8` | The newest `1.8.x` release |
+| `1` | The newest `1.x.x` release |
+| `nightly` | Built each night from the latest changes |
+
+Each tag covers every platform. To pull a single platform, put its prefix in front of the tag, such as `arm64v8-latest` or `amd64-1.8.4`:
+
+| Platform | Prefix |
+| --- | --- |
+| `linux/amd64` | `amd64` |
+| `linux/386` | `i386` |
+| `linux/arm/v6` | `armhf` |
+| `linux/arm64` | `arm64v8` |
+| `linux/riscv64` | `riscv64` |
 
 #### Running the Container
 
