@@ -1,0 +1,37 @@
+# Runs a speed test every six hours with the settings in the speedtest-settings ConfigMap.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: speedtest
+spec:
+  schedule: "0 */6 * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: speedtest
+              image: nickfedor/speedtest-go:latest
+              env:
+                - name: SPEEDTEST_GO_CONFIG
+                  value: /etc/speedtest-go/config.yaml
+              securityContext:
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: settings
+                  mountPath: /etc/speedtest-go
+                  readOnly: true
+          volumes:
+            - name: settings
+              configMap:
+                name: speedtest-settings

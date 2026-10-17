@@ -1,12 +1,9 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/app"
-	"github.com/nicholas-fedor/speedtest-go/v2/internal/config"
 )
 
 // newListCommand builds the list command with its flags.
@@ -19,9 +16,9 @@ func newListCommand() *cobra.Command {
 		Short: "List available speedtest servers",
 		Long:  "Display a list of available speedtest.net servers with their details.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, err := config.Load()
+			cfg, err := resolveSettings(cmd)
 			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
+				return err
 			}
 
 			return reportInterrupt(cmd, app.RunList(cmd.Context(), cfg, cmd.OutOrStdout()))

@@ -4,21 +4,17 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-//nolint:paralleltest // mutates global viper
+// TestRegisterRootFlagsAddsPersistentFlags checks the flags every command takes.
 func TestRegisterRootFlagsAddsPersistentFlags(t *testing.T) {
-	viper.Reset()
-	t.Cleanup(viper.Reset)
+	t.Parallel()
 
 	rootCmd := &cobra.Command{Use: "test"}
 
-	var cfgFile string
-
-	RegisterRootFlags(rootCmd, &cfgFile)
+	RegisterRootFlags(rootCmd)
 
 	pf := rootCmd.PersistentFlags()
 	require.NotNil(t, pf.Lookup("config"))
@@ -33,16 +29,13 @@ func TestRegisterRootFlagsAddsPersistentFlags(t *testing.T) {
 	require.NotNil(t, pf.Lookup("mask-isp"), "list honors --mask-isp too")
 }
 
-//nolint:paralleltest // mutates global viper
+// TestRegisterRootFlagsAddsLocalFlags checks the flags only the speed test takes.
 func TestRegisterRootFlagsAddsLocalFlags(t *testing.T) {
-	viper.Reset()
-	t.Cleanup(viper.Reset)
+	t.Parallel()
 
 	rootCmd := &cobra.Command{Use: "test"}
 
-	var cfgFile string
-
-	RegisterRootFlags(rootCmd, &cfgFile)
+	RegisterRootFlags(rootCmd)
 
 	f := rootCmd.Flags()
 	require.NotNil(t, f.Lookup("server"))
@@ -62,50 +55,33 @@ func TestRegisterRootFlagsAddsLocalFlags(t *testing.T) {
 	require.NotNil(t, f.Lookup("unit"))
 }
 
-//nolint:paralleltest // mutates global viper
-func TestRegisterRootFlagsBindsViper(t *testing.T) {
-	viper.Reset()
-	t.Cleanup(viper.Reset)
-
-	rootCmd := &cobra.Command{Use: "test"}
-
-	var cfgFile string
-
-	RegisterRootFlags(rootCmd, &cfgFile)
-
-	require.NoError(t, rootCmd.PersistentFlags().Set("proxy", "socks5://127.0.0.1:1080"))
-	require.NoError(t, rootCmd.Flags().Set("json", "true"))
-	require.NoError(t, rootCmd.Flags().Set("thread", "8"))
-	require.NoError(t, rootCmd.Flags().Set("ping-mode", "tcp"))
-	require.NoError(t, rootCmd.PersistentFlags().Set("base-url", "http://127.0.0.1:8080/mirror"))
-
-	assert.Equal(t, "socks5://127.0.0.1:1080", viper.GetString("proxy"))
-	assert.True(t, viper.GetBool("json"))
-	assert.Equal(t, 8, viper.GetInt("thread"))
-	assert.Equal(t, "tcp", viper.GetString("ping-mode"))
-	assert.Equal(t, "http://127.0.0.1:8080/mirror", viper.GetString("base-url"))
-}
-
 // TestRegisterRootFlagsLocation checks that the location flags are persistent, so the speed test and list both
-// accept them, and that they are bound to viper.
-//
-//nolint:paralleltest // mutates global viper
+// accept them.
 func TestRegisterRootFlagsLocation(t *testing.T) {
-	viper.Reset()
-	t.Cleanup(viper.Reset)
+	t.Parallel()
 
 	rootCmd := &cobra.Command{Use: "test"}
 
-	var cfgFile string
-
-	RegisterRootFlags(rootCmd, &cfgFile)
+	RegisterRootFlags(rootCmd)
 
 	persistent := rootCmd.PersistentFlags()
-	require.NoError(t, persistent.Set("location", "60,-110"))
-	require.NoError(t, persistent.Set("city", "capetown"))
-	require.NoError(t, persistent.Set("search", "fiber"))
+	require.NoError(t, persistent.Set(Location, "60,-110"))
+	require.NoError(t, persistent.Set(City, "capetown"))
+	require.NoError(t, persistent.Set(Search, "fiber"))
 
-	assert.Equal(t, "60,-110", viper.GetString("location"))
-	assert.Equal(t, "capetown", viper.GetString("city"))
-	assert.Equal(t, "fiber", viper.GetString("search"))
+	assert.Equal(t, "60,-110", persistent.Lookup(Location).Value.String())
+	assert.Equal(t, "capetown", persistent.Lookup(City).Value.String())
+	assert.Equal(t, "fiber", persistent.Lookup(Search).Value.String())
+}
+
+// TestRegisterRootFlagsDefaults checks the defaults that are not zero values.
+func TestRegisterRootFlagsDefaults(t *testing.T) {
+	t.Parallel()
+
+	rootCmd := &cobra.Command{Use: "test"}
+
+	RegisterRootFlags(rootCmd)
+
+	assert.Equal(t, "http", rootCmd.Flags().Lookup(PingMode).DefValue)
+	assert.Equal(t, "http", rootCmd.Flags().Lookup(Protocol).DefValue)
 }

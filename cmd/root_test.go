@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
-	"github.com/spf13/viper"
+	"github.com/adrg/xdg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -17,6 +19,33 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/version"
 )
 
+// TestMain isolates the commands from the user's own settings: HOME and XDG_CONFIG_HOME point at a temporary
+// directory, and SPEEDTEST_GO_ variables from the shell are cleared.
+func TestMain(m *testing.M) {
+	home, err := os.MkdirTemp("", "speedtest-go-cmd")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	for _, variable := range os.Environ() {
+		if name, _, _ := strings.Cut(variable, "="); strings.HasPrefix(name, config.EnvPrefix+"_") {
+			_ = os.Unsetenv(name)
+		}
+	}
+
+	_ = os.Setenv("HOME", home)
+	_ = os.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+
+	xdg.Reload()
+
+	code := m.Run()
+
+	_ = os.RemoveAll(home)
+
+	os.Exit(code)
+}
+
 // execute runs a new root command with args and returns its error and combined output. See [executeContext].
 func execute(t *testing.T, args ...string) (string, error) {
 	t.Helper()
@@ -24,14 +53,10 @@ func execute(t *testing.T, args ...string) (string, error) {
 	return executeContext(t.Context(), t, args...)
 }
 
-// executeContext runs a new root command with ctx and args and returns its error and combined output. It resets the
-// global viper state the command binds to, and always passes an unreachable --base-url, so no case can reach
-// speedtest.net.
+// executeContext runs a new root command with ctx and args and returns its error and combined output. It always
+// passes an unreachable --base-url, so no case can reach speedtest.net.
 func executeContext(ctx context.Context, t *testing.T, args ...string) (string, error) {
 	t.Helper()
-
-	viper.Reset()
-	t.Cleanup(viper.Reset)
 
 	var out bytes.Buffer
 
@@ -45,22 +70,19 @@ func executeContext(ctx context.Context, t *testing.T, args ...string) (string, 
 	return out.String(), err
 }
 
-// writeSettings writes an empty settings file and returns its path, so a run never reads the real home directory.
-func writeSettings(t *testing.T) string {
+// writeSettings writes a settings file with the given content and returns its path.
+func writeSettings(t *testing.T, content string) string {
 	t.Helper()
 
-	settings := filepath.Join(t.TempDir(), "speedtest-go.yaml")
-	require.NoError(t, os.WriteFile(settings, []byte("debug: false\n"), 0o600))
+	settings := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(settings, []byte(content), 0o600))
 
 	return settings
 }
 
 // TestNewRootCommand checks that the tree has its subcommands and that each call builds a separate tree.
-//
-//nolint:paralleltest // NewRootCommand binds flags to the global viper.
 func TestNewRootCommand(t *testing.T) {
-	viper.Reset()
-	t.Cleanup(viper.Reset)
+	t.Parallel()
 
 	first := NewRootCommand()
 	second := NewRootCommand()
@@ -75,75 +97,115 @@ func TestNewRootCommand(t *testing.T) {
 	assert.NotSame(t, first.Flags().Lookup("thread"), second.Flags().Lookup("thread"))
 }
 
-// TestNewRootCommandStartsClean checks that a flag set during one run is not seen by the next command, in its own
-// flags or through viper, which reads the most recently built tree.
-//
-//nolint:paralleltest // NewRootCommand binds flags to the global viper.
+// TestNewRootCommandStartsClean checks that a flag set during one run is not seen by the next command.
 func TestNewRootCommandStartsClean(t *testing.T) {
-	_, err := execute(t, "--config", writeSettings(t), "--ping-mode", "udp")
+	t.Parallel()
+
+	_, err := execute(t, "--ping-mode", "udp")
 	require.ErrorIs(t, err, config.ErrInvalidSetting)
 
-	next := NewRootCommand()
-
-	pingMode := next.Flags().Lookup("ping-mode")
+	pingMode := NewRootCommand().Flags().Lookup("ping-mode")
 	assert.False(t, pingMode.Changed)
 	assert.Equal(t, "http", pingMode.Value.String())
-	assert.Equal(t, "http", viper.GetString("ping-mode"))
 }
 
-// TestExecuteVersion checks a full successful run of a subcommand, including the pre-run hook that reads settings.
-//
-//nolint:paralleltest // execute resets the global viper.
+// TestExecuteVersion checks a full successful run of a subcommand.
 func TestExecuteVersion(t *testing.T) {
-	out, err := execute(t, "--config", writeSettings(t), "version")
+	t.Parallel()
+
+	out, err := execute(t, "version")
 	require.NoError(t, err)
 	assert.Equal(t, version.String()+"\n", out)
 }
 
+// TestExecuteVersionIgnoresSettingsFile checks that commands without settings, such as version, do not read the
+// settings file, so a broken file cannot stop them.
+func TestExecuteVersionIgnoresSettingsFile(t *testing.T) {
+	t.Parallel()
+
+	_, err := execute(t, "--config", writeSettings(t, "jsn: true\n"), "version")
+	require.NoError(t, err)
+}
+
 // TestExecuteFlagErrorIsInvalidSetting checks that a flag value cobra cannot parse is reported as an invalid
-// setting, so the CLI exits with code 2 for it, and that the usage text follows. Parsing fails before the pre-run
-// hook reads the settings file.
-//
-//nolint:paralleltest // execute resets the global viper.
+// setting, so the CLI exits with code 2 for it, and that the usage text follows.
 func TestExecuteFlagErrorIsInvalidSetting(t *testing.T) {
+	t.Parallel()
+
 	out, err := execute(t, "--thread", "abc")
 	require.ErrorIs(t, err, config.ErrInvalidSetting)
 	require.Contains(t, out, `invalid argument "abc"`)
 	assert.Contains(t, out, "Usage:")
 }
 
-// TestExecuteSettingsFileErrorIsInvalidSetting checks that a settings file that cannot be read is an invalid
-// setting, so the CLI exits with code 2, and that the error is not followed by the usage text.
-//
-//nolint:paralleltest // execute resets the global viper.
+// TestExecuteSettingsFileErrorIsInvalidSetting checks that a settings file that cannot be read or decoded is an
+// invalid setting, so the CLI exits with code 2, and that the error names the file and is not followed by the usage
+// text.
 func TestExecuteSettingsFileErrorIsInvalidSetting(t *testing.T) {
-	out, err := execute(t, "--config", filepath.Join(t.TempDir(), "missing.yaml"))
-	require.ErrorIs(t, err, config.ErrInvalidSetting)
-	assert.Contains(t, out, "failed to read config file")
-	assert.NotContains(t, out, "Usage:")
+	t.Parallel()
+
+	for name, path := range map[string]string{
+		"missing":     filepath.Join(t.TempDir(), "missing.yaml"),
+		"unknown key": writeSettings(t, "jsn: true\n"),
+	} {
+		out, err := execute(t, "--config", path)
+		require.ErrorIs(t, err, config.ErrInvalidSetting, name)
+		require.ErrorIs(t, err, config.ErrInvalidFile, name)
+		assert.Contains(t, out, path, name)
+		assert.NotContains(t, out, "Usage:", name)
+	}
 }
 
 // TestExecuteRunErrorSkipsUsage checks that an error after flag parsing, here an unknown ping mode, is reported
 // without the usage text, which only helps with flag mistakes.
-//
-//nolint:paralleltest // execute resets the global viper.
 func TestExecuteRunErrorSkipsUsage(t *testing.T) {
-	out, err := execute(t, "--config", writeSettings(t), "--ping-mode", "udp")
+	t.Parallel()
+
+	out, err := execute(t, "--ping-mode", "udp")
 	require.ErrorIs(t, err, config.ErrInvalidSetting)
-	assert.Contains(t, out, `unknown ping mode "udp"`)
+	assert.Contains(t, out, `--ping-mode: unknown ping mode "udp"`)
 	assert.NotContains(t, out, "Usage:")
+}
+
+// TestExecuteSettingsFile checks that a command reads its settings from the file --config names, and that a flag
+// given on the command line wins over it.
+func TestExecuteSettingsFile(t *testing.T) {
+	t.Parallel()
+
+	settings := writeSettings(t, "pingMode: udp\n")
+
+	out, err := execute(t, "--config", settings)
+	require.ErrorIs(t, err, config.ErrInvalidSetting)
+	assert.Contains(t, out, settings+": pingMode", "the error names the file and key")
+
+	_, err = execute(
+		t,
+		"--config",
+		settings,
+		"--ping-mode",
+		"icmp",
+		"--json",
+		"--custom-url",
+		"http://127.0.0.1:9",
+	)
+	require.NotErrorIs(
+		t,
+		err,
+		config.ErrInvalidSetting,
+		"the flag replaces the file's invalid value",
+	)
 }
 
 // TestExecuteInterrupted checks that both commands run with the context they are executed with, so an interrupt ends
 // them with the context's error, and that they say "Interrupted" in place of cobra's error message.
-//
-//nolint:paralleltest // executeContext resets the global viper.
 func TestExecuteInterrupted(t *testing.T) {
+	t.Parallel()
+
 	for _, args := range [][]string{{"list"}, {"--json"}} {
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
-		out, err := executeContext(ctx, t, append(args, "--config", writeSettings(t))...)
+		out, err := executeContext(ctx, t, args...)
 		require.ErrorIs(t, err, context.Canceled, args)
 		assert.Equal(t, "Interrupted\n", out, args)
 	}
@@ -151,11 +213,8 @@ func TestExecuteInterrupted(t *testing.T) {
 
 // TestExecuteJSON runs the speed test command against the fake API, as a script would: stdout holds exactly one
 // JSON document, and nothing else.
-//
-//nolint:paralleltest // The command binds flags to the global viper.
 func TestExecuteJSON(t *testing.T) {
-	viper.Reset()
-	t.Cleanup(viper.Reset)
+	t.Parallel()
 
 	api := testserver.NewAPI(t)
 
@@ -164,11 +223,7 @@ func TestExecuteJSON(t *testing.T) {
 	rootCmd := NewRootCommand()
 	rootCmd.SetOut(&stdout)
 	rootCmd.SetErr(&stderr)
-	rootCmd.SetArgs([]string{
-		"--config", writeSettings(t),
-		"--base-url", api.URL(),
-		"--json", "--no-download", "--no-upload",
-	})
+	rootCmd.SetArgs([]string{"--base-url", api.URL(), "--json", "--no-download", "--no-upload"})
 
 	require.NoError(t, rootCmd.ExecuteContext(t.Context()))
 

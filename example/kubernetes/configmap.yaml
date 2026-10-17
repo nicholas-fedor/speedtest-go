@@ -1,0 +1,20 @@
+# Settings for speedtest-go, mounted into the pod and the CronJob as /etc/speedtest-go/config.yaml.
+#
+# Each key is a flag name in camelCase, such as pingMode for --ping-mode.
+# Every key is optional.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: speedtest-settings
+data:
+  config.yaml: |
+    # How latency is measured: http or tcp.
+    # ICMP does not work in the container image, which cannot open raw sockets.
+    pingMode: tcp
+
+    # The servers to test, by ID.
+    # Without this, the server with the lowest latency is tested.
+    # server: [6691, 6087]
+
+    # Write the results as one JSON document.
+    json: true
