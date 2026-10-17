@@ -3,7 +3,7 @@
 #   docker compose run --rm speedtest
 services:
   speedtest:
-    image: ${SPEEDTEST_GO_IMAGE:-nickfedor/speedtest-go:latest}
+    image: ${SPEEDTEST_GO_IMAGE:-nickfedor/speedtest-go:latest@sha256:5ea3671320168d5b30cac98cebca05b08afafc3aab71dbef6428c0fbfc311508}
     environment:
       SPEEDTEST_GO_CONFIG: /config.yaml
     volumes:
