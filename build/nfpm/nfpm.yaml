@@ -67,6 +67,13 @@ contents:
     file_info:
       mode: 0644
 
+  # The lintian overrides that GoReleaser writes from deb.lintian_overrides in its config.
+  - src: "build/nfpm/lintian-overrides"
+    dst: "/usr/share/lintian/overrides/speedtest-go"
+    packager: deb
+    file_info:
+      mode: 0644
+
   - src: "LICENSE"
     dst: "/usr/share/licenses/speedtest-go/LICENSE"
     packager: rpm
