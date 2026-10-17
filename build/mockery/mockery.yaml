@@ -152,11 +152,6 @@ include-auto-generated: false
 # Default: false
 # dry-run: true
 
-# Specify a file containing boilerplate text (e.g., license headers) to prepend to all mocks.
-# Path is relative to the config file or working directory.
-# Default: ""
-# boilerplate-file: ""
-
 # Disable generation of function mocks when true.
 # Limits mocks to interfaces only, skipping standalone functions.
 # Default: false
@@ -199,6 +194,10 @@ require-template-schema-exists: false
 # Specify the template to use for generating mocks.
 # Default: ""
 template: testify
+
+# Add the license header to generated files.
+template-data:
+  boilerplate-file: build/mockery/license.txt
 
 # Specify the schema file for the template.
 # Default: ""
