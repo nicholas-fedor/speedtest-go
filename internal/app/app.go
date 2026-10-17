@@ -5,8 +5,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"time"
+
+	"github.com/charmbracelet/x/term"
 
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/config"
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/output"
@@ -155,16 +158,48 @@ func RunSpeedtest(ctx context.Context, cfg config.Config, out io.Writer) error {
 		output.WriteAppInfo(out)
 	}
 
-	user, results, err := runner.New(client, newReporter(cfg, out), runSettings(cfg)).Run(ctx)
+	reporter := newReporter(cfg, out)
+
+	tui, drawn := reporter.(*report.TUI)
+	if drawn {
+		// The standard logger writes to stderr, which shares the terminal and would break the redraw. Go's HTTP
+		// client logs there when a server answers on an idle connection, which some speedtest servers do.
+		restore := silenceStandardLogger()
+		defer restore()
+	}
+
+	user, results, err := runner.New(client, reporter, runSettings(cfg)).Run(ctx)
 	if err != nil {
 		return err //nolint:wrapcheck // The runner names the lookup or test that failed.
+	}
+
+	// A terminal that failed while drawing lost results it could not show, so the run must not look complete.
+	if drawn {
+		err = tui.Err()
+		if err != nil {
+			return err //nolint:wrapcheck // Err names the drawing that failed.
+		}
 	}
 
 	return writeReports(out, cfg, user, results)
 }
 
+// silenceStandardLogger discards the standard logger's output until the returned function restores it.
+//
+// Returns:
+//   - func(): restores the logger's previous output.
+func silenceStandardLogger() func() {
+	previous := log.Writer()
+
+	log.SetOutput(io.Discard)
+
+	return func() { log.SetOutput(previous) }
+}
+
 // newReporter returns the reporter for the output the settings select: nothing besides the JSON reports, one line
-// per result for --unix, or live spinners.
+// per result for --unix, --debug, or output that is not a terminal, and live progress otherwise.
+//
+// Debug messages go to stderr as they happen, which would break the live redraw, so --debug shows plain lines.
 //
 // Parameters:
 //   - cfg: the settings.
@@ -178,11 +213,24 @@ func newReporter(cfg config.Config, out io.Writer) runner.Reporter {
 	switch {
 	case cfg.JSONOutput || cfg.JSONLOutput:
 		return report.Discard{}
-	case cfg.UnixOutput:
+	case cfg.UnixOutput || cfg.Debug || !isTerminal(out):
 		return report.NewLines(out, options)
 	default:
-		return report.NewSpinner(out, options)
+		return report.NewTUI(out, options)
 	}
+}
+
+// isTerminal reports whether output goes to a terminal, where the live progress can redraw.
+//
+// Parameters:
+//   - out: the output.
+//
+// Returns:
+//   - bool: true for a terminal.
+func isTerminal(out io.Writer) bool {
+	file, ok := out.(*os.File)
+
+	return ok && term.IsTerminal(file.Fd())
 }
 
 // runSettings returns the settings that choose a run's servers and tests.

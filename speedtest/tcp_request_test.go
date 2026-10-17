@@ -110,6 +110,9 @@ func uploadURLWatcher(t *testing.T) (string, *atomic.Int32) {
 
 // tcpClient returns a client in TCP test mode with a short capture time.
 //
+// A request still running when a test stops counts as failed, and an upload that confirmed nothing is then not
+// available. The capture time leaves room for an upload request to finish on a loaded runner with the race detector.
+//
 // Parameters:
 //   - t: the test.
 //
@@ -122,7 +125,7 @@ func tcpClient(t *testing.T) *Client {
 		t,
 		WithProtocol(TCPTest),
 		WithConnections(2),
-		WithTestDuration(300*time.Millisecond),
+		WithTestDuration(time.Second),
 	)
 }
 

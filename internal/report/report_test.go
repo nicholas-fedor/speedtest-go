@@ -5,8 +5,6 @@ package report
 
 import (
 	"bytes"
-	"errors"
-	"io"
 	"strings"
 	"testing"
 	"time"
@@ -197,91 +195,6 @@ func TestProgressLine(t *testing.T) {
 		Rate:      500_000,
 		Latency:   21 * time.Millisecond,
 	}, options))
-}
-
-// messages returns the message and state of each spinner of the current group.
-func messages(s *Spinner) []string {
-	spinners := s.manager.GetSpinners()
-	result := make([]string, 0, len(spinners))
-
-	for _, spinner := range spinners {
-		state := "running"
-
-		switch {
-		case spinner.IsError():
-			state = "error"
-		case spinner.IsComplete():
-			state = "done"
-		default:
-		}
-
-		result = append(result, state+": "+spinner.GetMessage())
-	}
-
-	return result
-}
-
-// TestSpinner checks that each lookup and test gets a spinner that shows its progress and turns into its result
-// line, and that each server starts a new group.
-func TestSpinner(t *testing.T) {
-	t.Parallel()
-
-	spinner := NewSpinner(io.Discard, Options{Unit: speedtest.UnitTypeDefaultMbps, MaskISP: false})
-	events := runEvents()
-
-	report(spinner, events[:2])
-	assert.Equal(
-		t,
-		[]string{"done: " + resultLines[0], "running: Retrieving Servers"},
-		messages(spinner),
-	)
-
-	report(spinner, events[2:3])
-	assert.Equal(
-		t,
-		[]string{"done: " + resultLines[0], "done: " + resultLines[1]},
-		messages(spinner),
-	)
-
-	report(spinner, events[3:6])
-	assert.Equal(t, []string{"done: " + resultLines[3], "running: Latency: 4ms"}, messages(spinner))
-
-	report(spinner, events[6:10])
-	assert.Equal(t, []string{
-		"done: " + resultLines[3],
-		"done: " + resultLines[4],
-		"done: " + resultLines[5],
-		"running: Download: 100.00 Mbps (Latency: --)",
-	}, messages(spinner))
-
-	report(spinner, events[10:])
-	assert.Equal(t, []string{
-		"done: " + resultLines[3],
-		"done: " + resultLines[4],
-		"done: " + resultLines[5],
-		"done: " + resultLines[6],
-		"done: " + resultLines[7],
-		"done: " + resultLines[8],
-	}, messages(spinner))
-}
-
-// TestSpinner_Failed checks that a failed run marks its unfinished spinners as failed.
-func TestSpinner_Failed(t *testing.T) {
-	t.Parallel()
-
-	spinner := NewSpinner(io.Discard, Options{Unit: speedtest.UnitTypeDefaultMbps, MaskISP: false})
-
-	report(spinner, []runner.Event{
-		runner.LookupStarted{},
-		runner.UserFound{User: testUser},
-		runner.RunFinished{Err: errors.New("connection refused")},
-	})
-
-	assert.Equal(
-		t,
-		[]string{"done: " + resultLines[0], "error: Retrieving Servers"},
-		messages(spinner),
-	)
 }
 
 // TestDiscard checks that the discard reporter accepts every event.
