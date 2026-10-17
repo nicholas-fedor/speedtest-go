@@ -4,8 +4,12 @@ version: "3"
 
 silent: true
 
-# LDFLAGS is shared by the build, install, and package tasks so all of them stamp the same version metadata: the
-# tag without its "v" prefix, the short commit SHA, and the build time in UTC. Each invocation reads fresh values.
+# LDFLAGS is shared by the build, install, and package tasks so all of them
+# stamp the same version metadata:
+#   - the tag without its "v" prefix
+#   - the short commit SHA
+#   - the build time in UTC.
+# Each invocation reads fresh values.
 vars:
   MODULE: github.com/nicholas-fedor/speedtest-go/v2
   VERSION:
@@ -22,7 +26,8 @@ vars:
     -X '{{.MODULE}}/speedtest.version={{.VERSION}}'
   GOLANGCI_CONFIG: build/golangci-lint/golangci-lint.yaml
   GORELEASER_CONFIG: build/goreleaser/stable.yaml
-  # The examples and the generated mocks have no tests of their own, so they stay out of the coverage total.
+  # The examples and the generated mocks have no tests of their own, so they
+  # stay out of the coverage total.
   PKGS:
     sh: go list ./... | grep -v -e '/mocks$' -e '/example/' | tr '\n' ' '
 
@@ -34,8 +39,8 @@ tasks:
 
   build:
     desc: "Build a static binary to ./bin/speedtest-go with version info injected"
-    # Go settings that a build needs are set on the command, where an exported variable cannot override them as it
-    # would a task env entry.
+    # Go settings that a build needs are set on the command, where an exported
+    # variable cannot override them as it would a task env entry.
     cmds:
       - CGO_ENABLED=0 go build -trimpath -ldflags "{{.LDFLAGS}}" -o bin/speedtest-go .
 
@@ -46,7 +51,8 @@ tasks:
 
   uninstall:
     desc: "Remove the CLI from $GOBIN (or $GOPATH/bin)"
-    # Without GOBIN, go install uses the first GOPATH entry, so the list is cut at the OS path list separator.
+    # Without GOBIN, go install uses the first GOPATH entry, so the list is cut
+    # at the OS path list separator.
     cmds:
       - |
         bin="$(go env GOBIN)"
@@ -74,17 +80,21 @@ tasks:
   modernize:
     desc: "Fail when go fix modernizers would change the code. FIX=true applies them"
     # Run after every Go toolchain upgrade to adopt the new version's idioms.
+    # go fix -diff exits 1 both when it prints a diff and when it fails, so a
+    # failure is an exit with no diff.
     cmds:
       - |
         if [ "{{.FIX | default "false"}}" = "true" ]; then
           go fix ./...
         else
-          diff=$(go fix -diff ./...)
+          status=0
+          diff=$(go fix -diff ./...) || status=$?
           if [ -n "$diff" ]; then
             printf '%s\n' "$diff"
             echo "modernize: run 'task modernize FIX=true' to apply" >&2
             exit 1
           fi
+          exit "$status"
         fi
 
   test:
@@ -105,14 +115,17 @@ tasks:
 
   fuzz:
     desc: "Run fuzz targets for 30s each, or FUZZTIME=<duration> to override"
-    # go test fuzzes one target in one package per run, so the loop lists each package's fuzz targets and runs them
-    # one at a time, anchored so that one name cannot match another. set -eu aborts on the first failure.
+    # go test fuzzes one target in one package per run, so the loop lists each
+    # package's fuzz targets and runs them one at a time, anchored so that one
+    # name cannot match another. set -eu aborts on the first failure, including
+    # a package whose tests cannot be listed.
     # FUZZTIME has no vars entry, because a declared var would shadow the command line.
     cmds:
       - |
         set -eu
         for pkg in {{.PKGS}}; do
-          for target in $(go test -list '^Fuzz' "$pkg" | grep '^Fuzz' || true); do
+          list=$(go test -list '^Fuzz' "$pkg")
+          for target in $(printf '%s\n' "$list" | grep '^Fuzz' || true); do
             echo "fuzzing $pkg $target"
             go test -run='^$' -fuzz="^${target}\$" -fuzztime={{.FUZZTIME | default "30s"}} "$pkg"
           done
@@ -130,8 +143,9 @@ tasks:
 
   package:
     desc: "Build Linux packages into ./dist with nfpm, for GOARCH (default amd64) and PACKAGERS (default all four)"
-    # The binary is built for the package's architecture, which nfpm also reads from GOARCH. GOARCH and PACKAGERS
-    # have no vars entries, because a declared var would shadow the command line.
+    # The binary is built for the package's architecture, which nfpm also reads
+    # from GOARCH. GOARCH and PACKAGERS have no vars entries, because a declared
+    # var would shadow the command line.
     cmds:
       - >-
         CGO_ENABLED=0 GOOS=linux GOARCH={{.GOARCH | default "amd64"}}
