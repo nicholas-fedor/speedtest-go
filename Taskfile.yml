@@ -1,0 +1,184 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: "3"
+
+silent: true
+
+# LDFLAGS is shared by the build, install, and package tasks so all of them
+# stamp the same version metadata:
+#   - the tag without its "v" prefix
+#   - the short commit SHA
+#   - the build time in UTC.
+# Each invocation reads fresh values.
+vars:
+  MODULE: github.com/nicholas-fedor/speedtest-go/v2
+  VERSION:
+    sh: (git describe --tags --always --dirty 2>/dev/null || echo dev) | sed 's/^v//'
+  COMMIT_SHA:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo unknown
+  BUILD_TIME:
+    sh: date -u +%Y-%m-%dT%H:%M:%SZ
+  LDFLAGS: >-
+    -s -w
+    -X '{{.MODULE}}/internal/version.Version={{.VERSION}}'
+    -X '{{.MODULE}}/internal/version.CommitSHA={{.COMMIT_SHA}}'
+    -X '{{.MODULE}}/internal/version.BuildTime={{.BUILD_TIME}}'
+    -X '{{.MODULE}}/speedtest.version={{.VERSION}}'
+  GOLANGCI_CONFIG: build/golangci-lint/golangci-lint.yaml
+  GORELEASER_CONFIG: build/goreleaser/stable.yaml
+  # The examples and the generated mocks have no tests of their own, so they
+  # stay out of the coverage total.
+  PKGS:
+    sh: go list ./... | grep -v -e '/mocks$' -e '/example/' | tr '\n' ' '
+
+tasks:
+  default:
+    desc: "Show available tasks"
+    cmds:
+      - task --list-all
+
+  build:
+    desc: "Build a static binary to ./bin/speedtest-go with version info injected"
+    # Go settings that a build needs are set on the command, where an exported
+    # variable cannot override them as it would a task env entry.
+    cmds:
+      - CGO_ENABLED=0 go build -trimpath -ldflags "{{.LDFLAGS}}" -o bin/speedtest-go .
+
+  install:
+    desc: "Install the CLI to $GOBIN (or $GOPATH/bin)"
+    cmds:
+      - CGO_ENABLED=0 go install -trimpath -ldflags "{{.LDFLAGS}}" .
+
+  uninstall:
+    desc: "Remove the CLI from $GOBIN (or $GOPATH/bin)"
+    # Without GOBIN, go install uses the first GOPATH entry, so the list is cut
+    # at the OS path list separator.
+    cmds:
+      - |
+        bin="$(go env GOBIN)"
+        if [ -z "$bin" ]; then
+          gopath="$(go env GOPATH)"
+          bin="${gopath%%{{if eq OS "windows"}};{{else}}:{{end}}*}/bin"
+        fi
+        rm -f "$bin/speedtest-go$(go env GOEXE)"
+
+  run:
+    desc: "Run the CLI, passing arguments after --, such as task run -- --json"
+    cmds:
+      - go run . {{.CLI_ARGS}}
+
+  fmt:
+    desc: "Format code with golangci-lint fmt"
+    cmds:
+      - golangci-lint fmt --config {{.GOLANGCI_CONFIG}} ./...
+
+  vet:
+    desc: "Run go vet"
+    cmds:
+      - go vet ./...
+
+  modernize:
+    desc: "Fail when go fix modernizers would change the code. FIX=true applies them"
+    # Run after every Go toolchain upgrade to adopt the new version's idioms.
+    # go fix -diff exits 1 both when it prints a diff and when it fails, so a
+    # failure is an exit with no diff.
+    cmds:
+      - |
+        if [ "{{.FIX | default "false"}}" = "true" ]; then
+          go fix ./...
+        else
+          status=0
+          diff=$(go fix -diff ./...) || status=$?
+          if [ -n "$diff" ]; then
+            printf '%s\n' "$diff"
+            echo "modernize: run 'task modernize FIX=true' to apply" >&2
+            exit 1
+          fi
+          exit "$status"
+        fi
+
+  test:
+    desc: "Run tests with race detection and report the total coverage"
+    cmds:
+      - CGO_ENABLED=1 go test -race -shuffle=on -count=1 -coverprofile=coverage.out {{.PKGS}}
+      - go tool cover -func=coverage.out | tail -1
+
+  lint:
+    desc: "Run golangci-lint"
+    cmds:
+      - golangci-lint run --config {{.GOLANGCI_CONFIG}} ./...
+
+  bench:
+    desc: "Run benchmarks"
+    cmds:
+      - go test -bench=. -benchmem -run='^$' {{.PKGS}}
+
+  fuzz:
+    desc: "Run fuzz targets for 30s each, or FUZZTIME=<duration> to override"
+    # go test fuzzes one target in one package per run, so the loop lists each
+    # package's fuzz targets and runs them one at a time, anchored so that one
+    # name cannot match another. set -eu aborts on the first failure, including
+    # a package whose tests cannot be listed.
+    # FUZZTIME has no vars entry, because a declared var would shadow the command line.
+    cmds:
+      - |
+        set -eu
+        for pkg in {{.PKGS}}; do
+          list=$(go test -list '^Fuzz' "$pkg")
+          for target in $(printf '%s\n' "$list" | grep '^Fuzz' || true); do
+            echo "fuzzing $pkg $target"
+            go test -run='^$' -fuzz="^${target}\$" -fuzztime={{.FUZZTIME | default "30s"}} "$pkg"
+          done
+        done
+
+  mocks:
+    desc: "Generate mocks with mockery"
+    cmds:
+      - mockery --config=build/mockery/mockery.yaml
+
+  vuln:
+    desc: "Report known vulnerabilities in the dependency graph"
+    cmds:
+      - govulncheck ./...
+
+  package:
+    desc: "Build Linux packages into ./dist with nfpm, for GOARCH (default amd64) and PACKAGERS (default all four)"
+    # The binary is built for the package's architecture, which nfpm also reads
+    # from GOARCH. GOARCH and PACKAGERS have no vars entries, because a declared
+    # var would shadow the command line.
+    cmds:
+      - >-
+        CGO_ENABLED=0 GOOS=linux GOARCH={{.GOARCH | default "amd64"}}
+        go build -trimpath -ldflags "{{.LDFLAGS}}" -o bin/speedtest-go .
+      - mkdir -p dist
+      - |
+        set -eu
+        for packager in {{.PACKAGERS | default "deb rpm apk archlinux"}}; do
+          GOARCH={{.GOARCH | default "amd64"}} VERSION={{.VERSION}} \
+            nfpm pkg --config build/nfpm/nfpm.yaml --packager "$packager" --target dist/
+        done
+
+  release:
+    desc: "Publish a release from the current tag"
+    cmds:
+      - goreleaser release --clean --config {{.GORELEASER_CONFIG}}
+
+  release:snapshot:
+    desc: "Build every target, package, and image locally without signing or publishing"
+    cmds:
+      - goreleaser release --snapshot --clean --skip=sign --config {{.GORELEASER_CONFIG}}
+
+  check:
+    desc: "Run fmt, vet, modernize, test, lint, then vuln"
+    cmds:
+      - task: fmt
+      - task: vet
+      - task: modernize
+      - task: test
+      - task: lint
+      - task: vuln
+
+  clean:
+    desc: "Remove build artifacts"
+    cmds:
+      - rm -rf bin/ dist/ coverage.out
