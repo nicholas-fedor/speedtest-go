@@ -192,7 +192,7 @@ v1 counted every test on the client's single data manager, which added up until 
 
 | v1 | v2 |
 | --- | --- |
-| `client.SetCallbackDownload(callback)`, `client.SetCallbackUpload(callback)` | `speedtest.WithRateCallback(callback)`, passed to the one test it applies to |
+| `client.SetCallbackDownload(callback)`, `client.SetCallbackUpload(callback)` | `speedtest.WithProgressCallback(callback)`, passed to the one test it applies to. The callback receives a `TransferProgress` with the rate, the elapsed time, and the estimated time left. |
 | `client.GetTotalDownload()`, `client.GetTotalUpload()` | `transfer.Bytes` |
 | `client.Reset()` | Not needed. |
 | `client.Snapshots()` | Removed. `transfer.Connections` reports each connection's bytes, requests, failures, and active time. |
@@ -200,11 +200,11 @@ v1 counted every test on the client's single data manager, which added up until 
 
 `Manager`, `Chunk`, `DataManager`, `NewDataManager`, `DataChunk`, `DataType`, `TestDirection`, `Snapshot`, and `Snapshots` are removed with no replacement. They are internal to the library now.
 
-`Transfer.Rate` is the bytes per second over the test's capture window, measured from the bytes counted. Upload tests count only the bytes a server confirmed with a successful response, and `Transfer.ConfirmationRatio` reports the share of the bytes sent that were confirmed. The rate callback still receives a smoothed live estimate while the test runs.
+`Transfer.Rate` is the bytes per second over the test's capture window, measured from the bytes counted. Upload tests count only the bytes a server confirmed with a successful response, and `Transfer.ConfirmationRatio` reports the share of the bytes sent that were confirmed. The progress callback receives a smoothed live estimate of the rate while the test runs.
 
 ```go
-download, err := client.Download(ctx, server, speedtest.WithRateCallback(func(rate speedtest.ByteRate) {
-    fmt.Println("Download:", rate)
+download, err := client.Download(ctx, server, speedtest.WithProgressCallback(func(p speedtest.TransferProgress) {
+    fmt.Println("Download:", p.Rate, "time left:", p.Remaining.Round(time.Second))
 }))
 if err != nil {
     log.Fatal(err)

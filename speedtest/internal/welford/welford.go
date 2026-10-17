@@ -63,6 +63,8 @@ const (
 	ewmaBetaNumerator = 2
 	// minWindowSize is the smallest window, since a variance needs two samples.
 	minWindowSize = 2
+	// stableCV is the coefficient of variation below which an update of a full window counts as stable.
+	stableCV = 0.03
 )
 
 // NewWelford returns an estimator whose window spans one cycle of samples taken at the given frequency, and at
@@ -137,7 +139,7 @@ func (w *Welford) Update(globalAvg, value float64) bool {
 
 	w.ewmaMean = value*w.beta + w.ewmaMean*(1-w.beta)
 
-	if w.n == w.cap && w.cv < 0.03 {
+	if w.n == w.cap && w.cv < stableCV {
 		w.consecutiveStableIterations++
 	} else if w.consecutiveStableIterations > 0 {
 		w.consecutiveStableIterations--
@@ -147,6 +149,33 @@ func (w *Welford) Update(globalAvg, value float64) bool {
 
 	return w.consecutiveStableIterations >= w.consecutiveStableIterationsThreshold &&
 		w.steps > w.minSteps
+}
+
+// UpdatesUntilStable estimates how many more updates the series needs before [Welford.Update] reports it stable,
+// assuming each of them is stable. The window must still fill, a third of it must then be stable in a row, and the
+// series must pass its minimum number of updates.
+//
+// The estimate is plausible while the series is settling, and also before its minimum number of updates, since a
+// rate that is still ramping up usually settles by then. A series past its minimum that still swings may take any
+// time to settle.
+//
+// Returns:
+//   - int: the estimated number of updates, 0 once the series is stable.
+//   - bool: true when the estimate is plausible.
+func (w *Welford) UpdatesUntilStable() (int, bool) {
+	settling := w.n >= minSamplesForVariance && w.cv < stableCV
+	if !settling && w.steps > w.minSteps {
+		return 0, false
+	}
+
+	toFill := w.cap - w.n
+	toStable := toFill + max(
+		w.consecutiveStableIterationsThreshold-w.consecutiveStableIterations,
+		0,
+	)
+	toMinimum := w.minSteps + 1 - w.steps
+
+	return max(toStable, toMinimum, 0), true
 }
 
 // Mean returns the mean of the window's cumulative averages.

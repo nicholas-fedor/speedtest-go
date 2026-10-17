@@ -78,11 +78,11 @@ func TestClient_Transfers(t *testing.T) {
 			rates []ByteRate
 		)
 
-		transfer, err := run(WithRateCallback(func(rate ByteRate) {
+		transfer, err := run(WithProgressCallback(func(progress TransferProgress) {
 			mu.Lock()
 			defer mu.Unlock()
 
-			rates = append(rates, rate)
+			rates = append(rates, progress.Rate)
 		}))
 		require.NoError(t, err, name)
 
@@ -136,11 +136,11 @@ func TestClient_TransfersAreIndependent(t *testing.T) {
 		transfer, err := client.Download(
 			context.Background(),
 			&Server{ID: "1001", URL: api.ServerUploadURL("1001")},
-			WithRateCallback(func(rate ByteRate) {
+			WithProgressCallback(func(progress TransferProgress) {
 				mu.Lock()
 				defer mu.Unlock()
 
-				rates = append(rates, rate)
+				rates = append(rates, progress.Rate)
 			}),
 		)
 
@@ -616,4 +616,26 @@ func TestClient_UploadMulti_ResolvesOnlyUsedServers(t *testing.T) {
 	assert.Equal(t, []string{http.MethodHead}, redirectors[1].Methods())
 	assert.Empty(t, redirectors[2].Methods(), "a server without a connection must not be resolved")
 	assert.Empty(t, redirectors[3].Methods(), "a server without a connection must not be resolved")
+}
+
+// Test_progressCallback checks that the meter's progress reaches the callback as a rate, the elapsed time, and the
+// time left, and that no callback adapts to none.
+func Test_progressCallback(t *testing.T) {
+	t.Parallel()
+
+	assert.Nil(t, progressCallback(nil))
+
+	var got TransferProgress
+
+	progressCallback(func(progress TransferProgress) { got = progress })(meter.Progress{
+		Rate:      12_500_000,
+		Elapsed:   4 * time.Second,
+		Remaining: 6 * time.Second,
+	})
+
+	assert.Equal(
+		t,
+		TransferProgress{Rate: 12_500_000, Elapsed: 4 * time.Second, Remaining: 6 * time.Second},
+		got,
+	)
 }

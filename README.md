@@ -201,7 +201,7 @@ speedtest-go version
 
 Simply use `speedtest-go` command. The closest server is selected by default. Use the `-m` flag to enable multi-measurement mode (recommended)
 
-In a terminal, each running test shows its live progress, and each result replaces it as a line. When the output is not a terminal, such as a pipe or a file, or with `--debug`, the results are plain lines without the progress, as with `--unix`.
+In a terminal, each running test shows its live progress, and each result replaces it as a line. A download or upload also shows a progress bar and an estimate of the time left, which tracks when the test expects its rate to settle, and each server ends with a panel of its headline results. When the output is not a terminal, such as a pipe or a file, or with `--debug`, the results are plain lines without the progress, as with `--unix`.
 
 ```bash
 ## unix like format output

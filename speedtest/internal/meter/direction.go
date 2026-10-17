@@ -369,20 +369,59 @@ func (d *Direction) rateCapture(start time.Time, stop <-chan struct{}) {
 					rateSample(d.kind, globalAvg, delta, frequency),
 				)
 				ewma := d.welford.EWMA()
+				untilStable, settling := d.welford.UpdatesUntilStable()
 				d.welfordMu.Unlock()
 
 				if shouldStop && d.closeFunc != nil {
 					go d.closeFunc()
 				}
 
-				if d.meter.onRate != nil {
-					d.meter.onRate(ewma)
+				if d.meter.onProgress != nil {
+					elapsed := time.Since(start)
+
+					d.meter.onProgress(Progress{
+						Rate:    ewma,
+						Elapsed: elapsed,
+						Remaining: remaining(
+							d.meter.captureTime,
+							elapsed,
+							untilStable,
+							settling,
+							frequency,
+						),
+					})
 				}
 			case <-stop:
 				return
 			}
 		}
 	}()
+}
+
+// remaining estimates the time left in a test: until the capture time ends, or until the stability check is
+// expected to stop the test when that comes first.
+//
+// Parameters:
+//   - captureTime: the longest the test runs.
+//   - elapsed: the time since the test started measuring.
+//   - untilStable: the rate captures the stability check still needs, assuming each is stable.
+//   - settling: whether the rate is settling, so the stability check's estimate can hold.
+//   - frequency: the time between rate captures.
+//
+// Returns:
+//   - time.Duration: the estimated time left, never negative.
+func remaining(
+	captureTime, elapsed time.Duration,
+	untilStable int,
+	settling bool,
+	frequency time.Duration,
+) time.Duration {
+	left := max(captureTime-elapsed, 0)
+	if settling {
+		left = min(left, time.Duration(untilStable)*frequency)
+	}
+
+	return left
 }
 
 // measuredRate returns the average rate of a volume transferred over a duration.

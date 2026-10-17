@@ -41,8 +41,8 @@
 // # Key Features
 //
 //   - Multi-threaded Testing: Configurable concurrent connections for more accurate speed measurements
-//   - Measured Rates: Reports each test's rate from the bytes it counted, and passes a smoothed live estimate to
-//     WithRateCallback while it runs
+//   - Measured Rates: Reports each test's rate from the bytes it counted, and passes a smoothed live estimate, the
+//     elapsed time, and the estimated time left to WithProgressCallback while it runs
 //   - Multiple Ping Protocols: Supports HTTP, TCP, and ICMP ping methods
 //   - Flexible Configuration: Validated options for proxy settings, source addresses, test sizes, and logging
 //   - Distance-based Server Selection: Automatically selects geographically optimal servers
@@ -92,8 +92,8 @@
 //	    log.Fatal(err)
 //	}
 //
-//	download, err := client.Download(ctx, server, speedtest.WithRateCallback(func(rate speedtest.ByteRate) {
-//	    fmt.Println("Download:", rate)
+//	download, err := client.Download(ctx, server, speedtest.WithProgressCallback(func(p speedtest.TransferProgress) {
+//	    fmt.Println("Download:", p.Rate, "time left:", p.Remaining.Round(time.Second))
 //	}))
 //	if err != nil {
 //	    log.Fatal(err)

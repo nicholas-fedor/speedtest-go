@@ -35,7 +35,7 @@ type zeroReader struct{}
 func newTestMeter(connections int, captureTime time.Duration) *Meter {
 	return New(Config{
 		Logger:               nil,
-		OnRate:               nil,
+		OnProgress:           nil,
 		Connections:          connections,
 		CaptureTime:          captureTime,
 		RateCaptureFrequency: 0,
@@ -87,19 +87,19 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, runtime.NumCPU(), defaults.connections)
 	assert.Equal(t, defaultUploadMaxWorkers, defaults.uploadMaxWorkers)
 	assert.IsType(t, noopLogger{}, defaults.logger)
-	assert.Nil(t, defaults.onRate)
+	assert.Nil(t, defaults.onProgress)
 
 	logger := &recordingLogger{messages: map[string][]any{}}
 	configured := New(Config{
 		Logger:               logger,
-		OnRate:               func(float64) {},
+		OnProgress:           func(Progress) {},
 		Connections:          3,
 		CaptureTime:          time.Second,
 		RateCaptureFrequency: 10 * time.Millisecond,
 	})
 
 	assert.Same(t, logger, configured.logger)
-	assert.NotNil(t, configured.onRate)
+	assert.NotNil(t, configured.onProgress)
 	assert.Equal(t, 3, configured.connections)
 	assert.Equal(t, 3, configured.uploadMaxWorkers)
 	assert.Equal(t, time.Second, configured.captureTime)

@@ -49,13 +49,24 @@ type ConnectionStats struct {
 	Active time.Duration
 }
 
+// TransferProgress is the live state of a running download or upload test.
+type TransferProgress struct {
+	// Rate is the live rate estimate.
+	Rate ByteRate
+	// Elapsed is the time since the test started measuring.
+	Elapsed time.Duration
+	// Remaining is the estimated time left. A test stops at its duration, or sooner once its rate settles, and the
+	// estimate assumes a settling rate keeps settling, so a test whose rate swings again can run longer.
+	Remaining time.Duration
+}
+
 // TransferOption configures one download or upload test.
 type TransferOption func(*transferSettings)
 
 // transferSettings is the configuration of one download or upload test, collected from its options.
 type transferSettings struct {
-	// onRate receives the live rate while the test runs, or is nil.
-	onRate func(rate ByteRate)
+	// onProgress receives the live state while the test runs, or is nil.
+	onProgress func(progress TransferProgress)
 }
 
 // transferKind is how a download or an upload test registers and sends its requests.
@@ -74,16 +85,17 @@ type transferKind struct {
 // rate as not available rather than zero.
 const failureShareForNotAvailable = 0.1
 
-// WithRateCallback sets a function that receives the live rate estimate while a download or upload test runs.
+// WithProgressCallback sets a function that receives the live state of a download or upload test while it runs:
+// its rate estimate, the elapsed time, and the estimated time left.
 //
 // Parameters:
 //   - callback: the function, or nil for none.
 //
 // Returns:
 //   - TransferOption: the option.
-func WithRateCallback(callback func(rate ByteRate)) TransferOption {
+func WithProgressCallback(callback func(progress TransferProgress)) TransferOption {
 	return func(cfg *transferSettings) {
-		cfg.onRate = callback
+		cfg.onProgress = callback
 	}
 }
 
@@ -274,14 +286,14 @@ func (s *Client) transfer(
 		return Transfer{}, ErrUninitializedManager
 	}
 
-	cfg := transferSettings{onRate: nil}
+	cfg := transferSettings{onProgress: nil}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
 
 	transferMeter := meter.New(meter.Config{
 		Logger:               s.settings.logger,
-		OnRate:               rateCallback(cfg.onRate),
+		OnProgress:           progressCallback(cfg.onProgress),
 		Connections:          s.settings.connections,
 		CaptureTime:          s.settings.testDuration,
 		RateCaptureFrequency: 0,
@@ -448,17 +460,23 @@ func newTransfer(result meter.Result, servers Servers, duration time.Duration) T
 	}
 }
 
-// rateCallback adapts a rate callback to the meter's, which reports bytes per second.
+// progressCallback adapts a progress callback to the meter's, which reports its rate in bytes per second.
 //
 // Parameters:
 //   - callback: the callback, or nil.
 //
 // Returns:
-//   - func(rate float64): the adapted callback, or nil for a nil callback.
-func rateCallback(callback func(rate ByteRate)) func(rate float64) {
+//   - func(progress meter.Progress): the adapted callback, or nil for a nil callback.
+func progressCallback(callback func(progress TransferProgress)) func(progress meter.Progress) {
 	if callback == nil {
 		return nil
 	}
 
-	return func(rate float64) { callback(ByteRate(rate)) }
+	return func(progress meter.Progress) {
+		callback(TransferProgress{
+			Rate:      ByteRate(progress.Rate),
+			Elapsed:   progress.Elapsed,
+			Remaining: progress.Remaining,
+		})
+	}
 }

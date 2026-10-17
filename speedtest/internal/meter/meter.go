@@ -15,8 +15,8 @@ import (
 type Config struct {
 	// Logger receives debug messages, or is nil to discard them.
 	Logger Logger
-	// OnRate receives the live rate estimate in bytes per second while a test runs, or is nil for none.
-	OnRate func(rate float64)
+	// OnProgress receives the live state of a test at each rate capture, or is nil for none.
+	OnProgress func(progress Progress)
 	// Connections is the number of workers a download uses and the most an upload uses, or 0 for one per CPU for
 	// downloads and up to 8 for uploads.
 	Connections int
@@ -31,8 +31,8 @@ type Config struct {
 type Meter struct {
 	// logger receives debug messages.
 	logger Logger
-	// onRate receives the live rate estimate, or is nil.
-	onRate func(rate float64)
+	// onProgress receives the live state of a test, or is nil.
+	onProgress func(progress Progress)
 	// download is the download direction.
 	download *Direction
 	// upload is the upload direction.
@@ -51,6 +51,18 @@ type Meter struct {
 	cpus int
 	// mu guards download and upload.
 	mu sync.Mutex
+}
+
+// Progress is the live state of a running test.
+type Progress struct {
+	// Rate is the live rate estimate in bytes per second.
+	Rate float64
+	// Elapsed is the time since the test started measuring.
+	Elapsed time.Duration
+	// Remaining is the estimated time left: until the capture time ends, or sooner when the rate is settling and the
+	// stability check is expected to stop the test first. It assumes the rate keeps settling, so a test whose rate
+	// swings again runs longer than estimated.
+	Remaining time.Duration
 }
 
 // Meter defaults.
@@ -78,7 +90,7 @@ func New(cfg Config) *Meter {
 
 	meter := &Meter{
 		logger:               logger,
-		onRate:               cfg.OnRate,
+		onProgress:           cfg.OnProgress,
 		pattern:              bytes.Repeat([]byte{uploadPatternByte}, readChunkSize),
 		captureTime:          cmp.Or(cfg.CaptureTime, defaultCaptureTime),
 		rateCaptureFrequency: cmp.Or(cfg.RateCaptureFrequency, defaultRateCaptureFrequency),

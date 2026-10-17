@@ -144,8 +144,14 @@ func (r *Runner) transfer(
 	latencyCtx, stopLatency := context.WithCancel(ctx)
 	loaded := startLoadedLatency(latencyCtx, r.tester, server, loadedLatencyInterval)
 
-	option := speedtest.WithRateCallback(func(rate speedtest.ByteRate) {
-		r.report(TransferProgress{Direction: direction, Rate: rate, Latency: loaded.current()})
+	option := speedtest.WithProgressCallback(func(progress speedtest.TransferProgress) {
+		r.report(TransferProgress{
+			Direction: direction,
+			Rate:      progress.Rate,
+			Latency:   loaded.current(),
+			Elapsed:   progress.Elapsed,
+			Remaining: progress.Remaining,
+		})
 	})
 
 	var (
