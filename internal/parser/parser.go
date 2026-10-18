@@ -1,3 +1,6 @@
+// Copyright (c) Nicholas Fedor 2026 <nick@nickfedor.com>
+// SPDX-License-Identifier: MIT
+
 // Package parser provides functions for parsing configuration strings like units and protocols.
 package parser
 

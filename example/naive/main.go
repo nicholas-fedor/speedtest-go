@@ -1,3 +1,6 @@
+// Copyright (c) Nicholas Fedor 2026 <nick@nickfedor.com>
+// SPDX-License-Identifier: MIT
+
 // Package main demonstrates naive speedtest.
 package main
 

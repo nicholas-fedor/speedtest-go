@@ -1,3 +1,6 @@
+// Copyright (c) Nicholas Fedor 2026 <nick@nickfedor.com>
+// SPDX-License-Identifier: MIT
+
 // Package main provides an example of using the packet loss analyzer.
 package main
 

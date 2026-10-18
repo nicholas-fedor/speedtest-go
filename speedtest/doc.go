@@ -1,3 +1,6 @@
+// Copyright (c) Nicholas Fedor 2026 <nick@nickfedor.com>
+// SPDX-License-Identifier: MIT
+
 // Package speedtest is a Go library for performing network speed tests,
 // compatible with the speedtest.net protocol. It provides comprehensive speed
 // testing capabilities including download and upload speed measurements, latency
