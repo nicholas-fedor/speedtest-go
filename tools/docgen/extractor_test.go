@@ -341,7 +341,8 @@ func Test_cobraExtractor_buildUseLine(t *testing.T) {
 }
 
 // Test_cobraExtractor_parseExamples covers titles, multi-line code,
-// indentation, and dropping an example that only repeats the usage line.
+// indentation, separator lines that hold only white space, and dropping an
+// example that only repeats the usage line.
 func Test_cobraExtractor_parseExamples(t *testing.T) {
 	t.Parallel()
 
@@ -372,6 +373,14 @@ func Test_cobraExtractor_parseExamples(t *testing.T) {
 			name: "shared indentation is removed",
 			raw:  "  # Indented.\n  tool a \\\n    --flag",
 			want: []exampleDoc{{Title: "Indented.", Code: "tool a \\\n  --flag"}},
+		},
+		{
+			name: "a line of spaces separates blocks",
+			raw:  "# First.\ntool a\n   \n# Second.\ntool b",
+			want: []exampleDoc{
+				{Title: "First.", Code: "tool a"},
+				{Title: "Second.", Code: "tool b"},
+			},
 		},
 		{
 			name: "comment-only block is skipped",

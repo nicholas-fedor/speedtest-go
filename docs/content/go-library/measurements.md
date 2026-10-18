@@ -11,7 +11,7 @@ weight: 3
 | `client.FetchUserInfo(ctx)` | Your IP address, ISP, coordinates, and country, as speedtest.net reports them |
 | `client.FetchServers(ctx)` | The servers near you, or near the [location option](../options/#server-list) |
 | `client.FetchServerByID(ctx, id)` | One server by its ID, or `ErrServerNotFound` |
-| `client.CustomServer(host)` | A server that speedtest.net does not need to list |
+| `client.CustomServer(url)` | A server that speedtest.net does not need to list, from its full URL, such as `http://speedtest.example.com:8080`. Its path is replaced with `/speedtest/upload.php` |
 | `servers.FindServer(ids)` | The servers with those IDs. With no IDs, or none that match, the server with the lowest latency |
 | `servers.FilterCountry(codes...)` | The servers in those countries, by two-letter code |
 | `servers.Available()` | The servers with a measured latency |
@@ -83,7 +83,7 @@ Check errors with `errors.Is` and `errors.As`:
 
 | Error | Means |
 | --- | --- |
-| `ErrInvalidOption` | `New` rejected an option |
+| `ErrInvalidOption` | `New` rejected a client option, or `Ping` rejected a ping option |
 | `ErrServerNotFound` | No server is available, or none has the requested ID |
 | `*StatusError`, wrapping `ErrUnexpectedStatus` | A server answered with an HTTP status outside 2xx |
 | `ErrUnsupported` | A server does not serve the packet loss protocol |

@@ -29,7 +29,7 @@ const (
 	indexTitle = "CLI Reference"
 	// referenceURL is the site path of the CLI reference.
 	referenceURL = "/usage/cli-reference/"
-	// paragraphBreak separates paragraphs in help and example text.
+	// paragraphBreak separates paragraphs in help text.
 	paragraphBreak = "\n\n"
 	// commentPrefix starts an example's title line.
 	commentPrefix = "#"
@@ -282,9 +282,10 @@ func (e *cobraExtractor) buildUseLine(use, fullPath string) string {
 
 // parseExamples splits cobra Example text into titled blocks.
 //
-// Blocks are separated by blank lines. Lines starting with "#" form the
-// block's title and the remaining lines its code. An example that only
-// repeats the usage line is dropped, because the page already shows it.
+// Blocks are separated by lines that are empty or hold only white space.
+// Lines starting with "#" form the block's title and the remaining lines its
+// code. An example that only repeats the usage line is dropped, because the
+// page already shows it.
 //
 // Parameters:
 //   - raw: the cobra Example text.
@@ -294,35 +295,38 @@ func (e *cobraExtractor) buildUseLine(use, fullPath string) string {
 // Returns:
 //   - []exampleDoc: the examples, or nil when none add anything.
 func (e *cobraExtractor) parseExamples(raw, fullPath, use string) []exampleDoc {
-	var examples []exampleDoc
+	var (
+		examples  []exampleDoc
+		titles    []string
+		codeLines []string
+	)
 
-	for para := range strings.SplitSeq(strings.TrimSpace(raw), paragraphBreak) {
-		var (
-			titles    []string
-			codeLines []string
-		)
-
-		for line := range strings.SplitSeq(para, "\n") {
-			trimmed := strings.TrimSpace(line)
-
-			switch {
-			case trimmed == "":
-			case strings.HasPrefix(trimmed, commentPrefix):
-				titles = append(titles, strings.TrimSpace(strings.TrimLeft(trimmed, commentPrefix)))
-			default:
-				codeLines = append(codeLines, strings.TrimRightFunc(line, unicode.IsSpace))
-			}
+	// flush ends the current block. A block without code adds no example.
+	flush := func() {
+		if len(codeLines) > 0 {
+			examples = append(examples, exampleDoc{
+				Title: strings.TrimSpace(strings.Join(titles, " ")),
+				Code:  dedent(codeLines),
+			})
 		}
 
-		if len(codeLines) == 0 {
-			continue
-		}
-
-		examples = append(examples, exampleDoc{
-			Title: strings.TrimSpace(strings.Join(titles, " ")),
-			Code:  dedent(codeLines),
-		})
+		titles, codeLines = nil, nil
 	}
+
+	for line := range strings.SplitSeq(raw, "\n") {
+		trimmed := strings.TrimSpace(line)
+
+		switch {
+		case trimmed == "":
+			flush()
+		case strings.HasPrefix(trimmed, commentPrefix):
+			titles = append(titles, strings.TrimSpace(strings.TrimLeft(trimmed, commentPrefix)))
+		default:
+			codeLines = append(codeLines, strings.TrimRightFunc(line, unicode.IsSpace))
+		}
+	}
+
+	flush()
 
 	if len(examples) == 1 && examples[0].Code == e.buildUseLine(use, fullPath) {
 		return nil

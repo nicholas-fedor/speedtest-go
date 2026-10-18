@@ -1,13 +1,14 @@
 {{- /*
   Embeds a muted, looping demo recording with WebM and MP4 sources, and its
-  last frame as the poster for browsers that cannot play either. task
-  docs:demo records the files into static/images.
+  last frame as the poster for browsers that cannot play either. The native
+  controls let visitors pause the loop. task docs:demo records the files into
+  static/images.
 
   Usage: {{< video name="demo" alt="..." >}}
 */ -}}
 {{- $name := .Get "name" -}}
 {{- $poster := printf "images/%s.png" $name | relURL -}}
-<video class="st-video" autoplay loop muted playsinline poster="{{ $poster }}" aria-label="{{ .Get "alt" }}">
+<video class="st-video" autoplay loop muted playsinline controls poster="{{ $poster }}" aria-label="{{ .Get "alt" }}">
   <source src="{{ printf "images/%s.webm" $name | relURL }}" type="video/webm">
   <source src="{{ printf "images/%s.mp4" $name | relURL }}" type="video/mp4">
   <img src="{{ $poster }}" alt="{{ .Get "alt" }}">

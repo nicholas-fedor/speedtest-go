@@ -102,7 +102,7 @@ $ speedtest-go --unix
 | `lat`, `lon` | Degrees, as strings |
 | `distance` | Kilometres. Left out with `--mask-isp` |
 | `latency`, `minLatency`, `maxLatency`, `jitter` | Nanoseconds |
-| `dlSpeed`, `ulSpeed` | Bytes per second, or `-1` when the test did not run |
+| `dlSpeed`, `ulSpeed` | Bytes per second. `0` when the test did not run, which its `testDuration` shows as `null`, and `-1` when it ran but counted no data and more than a tenth of its requests failed |
 | `testDuration` | Nanoseconds for each test, or `null` when it did not run |
 | `packetLoss` | The counts the loss comes from. See [Packet loss](../how-it-works/#packet-loss) |
 
