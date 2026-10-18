@@ -56,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Add the mit spdx header to every go file by @nicholas-fedor in [#553](https://github.com/nicholas-fedor/speedtest-go/pull/553)
 - Remove the unused codacy configuration by @nicholas-fedor in [#543](https://github.com/nicholas-fedor/speedtest-go/pull/543)
 - Add the license header to generated mocks by @nicholas-fedor in [#537](https://github.com/nicholas-fedor/speedtest-go/pull/537)
 - Align struct fields with betteralign by @nicholas-fedor in [#533](https://github.com/nicholas-fedor/speedtest-go/pull/533)
