@@ -1,9 +1,15 @@
-# --saving-mode Experimental Result
+---
+title: Saving Mode Results
+description: Rates and memory use of speedtest-go's saving mode compared with its normal mode
+weight: 1
+---
 
-`--saving-mode` vs normal mode.
+These measurements come from the [upstream project](https://github.com/showwin/speedtest-go), using an earlier version. They compare `--saving-mode` with the normal mode. [Saving mode](/usage/protocols/#saving-mode) describes what it changes.
 
-`N - Download` means normal mode download speed results.
-`S - RAM` means `--saving-mode` memory usage.
+| Column prefix | Mode |
+| --- | --- |
+| `N` | Normal mode |
+| `S` | `--saving-mode` |
 
 | exp No. | N - Download |  N - Upload  | N - RAM  | S - Download |  S - Upload  | S- RAM |
 |:--------|:------------:|:------------:|:--------:|:------------:|:------------:|:------:|

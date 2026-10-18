@@ -1,0 +1,65 @@
+---
+name: Update CLI Reference
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/update-cli-docs.yaml
+      - internal/cmd/**
+      - internal/flags/**
+      - tools/docgen/**
+  workflow_dispatch:
+
+permissions:
+  contents: read # Set default read-only permissions
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cli-docs:
+    name: Regenerate the CLI Reference
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # For committing the regenerated pages
+      pull-requests: write # For creating the PR
+    steps:
+      - name: Harden the Runner (Step Security)
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout Repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          cache: false # The job writes to the repository, so it skips the shared cache
+          go-version-file: go.mod
+
+      # Matches `task docs`, which clears the directory first so pages for removed commands are dropped.
+      - name: Generate the CLI Reference
+        run: |
+          rm -rf docs/content/usage/cli-reference
+          go run ./tools/docgen -out ./docs/content/usage/cli-reference
+
+      # The PR stays open for review because the pages are user-facing.
+      - name: Create Pull Request for the CLI Reference
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: docs/update-cli-reference
+          add-paths: docs/content/usage/cli-reference
+          author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          sign-commits: true
+          title: "docs(cli): regenerate the cli reference"
+          commit-message: "docs(cli): regenerate the cli reference"
+          body: "Automated regeneration of `docs/content/usage/cli-reference` with `task docs`."
+          delete-branch: true

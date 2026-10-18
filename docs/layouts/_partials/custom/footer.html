@@ -1,0 +1,43 @@
+{{- /*
+  Site footer: links to the documentation sections and the project, then the
+  copyright, the license, and the theme credit. The footer settings in
+  hugo.yaml turn off Hextra's own copyright row, which this replaces.
+*/ -}}
+<div class="st-footer">
+  <nav class="st-footer-columns" aria-label="Footer">
+    <div>
+      <p class="st-footer-heading">Documentation</p>
+      <ul>
+        <li><a href="{{ "getting-started/" | relURL }}">Getting Started</a></li>
+        <li><a href="{{ "installation/" | relURL }}">Installation</a></li>
+        <li><a href="{{ "usage/" | relURL }}">Usage</a></li>
+        <li><a href="{{ "go-library/" | relURL }}">Go Library</a></li>
+      </ul>
+    </div>
+    <div>
+      <p class="st-footer-heading">Reference</p>
+      <ul>
+        <li><a href="{{ "usage/configuration/" | relURL }}">Configuration</a></li>
+        <li><a href="{{ "usage/cli-reference/" | relURL }}">CLI Reference</a></li>
+        <li><a href="{{ "usage/troubleshooting/" | relURL }}">Troubleshooting</a></li>
+        <li><a href="https://pkg.go.dev/github.com/nicholas-fedor/speedtest-go/v2/speedtest">Go API on pkg.go.dev</a></li>
+      </ul>
+    </div>
+    <div>
+      <p class="st-footer-heading">Project</p>
+      <ul>
+        <li><a href="https://github.com/nicholas-fedor/speedtest-go">GitHub</a></li>
+        <li><a href="https://github.com/nicholas-fedor/speedtest-go/releases">Releases</a></li>
+        <li><a href="https://github.com/nicholas-fedor/speedtest-go/issues">Issues</a></li>
+        <li><a href="https://github.com/nicholas-fedor/speedtest-go/blob/master/CONTRIBUTING.md">Contributing</a></li>
+      </ul>
+    </div>
+  </nav>
+  <div class="st-footer-bottom">
+    <span>{{ T "copyright" }}</span>
+    <span aria-hidden="true">·</span>
+    <a href="https://github.com/nicholas-fedor/speedtest-go/blob/master/LICENSE">MIT License</a>
+    <span aria-hidden="true">·</span>
+    <a href="https://github.com/imfing/hextra">Built with Hextra</a>
+  </div>
+</div>

@@ -1,0 +1,72 @@
+---
+title: {{ yaml .Title }}
+description: {{ yaml .Description }}
+weight: 7
+type: docs
+---
+
+Complete command reference for {{ .Name }}, generated from the program itself.
+{{- if .Long }}
+
+{{ .Long }}
+{{- end }}
+{{- if .UseLine }}
+
+## Usage
+
+```bash
+{{ .UseLine }}
+```
+
+Without a command, {{ .Name }} runs a speed test with the options below.
+{{- end }}
+
+## Commands
+
+| Command | Description |
+| --- | --- |
+{{- range .Sections }}
+{{- range .SubCommands }}
+| [{{ .Name }}]({{ .URL }}) | {{ cell .Description }} |
+{{- end }}
+{{- end }}
+{{- if .Examples }}
+
+## Examples
+{{- range .Examples }}
+{{- if .Title }}
+
+### {{ .Title }}
+{{- end }}
+
+```bash
+{{ .Code }}
+```
+{{- end }}
+{{- end }}
+{{- if .Options }}
+
+## Options
+
+These flags apply to the speed test.
+
+| Flag | Short | Default | Type | Description |
+| --- | --- | --- | --- | --- |
+{{- range .Options }}
+| {{ code (print "--" .Name) }} | {{ if .Shorthand }}{{ code (print "-" .Shorthand) }}{{ end }} | {{ defaultVal . | cell }} | {{ cell .Type }} | {{ cell .Usage }} |
+{{- end }}
+{{- end }}
+{{- if .Flags }}
+
+## Global options
+
+Every command accepts these flags.
+
+| Flag | Short | Default | Type | Description |
+| --- | --- | --- | --- | --- |
+{{- range .Flags }}
+| {{ code (print "--" .Name) }} | {{ if .Shorthand }}{{ code (print "-" .Shorthand) }}{{ end }} | {{ defaultVal . | cell }} | {{ cell .Type }} | {{ cell .Usage }} |
+{{- end }}
+{{- end }}
+
+Every flag except `--help` can also be set with an environment variable, and every flag except `--help` and `--config` in the settings file. See [Configuration](/usage/configuration/) for the names and the order in which they apply.

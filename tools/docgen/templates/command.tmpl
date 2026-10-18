@@ -1,0 +1,63 @@
+---
+title: {{ yaml .Title }}
+description: {{ yaml .Description }}
+type: docs
+---
+{{- if .Long }}
+
+{{ .Long }}
+{{- end }}
+{{- if .UseLine }}
+
+## Usage
+
+```bash
+{{ .UseLine }}
+```
+{{- end }}
+{{- if .Examples }}
+
+## Examples
+{{- range .Examples }}
+{{- if .Title }}
+
+### {{ .Title }}
+{{- end }}
+
+```bash
+{{ .Code }}
+```
+{{- end }}
+{{- end }}
+{{- if .SubCommands }}
+
+## Commands
+
+| Command | Description |
+| --- | --- |
+{{- range .SubCommands }}
+| [{{ .Name }}]({{ .Name }}/) | {{ cell .Short }} |
+{{- end }}
+{{- end }}
+{{- if .Flags }}
+
+## Options
+
+| Flag | Short | Default | Type | Description |
+| --- | --- | --- | --- | --- |
+{{- range .Flags }}
+| {{ code (print "--" .Name) }} | {{ if .Shorthand }}{{ code (print "-" .Shorthand) }}{{ end }} | {{ defaultVal . | cell }} | {{ cell .Type }} | {{ cell .Usage }} |
+{{- end }}
+{{- end }}
+{{- if .Inherited }}
+
+## Global options
+
+Every command accepts these flags. See [Configuration](/usage/configuration/) for how they combine with environment variables and the settings file.
+
+| Flag | Short | Default | Type | Description |
+| --- | --- | --- | --- | --- |
+{{- range .Inherited }}
+| {{ code (print "--" .Name) }} | {{ if .Shorthand }}{{ code (print "-" .Shorthand) }}{{ end }} | {{ defaultVal . | cell }} | {{ cell .Type }} | {{ cell .Usage }} |
+{{- end }}
+{{- end }}

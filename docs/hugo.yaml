@@ -1,0 +1,110 @@
+# yaml-language-server: $schema=https://www.schemastore.org/hugo.json
+
+# speedtest-go documentation site Hugo configuration
+
+baseURL: https://speedtest-go.nickfedor.com/
+locale: en-us
+title: speedtest-go
+
+# The landing page lays out its sections with HTML, so Markdown keeps raw HTML.
+# https://gohugo.io/configuration/markup/#rendererunsafe
+markup:
+  goldmark:
+    renderer:
+      unsafe: true
+
+# The site has no tags or categories, so the empty listing pages are not built.
+# https://gohugo.io/configuration/all/#disablekinds
+disableKinds: ["taxonomy", "term"]
+
+# https://gohugo.io/configuration/menus/
+menus:
+  main:
+    - name: Getting Started
+      pageRef: /getting-started
+      weight: 1
+    - name: Installation
+      pageRef: /installation
+      weight: 2
+    - name: Usage
+      pageRef: /usage
+      weight: 3
+    - name: Go Library
+      pageRef: /go-library
+      weight: 4
+    - name: Search
+      weight: 5
+      params:
+        type: search
+    - name: GitHub
+      weight: 6
+      url: "https://github.com/nicholas-fedor/speedtest-go"
+      params:
+        icon: github
+    - name: Theme Toggle
+      weight: 7
+      params:
+        type: theme-toggle
+        label: true
+
+# https://gohugo.io/configuration/module/
+module:
+  imports:
+    - path: github.com/imfing/hextra
+
+# https://gohugo.io/configuration/params/
+params:
+  description: "Test internet download and upload speeds with speedtest.net servers, from the command line or Go"
+
+  displayUpdatedDate: true
+  dateFormat: "January 2, 2006"
+
+  # https://imfing.github.io/hextra/docs/guide/configuration/#page-edit-link
+  editURL:
+    enable: true
+    base: "https://github.com/nicholas-fedor/speedtest-go/edit/master/docs/content"
+
+  # https://imfing.github.io/hextra/docs/guide/configuration/#external-link-decoration
+  externalLinkDecoration: true
+
+  # https://imfing.github.io/hextra/docs/guide/configuration/#footer
+  # The custom footer partial shows the copyright and the theme credit.
+  footer:
+    displayCopyright: false
+    displayPoweredBy: false
+
+  # https://imfing.github.io/hextra/docs/guide/syntax-highlighting/#copy-button
+  highlight:
+    copy:
+      enable: true
+      display: hover
+
+  # https://imfing.github.io/hextra/docs/guide/configuration/#logo-and-title
+  navbar:
+    displayTitle: true
+    displayLogo: true
+    logo:
+      path: images/logo.svg
+      width: 36
+      height: 36
+
+  page:
+    contextMenu:
+      enable: true
+
+  # https://imfing.github.io/hextra/docs/guide/configuration/#theme-configuration
+  theme:
+    default: system
+    displayToggle: false
+
+# https://imfing.github.io/hextra/docs/guide/configuration/#llmstxt-support
+outputs:
+  home:
+    - html
+    - llms
+  section:
+    - html
+    - markdown
+  page:
+    - html
+    - markdown

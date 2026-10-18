@@ -65,6 +65,25 @@ func NewRoot(deps Dependencies) *cobra.Command {
 	return root
 }
 
+// DocRoot returns the command tree for documentation generation.
+//
+// tools/docgen reads command metadata only, so the tree carries no dependencies. Every run function is built but
+// never invoked, and building the real tree keeps the documented commands and flags identical to the shipped ones.
+//
+// Returns:
+//   - *cobra.Command: the root command, safe to inspect.
+func DocRoot() *cobra.Command {
+	return NewRoot(Dependencies{
+		SpeedTester: nil,
+		Lister:      nil,
+		Cities:      nil,
+		Stdout:      nil,
+		LookupEnv:   nil,
+		Version:     "",
+		Dirs:        config.Dirs{ConfigHome: ""},
+	})
+}
+
 // resolver returns the function that reads a command's settings from its flags, the environment, and the settings
 // file.
 //
