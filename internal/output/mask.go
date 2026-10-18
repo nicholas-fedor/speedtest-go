@@ -14,10 +14,10 @@ import (
 // maskRune replaces each hidden character of a masked value.
 const maskRune = '*'
 
-// MaskUser returns a copy of the user with the IP address and coordinates masked, for --mask-isp.
+// MaskUser returns a copy of the user with the IP address, coordinates, and ISP name masked, for --mask-isp.
 //
-// Letters and digits become asterisks, while separators such as "." and ":" stay, so the shape of the value remains
-// readable. The ISP name and country are kept. The given user is not changed.
+// Letters and digits become asterisks, while separators such as ".", ":", and spaces stay, so the shape of the value
+// remains readable. The country is kept. The given user is not changed.
 //
 // Parameters:
 //   - user: the user to mask, or nil.
@@ -33,6 +33,7 @@ func MaskUser(user *speedtest.User) *speedtest.User {
 	masked.IP = maskValue(user.IP)
 	masked.Lat = maskValue(user.Lat)
 	masked.Lon = maskValue(user.Lon)
+	masked.Isp = maskValue(user.Isp)
 
 	return &masked
 }

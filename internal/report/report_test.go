@@ -114,7 +114,8 @@ func TestLines(t *testing.T) {
 	assert.Equal(t, strings.Join(resultLines, "\n")+"\n", out.String())
 }
 
-// TestLines_MaskISP checks that --mask-isp masks the user's address and coordinates and the server's distance.
+// TestLines_MaskISP checks that --mask-isp masks the user's address, coordinates, and ISP name, and the server's
+// distance.
 func TestLines_MaskISP(t *testing.T) {
 	t.Parallel()
 
@@ -130,7 +131,7 @@ func TestLines_MaskISP(t *testing.T) {
 
 	assert.Equal(
 		t,
-		"ISP: ***.*.***.* (Example ISP) [**.****, ***.****] \n\nTest Server: [6691] *.**km Shizuoka (Japan) by sudosan\n",
+		"ISP: ***.*.***.* (******* ***) [**.****, ***.****] \n\nTest Server: [6691] *.**km Shizuoka (Japan) by sudosan\n",
 		out.String(),
 	)
 	assert.Equal(t, "203.0.113.7", testUser.IP, "the reported user must keep its real address")
