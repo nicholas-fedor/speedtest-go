@@ -198,16 +198,18 @@ func TestRunSpeedtest_Unix(t *testing.T) {
 	assert.Contains(t, out.String(), "\nPacket Loss: N/A\n")
 }
 
-// TestRunList checks that the list command writes one line per server.
+// TestRunList checks that the list command writes one line per server, and the count of servers found as a plain
+// status line apart from the list, with no log timestamp.
 func TestRunList(t *testing.T) {
 	t.Parallel()
 
 	api := testserver.NewAPI(t)
 
-	var out bytes.Buffer
+	var out, status bytes.Buffer
 
-	require.NoError(t, runList(t.Context(), config.Config{BaseURL: api.URL()}, &out))
+	require.NoError(t, runList(t.Context(), config.Config{BaseURL: api.URL()}, &out, &status))
 	assert.Len(t, strings.Split(strings.TrimSuffix(out.String(), "\n"), "\n"), 2)
+	assert.Equal(t, "Found 2 Public Servers\n", status.String())
 }
 
 // TestRunListInterrupted checks that the list command returns the context's error when it ends the server lookup.
@@ -219,7 +221,7 @@ func TestRunListInterrupted(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	err := runList(ctx, config.Config{BaseURL: api.URL()}, &bytes.Buffer{})
+	err := runList(ctx, config.Config{BaseURL: api.URL()}, &bytes.Buffer{}, &bytes.Buffer{})
 	require.ErrorIs(t, err, context.Canceled)
 }
 

@@ -17,7 +17,10 @@ import (
 )
 
 // services carries out what the commands ask for: the speed test, the server list, and the city list.
-type services struct{}
+type services struct {
+	// stderr receives the status lines that are not part of a command's output, such as the server count of list.
+	stderr io.Writer
+}
 
 // process holds what a run reads from the process, so tests can supply their own.
 type process struct {
@@ -47,9 +50,9 @@ const (
 
 // services must satisfy every command's contract.
 var (
-	_ cmd.SpeedTester = services{}
-	_ list.Lister     = services{}
-	_ cities.Writer   = services{}
+	_ cmd.SpeedTester = (*services)(nil)
+	_ list.Lister     = (*services)(nil)
+	_ cities.Writer   = (*services)(nil)
 )
 
 // Run runs the command the process arguments name and returns the exit code.
@@ -91,8 +94,8 @@ func (services) Test(ctx context.Context, cfg config.Config, out io.Writer) erro
 //
 // Returns:
 //   - error: the error of a lookup.
-func (services) List(ctx context.Context, cfg config.Config, out io.Writer) error {
-	return runList(ctx, cfg, out)
+func (s services) List(ctx context.Context, cfg config.Config, out io.Writer) error {
+	return runList(ctx, cfg, out, s.stderr)
 }
 
 // WriteCities writes the city list. See [writeCities].
@@ -115,11 +118,13 @@ func (services) WriteCities(out io.Writer) error {
 // Returns:
 //   - int: the exit code of the command's error. See [exitCode].
 func run(ctx context.Context, proc process) int {
+	svc := services{stderr: proc.stderr}
+
 	//nolint:contextcheck // The commands read ctx from the command, which ExecuteContext sets below.
 	root := cmd.NewRoot(cmd.Dependencies{
-		SpeedTester: services{},
-		Lister:      services{},
-		Cities:      services{},
+		SpeedTester: svc,
+		Lister:      svc,
+		Cities:      svc,
 		Stdout:      proc.stdout,
 		LookupEnv:   proc.lookupEnv,
 		Version:     version.String(),

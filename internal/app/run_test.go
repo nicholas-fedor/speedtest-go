@@ -68,15 +68,18 @@ func TestRunJSON(t *testing.T) {
 	assert.Empty(t, stderr)
 }
 
-// TestRunListCommand runs the list command against the fake API.
+// TestRunListCommand runs the list command against the fake API: stdout holds the list, and the process's stderr
+// holds the count of servers found.
 func TestRunListCommand(t *testing.T) {
 	t.Parallel()
 
 	api := testserver.NewAPI(t)
 
-	code, stdout, _ := runArgs(t.Context(), nil, "list", "--base-url", api.URL())
-	require.Equal(t, exitOK, code)
+	code, stdout, stderr := runArgs(t.Context(), nil, "list", "--base-url", api.URL())
+	require.Equal(t, exitOK, code, stderr)
 	assert.Contains(t, stdout, "Tokyo (Japan)")
+	assert.NotContains(t, stdout, "Public Servers")
+	assert.Equal(t, "Found 2 Public Servers\n", stderr)
 }
 
 // TestRunCities checks that the cities command writes to the given stdout.
