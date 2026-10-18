@@ -94,6 +94,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Mask the isp name with --mask-isp by @nicholas-fedor in [#545](https://github.com/nicholas-fedor/speedtest-go/pull/545)
 - Fill in the host of servers looked up by ID by @nicholas-fedor in [#497](https://github.com/nicholas-fedor/speedtest-go/pull/497)
 - Fix the container and library examples by @nicholas-fedor in [#487](https://github.com/nicholas-fedor/speedtest-go/pull/487)
 - Report download and upload speed from measured bytes by @nicholas-fedor in [#467](https://github.com/nicholas-fedor/speedtest-go/pull/467)
