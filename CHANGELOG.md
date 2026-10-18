@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Support hugo 0.146 in the section redirect template by @nicholas-fedor in [#549](https://github.com/nicholas-fedor/speedtest-go/pull/549)
 - Add a contributing guide by @nicholas-fedor in [#539](https://github.com/nicholas-fedor/speedtest-go/pull/539)
 - Add a v2 migration guide and update the API documentation by @nicholas-fedor in [#509](https://github.com/nicholas-fedor/speedtest-go/pull/509)
 - Add --mask-isp to hide the user's location in all output by @nicholas-fedor in [#485](https://github.com/nicholas-fedor/speedtest-go/pull/485)
