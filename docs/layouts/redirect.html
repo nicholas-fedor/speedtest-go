@@ -1,0 +1,19 @@
+{{- /*
+  Redirect for a section that has no page of its own, such as Installation. It
+  sends visitors, the navbar link, and the breadcrumbs to the section's first
+  page, in the order of the sidebar.
+*/ -}}
+{{- $target := (index .Pages.ByWeight 0).Permalink -}}
+<!doctype html>
+<html lang="{{ site.Language.Locale }}">
+  <head>
+    <title>{{ .Title }} – {{ site.Title }}</title>
+    <link rel="canonical" href="{{ $target }}">
+    <meta name="robots" content="noindex">
+    <meta charset="utf-8">
+    <meta http-equiv="refresh" content="0; url={{ $target }}">
+  </head>
+  <body>
+    <p><a href="{{ $target }}">{{ (index .Pages.ByWeight 0).Title }}</a></p>
+  </body>
+</html>

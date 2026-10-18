@@ -1,4 +1,8 @@
-# Migrating to v2
+---
+title: Migrating to v2
+description: The changes a program that uses the speedtest-go library needs when it moves from v1.8.4 to v2, and the CLI changes
+weight: 5
+---
 
 This guide covers the changes a program that uses the speedtest-go library needs when it moves from v1.8.4 to v2. The CLI changes are listed at the end.
 
@@ -311,4 +315,4 @@ The `speedtest-go` command keeps its flags, with these changes:
 - Unknown `--ping-mode` or `--unit` values, a negative `--thread`, and more than one of `--json`, `--jsonl`, and `--unix` are errors that exit with code 2, where v1 fell back to defaults.
 - Failures go to stderr and exit with code 1, where v1 exited with 0.
 - `--server` IDs that speedtest.net does not list are an error, where v1 skipped them.
-- The settings file moved from `~/.speedtest-go.yaml` to `$XDG_CONFIG_HOME/speedtest-go/config.yaml`, such as `~/.config/speedtest-go/config.yaml` on Linux, and the old file is no longer read. Its keys are the flag names in camelCase, such as `pingMode` in place of `ping-mode`, and an unknown key, a repeated key, or a value of the wrong type is an error. `SPEEDTEST_GO_CONFIG` can name the file too.
+- The settings file moved from `~/.speedtest-go.yaml` to `$XDG_CONFIG_HOME/speedtest-go/config.yaml`, such as `~/.config/speedtest-go/config.yaml` on Linux, and the old file is no longer read. Its keys are the flag names in camelCase, such as `pingMode` in place of `ping-mode`, and an unknown key, a repeated key, or a value of the wrong type is an error. `SPEEDTEST_GO_CONFIG` can name the file too. See [Configuration](/usage/configuration/).

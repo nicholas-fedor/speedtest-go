@@ -1,0 +1,23 @@
+{{- /*
+  llms.txt template. It lists every documentation page with its link and
+  description, grouped by the sections of the documentation.
+*/ -}}
+{{- define "llms-pages" }}
+{{- range .Pages }}
+- [{{ .Title }}]({{ .Permalink }}){{ with .Description }}: {{ . }}{{ end }}
+{{- if .IsSection }}{{ template "llms-pages" . }}{{ end }}
+{{- end }}
+{{- end -}}
+# {{ .Site.Title }}
+{{ with .Site.Params.description }}
+> {{ . }}
+{{ end }}
+{{- range .Site.Sections }}
+## {{ .Title }}
+
+- [{{ .Title }}]({{ .Permalink }}){{ with .Description }}: {{ . }}{{ end }}
+{{- template "llms-pages" . }}
+{{ end }}
+---
+Generated on {{ now.UTC.Format "2006-01-02 15:04:05 UTC" }}
+Site: {{ .Site.BaseURL }}

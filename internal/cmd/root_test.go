@@ -102,6 +102,22 @@ func TestNewRoot(t *testing.T) {
 	assert.NotSame(t, first.Flags().Lookup("thread"), second.Flags().Lookup("thread"))
 }
 
+// TestDocRoot checks that the documentation tree has the shipped commands and flags without any dependencies.
+func TestDocRoot(t *testing.T) {
+	t.Parallel()
+
+	root := DocRoot()
+
+	names := make([]string, 0, len(root.Commands()))
+	for _, sub := range root.Commands() {
+		names = append(names, sub.Name())
+	}
+
+	assert.ElementsMatch(t, []string{"list", "cities", "version"}, names)
+	assert.NotNil(t, root.Flags().Lookup("ping-mode"))
+	assert.NotNil(t, root.PersistentFlags().Lookup("config"))
+}
+
 // TestNewRootStartsClean checks that a flag set during one run is not seen by the next command.
 func TestNewRootStartsClean(t *testing.T) {
 	t.Parallel()

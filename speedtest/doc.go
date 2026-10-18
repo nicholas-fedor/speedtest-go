@@ -62,8 +62,8 @@
 //
 // # Migrating from v1
 //
-// The migration guide at https://github.com/nicholas-fedor/speedtest-go/blob/master/docs/v2-migration.md maps each
-// v1 function, method, and field to its v2 replacement.
+// The migration guide at https://speedtest-go.nickfedor.com/go-library/migration/ maps each v1 function, method,
+// and field to its v2 replacement.
 //
 // # Example Usage
 //

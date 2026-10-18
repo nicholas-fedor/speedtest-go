@@ -1,10 +1,63 @@
-# Experimental Result
+---
+title: Experimental Results
+description: How speedtest-go's rates and testing time compare with speedtest.net and speedtest-cli, by distance to the server
+weight: 8
+---
 
-I randomly select 9 servers to speedtest considering distance from my house. Try speedtesting twice to each server. Testing order is like [speedtest.net] -> [speedtest-go] -> [speedtest-cli] -> [speedtest-cli] -> [speedtest-go] -> [speedtest.net]. To the next server, starting from [speedtest-go], like [speedtest-go] -> [speedtest-cli] -> [speedtest.net] -> [speedtest.net] -> [speedtest-cli] -> [speedtest-go].
+These measurements come from the [upstream project](https://github.com/showwin/speedtest-go), which compared speedtest-go with [speedtest.net](https://www.speedtest.net/) and [sivel/speedtest-cli](https://github.com/sivel/speedtest-cli) using an earlier version.
 
-## Downlaod (Mbps)
+## Summary
 
-| distance(km)           | server id | speediest.net (test1) | speediest.net (test2) | speedtest-go (test1) | speedtest-go (test2) | speedtest-cli (test1) | speedtest-cli (test2) |
+| Finding | Detail |
+| --- | --- |
+| Testing time | About half as long as speedtest.net, and shorter than speedtest-cli |
+| Accuracy | Closer to speedtest.net than speedtest-cli is |
+
+Distances group the servers by how far away they are:
+
+| Distance (km) | Meaning |
+| --- | --- |
+| 0 to 1000 | Domestic |
+| 1000 to 8000 | The same region |
+| 8000 to 20000 | Very far. 20000 km is half the circumference of the Earth |
+
+### Average download (Mbps)
+
+| Distance (km) | speedtest.net | speedtest-go | speedtest-cli |
+| :-: | :-: | :-: | :-: |
+| 0 to 1000 | 92.12 | **91.21** | 81.99 |
+| 1000 to 8000 | 66.45 | **65.51** | 56.56 |
+| 8000 to 20000 | 11.84 | 9.43 | **11.87** |
+
+### Average upload (Mbps)
+
+| Distance (km) | speedtest.net | speedtest-go | speedtest-cli |
+| :-: | :-: | :-: | :-: |
+| 0 to 1000 | 65.56 | **47.58** | 36.16 |
+| 1000 to 8000 | 58.02 | **54.74** | 26.78 |
+| 8000 to 20000 | 6.94 | **8.32** | 2.58 |
+
+### Average testing time (seconds)
+
+| Distance (km) | speedtest.net | speedtest-go | speedtest-cli |
+| :-: | :-: | :-: | :-: |
+| 0 to 1000 | 45.03 | **22.84** | 24.46 |
+| 1000 to 8000 | 44.89 | **24.45** | 28.52 |
+| 8000 to 20000 | 49.64 | **34.08** | 41.26 |
+
+The bold value in each row is the one closest to speedtest.net's, or the shortest time.
+
+## Method
+
+- 9 servers were chosen at random, 3 in each distance group.
+- Each tool tested each server twice.
+- The order of the tools alternated between servers, so no tool always ran first.
+
+## Full results
+
+### Download (Mbps)
+
+| Distance (km)          | Server ID | speedtest.net (test1) | speedtest.net (test2) | speedtest-go (test1) | speedtest-go (test2) | speedtest-cli (test1) | speedtest-cli (test2) |
 |:-----------------------|:---------:|:---------------------:|:---------------------:|:--------------------:|:--------------------:|:---------------------:|:---------------------:|
 | 0 - 1000 (9km)         |   6691    |         93.34         |         93.51         |        89.13         |        88.40         |         88.21         |         83.34         |
 | 0 - 1000 (194km)       |   6368    |         93.45         |         94.20         |        92.93         |        92.26         |         88.45         |         77.07         |
@@ -16,9 +69,9 @@ I randomly select 9 servers to speedtest considering distance from my house. Try
 | 8000 - 20000 (13781km) |   3162    |         15.78         |         7.73          |         1.94         |         1.02         |         3.32          |         2.40          |
 | 8000 - 20000 (17805km) |   4256    |         1.15          |         1.50          |         1.79         |         1.79         |         6.41          |         3.69          |
 
-## Upload (Mbps)
+### Upload (Mbps)
 
-| distance(km)           | server id | speediest.net (test1) | speediest.net (test2) | speedtest-go (test1) | speedtest-go (test2) | speedtest-cli (test1) | speedtest-cli (test2) |
+| Distance (km)          | Server ID | speedtest.net (test1) | speedtest.net (test2) | speedtest-go (test1) | speedtest-go (test2) | speedtest-cli (test1) | speedtest-cli (test2) |
 |:-----------------------|:---------:|:---------------------:|:---------------------:|:--------------------:|:--------------------:|:---------------------:|:---------------------:|
 | 0 - 1000 (9km)         |   6691    |         52.03         |         48.82         |        40.72         |        43.84         |         36.03         |         36.2          |
 | 0 - 1000 (194km)       |   6368    |         78.30         |         66.92         |        53.98         |        44.07         |         37.26         |         46.98         |
@@ -30,9 +83,9 @@ I randomly select 9 servers to speedtest considering distance from my house. Try
 | 8000 - 20000 (13781km) |   3162    |         1.45          |         0.33          |         1.78         |         0.77         |         1.08          |         1.34          |
 | 8000 - 20000 (17805km) |   4256    |         1.16          |         0.30          |         1.00         |         1.11         |         2.37          |         1.42          |
 
-## Testing Time (sec)
+### Testing Time (sec)
 
-| distance(km)           | server id | speediest.net (test1) | speediest.net (test2) | speedtest-go (test1) | speedtest-go (test2) | speedtest-cli (test1) | speedtest-cli (test2) |
+| Distance (km)          | Server ID | speedtest.net (test1) | speedtest.net (test2) | speedtest-go (test1) | speedtest-go (test2) | speedtest-cli (test1) | speedtest-cli (test2) |
 |:-----------------------|:---------:|:---------------------:|:---------------------:|:--------------------:|:--------------------:|:---------------------:|:---------------------:|
 | 0 - 1000 (9km)         |   6691    |         44.87         |         45.76         |        24.45         |        22.40         |         20.82         |         16.51         |
 | 0 - 1000 (194km)       |   6368    |         43.85         |         42.97         |        19.60         |        22.36         |         22.25         |         24.01         |

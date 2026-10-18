@@ -25,6 +25,14 @@
       "semanticCommitType": "chore"
     },
     {
+      "description": "Group the Hugo modules of the documentation site",
+      "matchManagers": ["gomod"],
+      "matchFileNames": ["docs/go.mod"],
+      "groupName": "docs hugo modules",
+      "semanticCommitType": "docs",
+      "postUpdateOptions": []
+    },
+    {
       "description": "Automerge non-major updates",
       "matchUpdateTypes": ["minor", "patch", "digest"],
       "automerge": true

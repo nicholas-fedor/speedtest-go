@@ -8,6 +8,7 @@ on:
     paths:
       - speedtest/**
       - internal/**
+      - tools/**
       - main.go
       - go.mod
       - go.sum
