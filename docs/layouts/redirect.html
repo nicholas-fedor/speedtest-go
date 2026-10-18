@@ -5,7 +5,7 @@
 */ -}}
 {{- $target := (index .Pages.ByWeight 0).Permalink -}}
 <!doctype html>
-<html lang="{{ site.Language.Locale }}">
+<html lang="{{ site.Language.Lang }}">
   <head>
     <title>{{ .Title }} – {{ site.Title }}</title>
     <link rel="canonical" href="{{ $target }}">
