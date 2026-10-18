@@ -104,7 +104,7 @@ func RegisterRootFlags(rootCmd *cobra.Command) {
 	persistent.Bool(
 		MaskISP,
 		false,
-		"Mask your IP address, coordinates, and distances to servers in all output.",
+		"Mask your IP address, ISP, coordinates, and distances to servers in all output.",
 	)
 	persistent.Bool(Debug, false, "Enable debug mode.")
 	persistent.String(

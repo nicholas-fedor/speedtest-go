@@ -13,8 +13,8 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
 
-// TestMaskUser checks that the IP address and coordinates are masked with their separators kept, that the ISP
-// name and country are kept, and that the given user is left unchanged.
+// TestMaskUser checks that the IP address, coordinates, and ISP name are masked with their separators kept, that the
+// country is kept, and that the given user is left unchanged.
 func TestMaskUser(t *testing.T) {
 	t.Parallel()
 
@@ -36,7 +36,7 @@ func TestMaskUser(t *testing.T) {
 				IP:      "***.*.***.*",
 				Lat:     "**.****",
 				Lon:     "***.****",
-				Isp:     "Example ISP",
+				Isp:     "******* ***",
 				Country: "JP",
 			},
 		},
@@ -53,7 +53,7 @@ func TestMaskUser(t *testing.T) {
 				IP:      "****:***::*",
 				Lat:     "-**.*",
 				Lon:     "-**.*",
-				Isp:     "Example ISP",
+				Isp:     "******* ***",
 				Country: "CL",
 			},
 		},
