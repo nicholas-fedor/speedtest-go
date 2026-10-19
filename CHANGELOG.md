@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Record the demo again with the v2.0.0 banner by @nicholas-fedor in [#565](https://github.com/nicholas-fedor/speedtest-go/pull/565)
 
+### Chores
+
+- Update step-security/harden-runner action to v2.22.2 by @renovate[bot] in [#568](https://github.com/nicholas-fedor/speedtest-go/pull/568)
+
 ## [2.0.0] - 2026-10-19
 
 ### Added
