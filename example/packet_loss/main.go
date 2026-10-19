@@ -50,14 +50,14 @@ func main() {
 			defer waitGroup.Done()
 			// Note: Please call ctx.cancel at the appropriate time to release resources if you use analyzer.RunWithContext
 			// This example uses analyzer.Run(), which ends on its own after the sampling duration.
-			err = analyzer.Run(server.Host, func(packetLoss *speedtest.PacketLossStats) {
+			runErr := analyzer.Run(server.Host, func(packetLoss *speedtest.PacketLossStats) {
 				_, _ = fmt.Fprintln(os.Stdout, packetLoss, server.Host, server.Name)
 			})
-			// err = analyzer.RunWithContext(ctx, server.Host, func(packetLoss *speedtest.PacketLossStats) {
+			// runErr := analyzer.RunWithContext(ctx, server.Host, func(packetLoss *speedtest.PacketLossStats) {
 			//	fmt.Println(packetLoss, server.Host, server.Name)
 			// })
-			if err != nil {
-				_, _ = fmt.Fprintln(os.Stdout, err)
+			if runErr != nil {
+				_, _ = fmt.Fprintln(os.Stdout, runErr)
 			}
 			// }(server, analyzer, ctx, cancel)
 		}(server, analyzer)
@@ -69,9 +69,9 @@ func main() {
 	mixed, err := analyzer.RunMulti(serverList.Hosts())
 	checkError(err)
 
-	_, _ = fmt.Fprintf(os.Stdout, "Mixed packets lossed: %.2f%%\n", mixed.LossPercent())
-	_, _ = fmt.Fprintf(os.Stdout, "Mixed packets lossed: %.2f\n", mixed.Loss())
-	_, _ = fmt.Fprintf(os.Stdout, "Mixed packets lossed: %s\n", mixed)
+	_, _ = fmt.Fprintf(os.Stdout, "Mixed packet loss: %.2f%%\n", mixed.LossPercent())
+	_, _ = fmt.Fprintf(os.Stdout, "Mixed packet loss ratio: %.2f\n", mixed.Loss())
+	_, _ = fmt.Fprintf(os.Stdout, "Mixed %s\n", mixed)
 }
 
 // checkError ends the program with err when it is not nil.
