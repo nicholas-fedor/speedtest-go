@@ -1,7 +1,6 @@
 // Copyright (c) Nicholas Fedor 2026 <nick@nickfedor.com>
 // SPDX-License-Identifier: MIT
 
-// Package output provides functions for displaying speed test results and application information.
 package output
 
 import (

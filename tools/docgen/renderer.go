@@ -21,6 +21,7 @@ type hugoRenderer struct {
 	indexTmpl *template.Template
 }
 
+// Output mode and template names of the rendered pages.
 const (
 	// filePerms is the mode of written pages.
 	filePerms = 0o600

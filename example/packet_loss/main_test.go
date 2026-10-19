@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// Test_checkError checks that checkError returns for a nil error.
 func Test_checkError(t *testing.T) {
 	t.Parallel()
 

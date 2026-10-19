@@ -49,6 +49,7 @@ var (
 	binaryByteScales = []rateScale{{"KiB/s", KiB}, {"MiB/s", MiB}, {"GiB/s", GiB}}
 )
 
+// Byte multiples, and the text of rates that have no value.
 const (
 	// B represents 1 byte in decimal units.
 	B = 1.0
@@ -120,11 +121,17 @@ func (r ByteRate) Format(unit UnitType) string {
 }
 
 // Mbps returns the byte rate in megabits per second.
+//
+// Returns:
+//   - float64: the rate in megabits per second.
 func (r ByteRate) Mbps() float64 {
 	return float64(r) / 125000.0
 }
 
 // Gbps returns the byte rate in gigabits per second.
+//
+// Returns:
+//   - float64: the rate in gigabits per second.
 func (r ByteRate) Gbps() float64 {
 	return float64(r) / 125000000.0
 }

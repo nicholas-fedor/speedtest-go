@@ -16,17 +16,28 @@ import (
 
 // PacketLossAnalyzerOptions configures the packet loss analyzer.
 type PacketLossAnalyzerOptions struct {
-	TCPDialer              *net.Dialer // tcp dialer for sampling
-	UDPDialer              *net.Dialer // udp dialer for sending packet
-	SourceInterface        string      // source interface
+	// TCPDialer connects the sampler that asks the server for its counts, or nil for one built from the other
+	// options.
+	TCPDialer *net.Dialer
+	// UDPDialer connects the sender of the datagrams, or nil for one built from the other options.
+	UDPDialer *net.Dialer
+	// SourceInterface is the IP address, hostname, or network interface name the default dialers send from, or
+	// empty.
+	SourceInterface string
+	// RemoteSamplingInterval is the time between requests for the server's counts, or 0 for one second.
 	RemoteSamplingInterval time.Duration
-	SamplingDuration       time.Duration
-	PacketSendingInterval  time.Duration
-	PacketSendingTimeout   time.Duration
+	// SamplingDuration is how long [PacketLossAnalyzer.Run] and [PacketLossAnalyzer.RunMulti] measure, or 0 for 30
+	// seconds.
+	SamplingDuration time.Duration
+	// PacketSendingInterval is the time between datagrams, or 0 for 67 milliseconds.
+	PacketSendingInterval time.Duration
+	// PacketSendingTimeout bounds connecting the default dialers, or 0 for five seconds.
+	PacketSendingTimeout time.Duration
 }
 
 // PacketLossAnalyzer performs packet loss analysis on network connections.
 type PacketLossAnalyzer struct {
+	// options are the analyzer's options, with the defaults applied.
 	options *PacketLossAnalyzerOptions
 	// sourceErr is why SourceInterface did not resolve, returned by every run, or nil.
 	sourceErr error
@@ -59,6 +70,12 @@ var ErrUnsupported = errors.New("unsupported protocol")
 // address or hostname sets their source address, and an interface name binds them to the device on Linux or sets
 // the interface's address elsewhere. A network prefix such as "udp://" is ignored. Dialers set in the options are
 // used as given. A SourceInterface that does not resolve makes every run of the analyzer fail.
+//
+// Parameters:
+//   - options: the analyzer options, or nil for the defaults. Their unset fields are filled in place.
+//
+// Returns:
+//   - *PacketLossAnalyzer: the analyzer.
 func NewPacketLossAnalyzer(options *PacketLossAnalyzerOptions) *PacketLossAnalyzer {
 	if options == nil {
 		options = &PacketLossAnalyzerOptions{}
@@ -165,6 +182,15 @@ func dialerWithTimeout(dialer *net.Dialer, timeout time.Duration) *net.Dialer {
 }
 
 // RunMulti Mix all servers to get the average packet loss.
+//
+// It measures for the options' SamplingDuration. See [PacketLossAnalyzer.RunMultiWithContext].
+//
+// Parameters:
+//   - hosts: the servers' host:port addresses.
+//
+// Returns:
+//   - *PacketLossStats: the combined counts.
+//   - error: the error from [PacketLossAnalyzer.RunMultiWithContext].
 func (pla *PacketLossAnalyzer) RunMulti(hosts []string) (*PacketLossStats, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), pla.options.SamplingDuration)
 	defer cancel()
@@ -175,6 +201,15 @@ func (pla *PacketLossAnalyzer) RunMulti(hosts []string) (*PacketLossStats, error
 // RunMultiWithContext runs packet loss analysis on multiple hosts concurrently with context.
 //
 // The result combines the last sample from each host that counted sent packets, as [combinePacketLoss] describes.
+//
+// Parameters:
+//   - ctx: ends the analysis. Its end is the normal way to finish.
+//   - hosts: the servers' host:port addresses.
+//
+// Returns:
+//   - *PacketLossStats: the combined counts.
+//   - error: the SourceInterface error when it did not resolve, or [ErrUnsupported] when no host counted any
+//     datagram.
 func (pla *PacketLossAnalyzer) RunMultiWithContext(
 	ctx context.Context,
 	hosts []string,
@@ -223,6 +258,15 @@ func (pla *PacketLossAnalyzer) RunMultiWithContext(
 }
 
 // Run performs packet loss analysis on a single host.
+//
+// It measures for the options' SamplingDuration. See [PacketLossAnalyzer.RunWithContext].
+//
+// Parameters:
+//   - host: the server's host:port.
+//   - callback: receives each sample.
+//
+// Returns:
+//   - error: the error from [PacketLossAnalyzer.RunWithContext].
 func (pla *PacketLossAnalyzer) Run(host string, callback func(packetLoss *PacketLossStats)) error {
 	ctx, cancel := context.WithTimeout(context.Background(), pla.options.SamplingDuration)
 	defer cancel()

@@ -21,6 +21,8 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/testserver"
 )
 
+// TestNewPacketLossAnalyzer checks that an analyzer is created from nil options and keeps a sampling duration it is
+// given.
 func TestNewPacketLossAnalyzer(t *testing.T) {
 	t.Parallel()
 
@@ -58,6 +60,7 @@ func TestNewPacketLossAnalyzer(t *testing.T) {
 	}
 }
 
+// TestPacketLossAnalyzer_RunMulti checks that RunMulti fails for no hosts and for an invalid host.
 func TestPacketLossAnalyzer_RunMulti(t *testing.T) {
 	t.Parallel()
 
@@ -100,6 +103,8 @@ func TestPacketLossAnalyzer_RunMulti(t *testing.T) {
 	}
 }
 
+// TestPacketLossAnalyzer_RunMultiWithContext checks that RunMultiWithContext fails for no hosts and for an invalid
+// host.
 func TestPacketLossAnalyzer_RunMultiWithContext(t *testing.T) {
 	t.Parallel()
 
@@ -143,6 +148,7 @@ func TestPacketLossAnalyzer_RunMultiWithContext(t *testing.T) {
 	}
 }
 
+// TestPacketLossAnalyzer_Run checks that Run fails for an invalid host.
 func TestPacketLossAnalyzer_Run(t *testing.T) {
 	t.Parallel()
 
@@ -181,6 +187,7 @@ func TestPacketLossAnalyzer_Run(t *testing.T) {
 	}
 }
 
+// TestPacketLossAnalyzer_RunWithContext checks that RunWithContext fails for an invalid host.
 func TestPacketLossAnalyzer_RunWithContext(t *testing.T) {
 	t.Parallel()
 
@@ -220,6 +227,7 @@ func TestPacketLossAnalyzer_RunWithContext(t *testing.T) {
 	}
 }
 
+// TestPacketLossAnalyzer_loopSampler checks that the sampler returns without an error once its context has ended.
 func TestPacketLossAnalyzer_loopSampler(t *testing.T) {
 	t.Parallel()
 
@@ -243,6 +251,7 @@ func TestPacketLossAnalyzer_loopSampler(t *testing.T) {
 	}
 }
 
+// TestPacketLossAnalyzer_loopSender checks that the sender returns at once when its context has ended.
 func TestPacketLossAnalyzer_loopSender(t *testing.T) {
 	t.Parallel()
 

@@ -17,6 +17,7 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/testserver"
 )
 
+// TestClient_CustomServer checks that a custom server needs a client and a host.
 func TestClient_CustomServer(t *testing.T) {
 	t.Parallel()
 
@@ -60,6 +61,7 @@ func TestClient_CustomServer(t *testing.T) {
 	}
 }
 
+// TestServers_Available checks that Available keeps the servers whose probe succeeded.
 func TestServers_Available(t *testing.T) {
 	t.Parallel()
 
@@ -86,6 +88,7 @@ func TestServers_Available(t *testing.T) {
 	}
 }
 
+// TestServers_Len checks the length of an empty list and a list of one.
 func TestServers_Len(t *testing.T) {
 	t.Parallel()
 
@@ -115,6 +118,7 @@ func TestServers_Len(t *testing.T) {
 	}
 }
 
+// TestServers_Swap checks that Swap exchanges two servers.
 func TestServers_Swap(t *testing.T) {
 	t.Parallel()
 
@@ -148,6 +152,7 @@ func TestServers_Swap(t *testing.T) {
 	}
 }
 
+// TestServers_Hosts checks the hosts of an empty list and a list of one.
 func TestServers_Hosts(t *testing.T) {
 	t.Parallel()
 
@@ -177,6 +182,7 @@ func TestServers_Hosts(t *testing.T) {
 	}
 }
 
+// TestByDistance_Less checks that the closer server sorts first.
 func TestByDistance_Less(t *testing.T) {
 	t.Parallel()
 
@@ -482,6 +488,7 @@ func TestClient_FetchServers(t *testing.T) {
 	})
 }
 
+// Test_distance checks the distance between a point and itself, and between two cities.
 func Test_distance(t *testing.T) {
 	t.Parallel()
 
@@ -518,6 +525,7 @@ func Test_distance(t *testing.T) {
 	}
 }
 
+// TestServers_FindServer checks that FindServer returns a listed ID, and ErrServerNotFound for an empty list.
 func TestServers_FindServer(t *testing.T) {
 	t.Parallel()
 
@@ -679,6 +687,7 @@ func TestServerList_Encoding(t *testing.T) {
 	assert.Contains(t, fields, "users")
 }
 
+// TestServerList_String checks the text of an empty server list.
 func TestServerList_String(t *testing.T) {
 	t.Parallel()
 
@@ -703,6 +712,7 @@ func TestServerList_String(t *testing.T) {
 	}
 }
 
+// TestServers_String checks the text of an empty list and a list of one.
 func TestServers_String(t *testing.T) {
 	t.Parallel()
 
@@ -732,6 +742,7 @@ func TestServers_String(t *testing.T) {
 	}
 }
 
+// TestServer_String checks the line a server prints.
 func TestServer_String(t *testing.T) {
 	t.Parallel()
 

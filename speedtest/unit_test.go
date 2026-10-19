@@ -19,6 +19,7 @@ func TestByteRate_String(t *testing.T) {
 	assert.Equal(t, "2500.00 Mbps", ByteRate(312500000).String())
 }
 
+// TestByteRate_Mbps checks the conversion of byte rates to megabits per second.
 func TestByteRate_Mbps(t *testing.T) {
 	t.Parallel()
 
@@ -53,6 +54,7 @@ func TestByteRate_Mbps(t *testing.T) {
 	}
 }
 
+// TestByteRate_Gbps checks the conversion of byte rates to gigabits per second.
 func TestByteRate_Gbps(t *testing.T) {
 	t.Parallel()
 

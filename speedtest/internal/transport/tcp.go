@@ -17,14 +17,21 @@ import (
 	"time"
 )
 
+// Command words of the TCP protocol, in ASCII.
 var (
+	// pingPrefix is "PING ", which starts a latency probe carrying the client's clock.
 	pingPrefix = []byte{0x50, 0x49, 0x4e, 0x47, 0x20}
+	// initPacket is "INITPLOSS", which starts the server's packet-loss count for the client's UUID.
 	initPacket = []byte{0x49, 0x4e, 0x49, 0x54, 0x50, 0x4c, 0x4f, 0x53, 0x53}
+	// packetLoss is "PLOSS", which asks for the packet-loss counts and starts the server's reply.
 	packetLoss = []byte{0x50, 0x4c, 0x4f, 0x53, 0x53}
-	hiFormat   = []byte{0x48, 0x49}
+	// hiFormat is "HI", the handshake, which the server answers with its version.
+	hiFormat = []byte{0x48, 0x49}
+	// quitFormat is "QUIT", which ends the session.
 	quitFormat = []byte{0x51, 0x55, 0x49, 0x54}
 )
 
+// Errors returned by the transport clients.
 var (
 	// ErrEchoData is returned when the echo data is incorrect.
 	ErrEchoData = errors.New("incorrect echo data")
@@ -61,16 +68,34 @@ var (
 )
 
 // pingFormat builds a PING command for a local timestamp, copying the shared prefix so callers never alias it.
+//
+// Parameters:
+//   - locTime: the client's clock in nanoseconds.
+//
+// Returns:
+//   - []byte: the command without its newline.
 func pingFormat(locTime int64) []byte {
 	return strconv.AppendInt(bytes.Clone(pingPrefix), locTime, 10)
 }
 
 // downloadFormat builds a "DOWNLOAD <bytes>" command.
+//
+// Parameters:
+//   - size: the number of bytes to request.
+//
+// Returns:
+//   - []byte: the command without its newline.
 func downloadFormat(size int64) []byte {
 	return strconv.AppendInt(bytes.Clone(downloadPrefix), size, 10)
 }
 
 // uploadFormat builds an "UPLOAD <total> 0" command.
+//
+// Parameters:
+//   - size: the declared total size of the upload.
+//
+// Returns:
+//   - []byte: the command without its newline.
 func uploadFormat(size int64) []byte {
 	return append(strconv.AppendInt(bytes.Clone(uploadPrefix), size, 10), ' ', '0')
 }
@@ -105,17 +130,30 @@ func UploadPayloadSize(size int64) (int64, error) {
 
 // Client represents a TCP client for speedtest operations.
 type Client struct {
+	// conn is the connection to the server, or nil when not connected.
 	conn net.Conn
 
+	// dialer opens the connection.
 	dialer *net.Dialer
 
-	reader  *bufio.Reader
-	id      string
-	host    string
+	// reader buffers the replies read from conn.
+	reader *bufio.Reader
+	// id is the UUID the server counts packet loss under.
+	id string
+	// host is the server's host:port.
+	host string
+	// version caches the server version from its HELLO reply, or is empty before the handshake.
 	version string
 }
 
 // NewClient creates a new TCP client with the given dialer.
+//
+// Parameters:
+//   - dialer: opens the connection. A nil dialer makes [Client.Connect] fail with [ErrNilDialer].
+//
+// Returns:
+//   - *Client: the client, with a new UUID and no connection.
+//   - error: the error from generating the UUID.
 func NewClient(dialer *net.Dialer) (*Client, error) {
 	uuid, err := generateUUID()
 	if err != nil {
@@ -129,6 +167,9 @@ func NewClient(dialer *net.Dialer) (*Client, error) {
 }
 
 // ID returns the client ID.
+//
+// Returns:
+//   - string: the UUID the server counts packet loss under.
 func (client *Client) ID() string {
 	return client.id
 }
@@ -201,6 +242,11 @@ func (client *Client) Write(data []byte) error {
 	return client.writeAll(append(bytes.Clone(data), '\n'))
 }
 
+// Read reads one reply line from the server.
+//
+// Returns:
+//   - []byte: the line, including its newline.
+//   - error: [ErrEmptyConn] when not connected, or the read error.
 func (client *Client) Read() ([]byte, error) {
 	if client.conn == nil {
 		return nil, ErrEmptyConn

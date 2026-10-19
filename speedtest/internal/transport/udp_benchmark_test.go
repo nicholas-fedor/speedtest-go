@@ -9,12 +9,14 @@ import (
 	"testing"
 )
 
+// Benchmark_generateUUID measures generating a UUID.
 func Benchmark_generateUUID(b *testing.B) {
 	for b.Loop() {
 		_, _ = generateUUID()
 	}
 }
 
+// BenchmarkNewPacketLossSender measures creating a sender, which draws a random nonce.
 func BenchmarkNewPacketLossSender(b *testing.B) {
 	dialer := &net.Dialer{}
 	uuid := "test-uuid"
@@ -24,6 +26,7 @@ func BenchmarkNewPacketLossSender(b *testing.B) {
 	}
 }
 
+// BenchmarkPacketLossSender_Send measures sending datagrams to a local UDP listener.
 func BenchmarkPacketLossSender_Send(b *testing.B) {
 	// Set up UDP connection for benchmarking
 	lc := &net.ListenConfig{}
@@ -65,6 +68,7 @@ func BenchmarkPacketLossSender_Send(b *testing.B) {
 	}
 }
 
+// BenchmarkPacketLossSender_SendConcurrent measures sending datagrams from parallel goroutines through one sender.
 func BenchmarkPacketLossSender_SendConcurrent(b *testing.B) {
 	// Set up UDP connection for benchmarking
 	lc := &net.ListenConfig{}
@@ -120,6 +124,7 @@ func Benchmark_generateUUID_Alloc(b *testing.B) {
 	}
 }
 
+// BenchmarkNewPacketLossSender_Alloc reports the allocations of creating a sender.
 func BenchmarkNewPacketLossSender_Alloc(b *testing.B) {
 	dialer := &net.Dialer{}
 	uuid := "test-uuid"

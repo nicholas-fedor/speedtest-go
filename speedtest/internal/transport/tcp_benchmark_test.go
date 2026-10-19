@@ -9,6 +9,7 @@ import (
 	"testing"
 )
 
+// Benchmark_pingFormat measures building a PING command.
 func Benchmark_pingFormat(b *testing.B) {
 	locTime := int64(1234567890)
 
@@ -17,6 +18,7 @@ func Benchmark_pingFormat(b *testing.B) {
 	}
 }
 
+// BenchmarkClient_ID measures reading the client's ID.
 func BenchmarkClient_ID(b *testing.B) {
 	client := &Client{id: "test-id"}
 
@@ -25,6 +27,7 @@ func BenchmarkClient_ID(b *testing.B) {
 	}
 }
 
+// BenchmarkClient_Write measures sending a command line over an in-memory connection.
 func BenchmarkClient_Write(b *testing.B) {
 	client1, client2 := net.Pipe()
 
@@ -50,6 +53,7 @@ func BenchmarkClient_Write(b *testing.B) {
 	}
 }
 
+// BenchmarkClient_Read measures reading a reply line over an in-memory connection.
 func BenchmarkClient_Read(b *testing.B) {
 	client1, client2 := net.Pipe()
 
@@ -76,6 +80,7 @@ func BenchmarkClient_Read(b *testing.B) {
 	}
 }
 
+// BenchmarkClient_Version measures returning a cached server version.
 func BenchmarkClient_Version(b *testing.B) {
 	client1, client2 := net.Pipe()
 
@@ -92,7 +97,7 @@ func BenchmarkClient_Version(b *testing.B) {
 	}
 }
 
-// Benchmark memory allocation.
+// Benchmark_pingFormat_Alloc reports the allocations of building a PING command.
 func Benchmark_pingFormat_Alloc(b *testing.B) {
 	locTime := int64(1234567890)
 

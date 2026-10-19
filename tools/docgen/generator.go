@@ -56,6 +56,7 @@ type DocGenerator struct {
 	renderer TemplateRenderer
 }
 
+// Output layout of the generated pages.
 const (
 	// dirPerms is the mode of created directories.
 	dirPerms = 0o750

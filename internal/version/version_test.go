@@ -14,6 +14,7 @@ import (
 
 // The tests below set the package-level Version, CommitSHA, and BuildTime, so they stay serial.
 
+// TestGet_ldflags checks that the link-time values win, with the leading v trimmed from the version.
 func TestGet_ldflags(t *testing.T) { //nolint:paralleltest // mutates package-level ldflag vars
 	t.Cleanup(resetVars)
 
@@ -29,6 +30,7 @@ func TestGet_ldflags(t *testing.T) { //nolint:paralleltest // mutates package-le
 	assert.Equal(t, runtime.Version(), got.GoVersion)
 }
 
+// TestGet_defaults checks that every field has a value without link-time values, from the build info or a sentinel.
 func TestGet_defaults(t *testing.T) { //nolint:paralleltest // mutates package-level ldflag vars
 	t.Cleanup(resetVars)
 
@@ -49,6 +51,7 @@ func TestGet_defaults(t *testing.T) { //nolint:paralleltest // mutates package-l
 	}
 }
 
+// TestString_release checks the version line of a release build, without the Go version's GOEXPERIMENT suffix.
 func TestString_release(t *testing.T) { //nolint:paralleltest // mutates package-level ldflag vars
 	t.Cleanup(resetVars)
 
@@ -67,6 +70,8 @@ func TestString_release(t *testing.T) { //nolint:paralleltest // mutates package
 	assert.NotContains(t, got, "-X:")
 }
 
+// TestString_gitDescribeOmitsDuplicateCommit checks that a git describe version keeps its commit out of the metadata.
+//
 //nolint:paralleltest // mutates package-level ldflag vars
 func TestString_gitDescribeOmitsDuplicateCommit(t *testing.T) {
 	t.Cleanup(resetVars)
@@ -83,6 +88,9 @@ func TestString_gitDescribeOmitsDuplicateCommit(t *testing.T) {
 	assert.NotContains(t, got, "(8000595)")
 }
 
+// TestString_omitsUnknownMeta checks that the version line has no metadata segment when the commit and build time are
+// unknown.
+//
 //nolint:paralleltest // mutates package-level ldflag vars
 func TestString_omitsUnknownMeta(t *testing.T) {
 	t.Cleanup(resetVars)
@@ -102,6 +110,7 @@ func TestString_omitsUnknownMeta(t *testing.T) {
 	)
 }
 
+// TestBanner checks the startup banner of a release build.
 func TestBanner(t *testing.T) { //nolint:paralleltest // mutates package-level ldflag vars
 	t.Cleanup(resetVars)
 
@@ -112,6 +121,8 @@ func TestBanner(t *testing.T) { //nolint:paralleltest // mutates package-level l
 	assert.Equal(t, "speedtest-go v1.8.0 (1559e47, 2026-05-02)", Banner())
 }
 
+// TestBanner_gitDescribe checks that the banner of a git describe version shows only the build date.
+//
 //nolint:paralleltest // mutates package-level ldflag vars
 func TestBanner_gitDescribe(t *testing.T) {
 	t.Cleanup(resetVars)
@@ -123,6 +134,7 @@ func TestBanner_gitDescribe(t *testing.T) {
 	assert.Equal(t, "speedtest-go v1.8.0-209-g8000595-dirty (2026-07-25)", Banner())
 }
 
+// TestHelpers checks the helpers that normalize and shorten the metadata.
 func TestHelpers(t *testing.T) {
 	t.Parallel()
 
@@ -141,6 +153,7 @@ func TestHelpers(t *testing.T) {
 	assert.False(t, versionEmbedsCommit("1.8.0", "8000595"))
 }
 
+// resetVars clears the link-time values after a test that sets them.
 func resetVars() {
 	Version = ""
 	CommitSHA = ""

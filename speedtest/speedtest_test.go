@@ -24,6 +24,8 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/testserver"
 )
 
+// Test_parseAddr checks that an address keeps its text without a network prefix, and that http and https prefixes are
+// split off.
 func Test_parseAddr(t *testing.T) {
 	t.Parallel()
 

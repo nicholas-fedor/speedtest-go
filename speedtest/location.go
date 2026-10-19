@@ -13,12 +13,17 @@ import (
 	"strings"
 )
 
+// Limits of the coordinates [ParseLocation] accepts.
 const (
+	// coordinateCountForLatLon is the number of comma-separated values in "lat,lon".
 	coordinateCountForLatLon = 2
-	maxLatitude              = 90
-	maxLongitude             = 180
+	// maxLatitude is the largest latitude in degrees, north or south.
+	maxLatitude = 90
+	// maxLongitude is the largest longitude in degrees, east or west.
+	maxLongitude = 180
 )
 
+// Errors for location lookups and coordinates.
 var (
 	// ErrNotFoundLocation is returned when a location lookup fails.
 	ErrNotFoundLocation = errors.New("not found location")
@@ -30,10 +35,14 @@ var (
 
 // Location represents a geographical location with name, country code, latitude, and longitude.
 type Location struct {
+	// Name is the location's label, such as a city label.
 	Name string
-	CC   string
-	Lat  float64
-	Lon  float64
+	// CC is the lower-case two-letter country code, or empty when unknown.
+	CC string
+	// Lat is the latitude in degrees.
+	Lat float64
+	// Lon is the longitude in degrees.
+	Lon float64
 }
 
 // locations are the predefined city labels, keyed by lower-case label. Nothing changes them, so they need no lock.
@@ -161,11 +170,23 @@ func ParseCoordinates(text string) (latitude, longitude float64, err error) {
 }
 
 // String returns the string representation of the location.
+//
+// Returns:
+//   - string: the name and coordinates, such as "(tokyo) [35.680938, 139.7674114]".
 func (l *Location) String() string {
 	return fmt.Sprintf("(%s) [%v, %v]", l.Name, l.Lat, l.Lon)
 }
 
 // betweenRange latitude and longitude range check.
+//
+// Parameters:
+//   - inputStrValue: the coordinate as text.
+//   - interval: the largest magnitude allowed, such as [maxLatitude].
+//
+// Returns:
+//   - float64: the coordinate.
+//   - error: an error wrapping [ErrInvalidInput] for text that is not a number, or a number outside -interval to
+//     interval.
 func betweenRange(inputStrValue string, interval float64) (float64, error) {
 	value, err := strconv.ParseFloat(inputStrValue, 64)
 	if err != nil {

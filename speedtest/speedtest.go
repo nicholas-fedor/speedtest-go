@@ -24,6 +24,7 @@ var version string
 // Proto represents the protocol type for ping operations.
 type Proto int
 
+// Latency measurement protocols.
 const (
 	// HTTP is the HTTP protocol.
 	HTTP Proto = iota
@@ -79,6 +80,14 @@ const (
 	maxIdleConns = 100
 )
 
+// parseAddr splits a network prefix such as "udp://" from an address.
+//
+// Parameters:
+//   - addr: the address, with or without a prefix.
+//
+// Returns:
+//   - string: the network before "://", or empty without a prefix.
+//   - string: the address after the prefix, or addr without one.
 func parseAddr(addr string) (string, string) {
 	before, after, ok := strings.Cut(addr, "://")
 	if ok {
@@ -96,6 +105,7 @@ type userAgentTransport struct {
 	userAgent string
 }
 
+// Compile-time check that [userAgentTransport] is an [http.RoundTripper].
 var _ http.RoundTripper = (*userAgentTransport)(nil)
 
 // RoundTrip sends a copy of the request with the User-Agent header set, so the caller's request is never modified
@@ -349,11 +359,23 @@ func resolveVersion(ldflag string, buildInfo *debug.BuildInfo, ok bool) string {
 }
 
 // normalizeVersion trims a single leading v from a version token.
+//
+// Parameters:
+//   - raw: the version.
+//
+// Returns:
+//   - string: the version without surrounding space or a leading v.
 func normalizeVersion(raw string) string {
 	return strings.TrimPrefix(strings.TrimSpace(raw), "v")
 }
 
 // usableModuleVersion returns a normalized module version, or empty if unusable.
+//
+// Parameters:
+//   - raw: a module version from the build info.
+//
+// Returns:
+//   - string: the normalized version, or empty for an empty or "(devel)" version.
 func usableModuleVersion(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" || raw == "(devel)" {

@@ -15,6 +15,8 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/testserver"
 )
 
+// TestNewPacketLossSender checks that a new sender keeps its dialer, including a nil one, upper-cases its ID, and
+// builds a LOSS datagram.
 func TestNewPacketLossSender(t *testing.T) {
 	t.Parallel()
 
@@ -49,6 +51,8 @@ func TestNewPacketLossSender(t *testing.T) {
 	}
 }
 
+// TestPacketLossSender_Connect checks that Connect records the host, that an invalid address is an error, and that a
+// sender without a dialer returns ErrNilDialer.
 func TestPacketLossSender_Connect(t *testing.T) {
 	t.Parallel()
 
@@ -91,6 +95,7 @@ func TestPacketLossSender_Connect(t *testing.T) {
 	})
 }
 
+// TestPacketLossSender_Send checks that a sent datagram carries LOSS and its index.
 func TestPacketLossSender_Send(t *testing.T) {
 	t.Parallel()
 
@@ -123,6 +128,7 @@ func TestPacketLossSender_Send(t *testing.T) {
 	})
 }
 
+// Test_generateUUID checks that a generated UUID has the 36-character hyphenated form.
 func Test_generateUUID(t *testing.T) {
 	t.Parallel()
 

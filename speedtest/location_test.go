@@ -35,6 +35,7 @@ func TestCities(t *testing.T) {
 	assert.NotEqual(t, 1000.0, Cities()[0].Lat, "changing the result must not change the table")
 }
 
+// TestGetLocation checks that a predefined label returns its city and an unknown one returns ErrNotFoundLocation.
 func TestGetLocation(t *testing.T) {
 	t.Parallel()
 
@@ -91,6 +92,7 @@ func TestGetLocation(t *testing.T) {
 	})
 }
 
+// TestNewLocation checks that a new location keeps its name and coordinates.
 func TestNewLocation(t *testing.T) {
 	t.Parallel()
 
@@ -132,6 +134,8 @@ func TestNewLocation(t *testing.T) {
 	}
 }
 
+// TestParseLocation checks the names of parsed locations, and the errors for a malformed pair and a latitude out of
+// range.
 func TestParseLocation(t *testing.T) {
 	t.Parallel()
 
@@ -208,6 +212,7 @@ func TestParseLocation(t *testing.T) {
 	}
 }
 
+// TestLocation_String checks the name and coordinates a location prints.
 func TestLocation_String(t *testing.T) {
 	t.Parallel()
 
@@ -236,6 +241,7 @@ func TestLocation_String(t *testing.T) {
 	}
 }
 
+// Test_betweenRange checks that a coordinate within the range parses, and that text and values outside it are errors.
 func Test_betweenRange(t *testing.T) {
 	t.Parallel()
 

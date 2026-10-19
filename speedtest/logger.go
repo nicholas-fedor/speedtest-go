@@ -64,6 +64,7 @@ const (
 // noopLogger discards every message. Clients without a [Logger] use it.
 type noopLogger struct{}
 
+// Compile-time check that [noopLogger] is a [Logger].
 var _ Logger = noopLogger{}
 
 // Debug discards the message.
