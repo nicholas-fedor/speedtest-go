@@ -717,7 +717,8 @@ func (servers Servers) String() string {
 //
 // Returns:
 //   - string: the server's ID, distance, city, country, and sponsor, such as
-//     "[1001] 6.95km Tokyo (Japan) by Example Networks".
+//     "[1001] 6.95km Tokyo (Japan) by Example Networks". The country is left out when it is empty, and a server
+//     whose sponsor is "?", such as a custom server, shows only its ID and name. A nil server is "<nil server>".
 func (s *Server) String() string {
 	if s == nil {
 		return "<nil server>"

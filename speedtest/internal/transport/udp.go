@@ -23,7 +23,7 @@ type PacketLossSender struct {
 	conn net.Conn
 	// dialer opens the connection.
 	dialer *net.Dialer
-	// ID is the client's UUID in upper case, under which the server counts the datagrams.
+	// ID is an upper-case copy of the UUID. The datagrams carry the UUID as given.
 	ID string
 	// host is the server's host:port.
 	host string

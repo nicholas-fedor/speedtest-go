@@ -121,7 +121,8 @@ func Banner() string {
 //   - info: the resolved metadata.
 //
 // Returns:
-//   - string: the segment, such as "(8000595, 2026-05-02)", or empty when both fields are unknown.
+//   - string: the segment, such as "(8000595, 2026-05-02)", or empty when it would hold nothing, because the commit
+//     is unknown or already in the version, and the build time is unknown.
 func formatMeta(info Info) string {
 	fields := make([]string, 0, 2)
 
