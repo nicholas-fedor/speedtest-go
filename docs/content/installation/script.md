@@ -23,7 +23,7 @@ These environment variables change what it installs:
 
 | Variable | Description | Default |
 | --- | --- | --- |
-| `VERSION` | Release tag to install, such as `v2.0.0` | The latest release |
+| `VERSION` | Release tag to install, with or without its `v`, such as `vX.Y.Z` | The latest release |
 | `PREFIX` | Directory for archive installs | `$HOME/go/bin`, or the directory of the previous archive install |
 | `METHOD` | `auto`, `package`, or `archive` | `auto` |
 
@@ -33,7 +33,7 @@ For example, to install the archive into `~/.local/bin`:
 METHOD=archive PREFIX="$HOME/.local/bin" sh "$tmp"
 ```
 
-Releases before v2.0.0 publish their packages under different names, so the script installs them from the archive. `METHOD=auto` falls back to the archive, and `METHOD=package` fails.
+The v1 releases publish their packages under different names, so the script installs them from the archive. `METHOD=auto` falls back to the archive, and `METHOD=package` fails.
 
 ## Update and uninstall
 

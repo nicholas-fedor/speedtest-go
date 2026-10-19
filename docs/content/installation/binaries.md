@@ -11,7 +11,7 @@ speedtest-go_<os>_<architecture>_<version>.tar.gz
 speedtest-go_windows_<architecture>_<version>.zip
 ```
 
-The examples below use version 1.8.4. Set `VERSION` to the release you want, without its `v`, and `BASE` holds the release's download URL. Each one checks the archive against the release's `checksums.txt` before installing it.
+The examples below look up the latest release and set `VERSION` to its number, without the `v`. To install another release, set `VERSION` to its number instead. `BASE` holds the release's download URL. Each example checks the archive against the release's `checksums.txt` before installing it.
 
 ## Linux
 
@@ -24,7 +24,8 @@ The examples below use version 1.8.4. Set `VERSION` to the release you want, wit
 | RISC-V 64 | `speedtest-go_linux_riscv64_<version>.tar.gz` |
 
 ```bash
-VERSION=1.8.4
+VERSION=$(curl -sSfL -o /dev/null -w '%{url_effective}' https://github.com/nicholas-fedor/speedtest-go/releases/latest)
+VERSION=${VERSION##*/v}
 BASE=https://github.com/nicholas-fedor/speedtest-go/releases/download/v${VERSION}
 curl -sSfLO "${BASE}/speedtest-go_linux_amd64_${VERSION}.tar.gz"
 curl -sSfLO "${BASE}/checksums.txt"
@@ -45,7 +46,8 @@ The [install script](/installation/script/) does the same, and also installs the
 | Intel | `speedtest-go_macOS_amd64_<version>.tar.gz` |
 
 ```bash
-VERSION=1.8.4
+VERSION=$(curl -sSfL -o /dev/null -w '%{url_effective}' https://github.com/nicholas-fedor/speedtest-go/releases/latest)
+VERSION=${VERSION##*/v}
 BASE=https://github.com/nicholas-fedor/speedtest-go/releases/download/v${VERSION}
 curl -sSfLO "${BASE}/speedtest-go_macOS_arm64v8_${VERSION}.tar.gz"
 curl -sSfLO "${BASE}/checksums.txt"
@@ -71,7 +73,7 @@ xattr -d com.apple.quarantine speedtest-go
 In PowerShell:
 
 ```powershell
-$Version = "1.8.4"
+$Version = (Invoke-RestMethod "https://api.github.com/repos/nicholas-fedor/speedtest-go/releases/latest").tag_name.TrimStart("v")
 $Base = "https://github.com/nicholas-fedor/speedtest-go/releases/download/v$Version"
 $Dir = "$env:LOCALAPPDATA\speedtest-go"
 $Zip = "speedtest-go_windows_amd64_$Version.zip"

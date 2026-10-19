@@ -1,10 +1,10 @@
 ---
 title: Migrating to v2
-description: The changes a program that uses the speedtest-go library needs when it moves from v1.8.4 to v2, and the CLI changes
+description: The changes a program that uses the speedtest-go library needs when it moves from v1 to v2, and the CLI changes
 weight: 5
 ---
 
-This guide covers the changes a program that uses the speedtest-go library needs when it moves from v1.8.4 to v2. The CLI changes are listed at the end.
+This guide covers the changes a program that uses the speedtest-go library needs when it moves from v1 to v2. The CLI changes are listed at the end.
 
 In short, v2 moves every measurement onto the client. A client is built from validated options, each test is a method that takes a context and a server and returns its result, and `Server` holds only the details speedtest.net lists. No results are stored on the server or the client, so nothing needs resetting between tests.
 

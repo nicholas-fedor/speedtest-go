@@ -24,7 +24,7 @@ Plain lines look like this:
 ```bash
 $ speedtest-go --unix
 
-    speedtest-go v1.8.0 (1559e47, 2026-05-02)
+    speedtest-go v<version> (<commit>, <date>)
 
 ✓ ISP: 203.0.113.7 (Fujitsu) [34.9769, 138.3831]
 ✓ Found 20 Public Servers
