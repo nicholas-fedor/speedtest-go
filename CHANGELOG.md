@@ -117,6 +117,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Remove the unused timestamp flag from the packet loss sender by @nicholas-fedor in [#559](https://github.com/nicholas-fedor/speedtest-go/pull/559)
 - Remove the commitlint workflow by @nicholas-fedor in [#541](https://github.com/nicholas-fedor/speedtest-go/pull/541)
 - Remove the package-level globals by @nicholas-fedor in [#495](https://github.com/nicholas-fedor/speedtest-go/pull/495)
 
