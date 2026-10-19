@@ -31,8 +31,6 @@ type PacketLossSender struct {
 	raw []byte
 	// nounce is a random number from 0 to 9999999999 that every datagram of the sender carries.
 	nounce int64
-	// withTimestamp marks datagrams that carry a timestamp. It is always false, because the sender sends none.
-	withTimestamp bool
 }
 
 // NewPacketLossSender creates a new UDP packet loss sender.
@@ -55,10 +53,9 @@ func NewPacketLossSender(uuid string, dialer *net.Dialer) (*PacketLossSender, er
 
 	nounce := n.Int64()
 	p := &PacketLossSender{
-		ID:            strings.ToUpper(uuid),
-		nounce:        nounce,
-		withTimestamp: false, // we close it as default, we won't be able to use it right now.
-		dialer:        dialer,
+		ID:     strings.ToUpper(uuid),
+		nounce: nounce,
+		dialer: dialer,
 	}
 	p.raw = fmt.Appendf(nil, "%s %d %s %s", loss, nounce, "#", uuid)
 
