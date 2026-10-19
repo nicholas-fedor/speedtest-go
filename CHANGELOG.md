@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Build a snapshot in release dry runs by @nicholas-fedor in [#563](https://github.com/nicholas-fedor/speedtest-go/pull/563)
 - Stop naming a specific release version by @nicholas-fedor in [#561](https://github.com/nicholas-fedor/speedtest-go/pull/561)
 - Complete the go doc comments across the project by @nicholas-fedor in [#555](https://github.com/nicholas-fedor/speedtest-go/pull/555)
 - Move the documentation to a hugo site by @nicholas-fedor in [#547](https://github.com/nicholas-fedor/speedtest-go/pull/547)
