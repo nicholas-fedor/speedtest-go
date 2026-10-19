@@ -114,7 +114,7 @@ jobs:
             --config build/goreleaser/${{ inputs.BUILD_TYPE }}.yaml
             ${{ inputs.BUILD_TYPE == 'nightly' && '--skip=validate,archive' || '' }}
             --clean
-            ${{ inputs.DRY_RUN && '--skip=publish' || '' }}
+            ${{ inputs.DRY_RUN && '--snapshot' || '' }}
 
       - name: Upload Archive & Source SBOMs
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
