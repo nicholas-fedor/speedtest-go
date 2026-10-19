@@ -1,7 +1,6 @@
 // Copyright (c) Nicholas Fedor 2026 <nick@nickfedor.com>
 // SPDX-License-Identifier: MIT
 
-// Package version provides CLI application version metadata.
 package version
 
 import (
@@ -22,7 +21,7 @@ type Info struct {
 	GoVersion string
 }
 
-// Build metadata set at link time by the Makefile and GoReleaser. Empty values fall back to Go's build info.
+// Build metadata set at link time by the Taskfile and GoReleaser. Empty values fall back to Go's build info.
 var (
 	// Version is the release version, with or without a leading v.
 	Version string
@@ -117,6 +116,12 @@ func Banner() string {
 //
 // Omits unknown fields. Skips commit when the version string already embeds it
 // (git describe forms such as 1.8.0-209-g8000595-dirty).
+//
+// Parameters:
+//   - info: the resolved metadata.
+//
+// Returns:
+//   - string: the segment, such as "(8000595, 2026-05-02)", or empty when both fields are unknown.
 func formatMeta(info Info) string {
 	fields := make([]string, 0, 2)
 
@@ -139,6 +144,13 @@ func formatMeta(info Info) string {
 
 // versionEmbedsCommit reports whether version already contains the short commit
 // (typical of git describe output: 1.8.0-12-gabcdef0).
+//
+// Parameters:
+//   - ver: the version.
+//   - short: the short commit hash.
+//
+// Returns:
+//   - bool: true when ver contains a known short hash.
 func versionEmbedsCommit(ver, short string) bool {
 	if short == "" || short == "unknown" {
 		return false
@@ -148,6 +160,12 @@ func versionEmbedsCommit(ver, short string) bool {
 }
 
 // cleanGoVersion strips GOEXPERIMENT suffixes (e.g. go1.26.5-X:nodwarf5 → go1.26.5).
+//
+// Parameters:
+//   - raw: the Go runtime version.
+//
+// Returns:
+//   - string: the version without its GOEXPERIMENT suffix.
 func cleanGoVersion(raw string) string {
 	if before, _, ok := strings.Cut(raw, "-X:"); ok {
 		return before
@@ -157,6 +175,12 @@ func cleanGoVersion(raw string) string {
 }
 
 // finalize applies default sentinels for empty fields.
+//
+// Parameters:
+//   - info: the metadata resolved so far.
+//
+// Returns:
+//   - Info: info with "dev" for an empty version and "unknown" for an empty commit or build time.
 func finalize(info Info) Info {
 	if info.Version == "" {
 		info.Version = "dev"
@@ -174,11 +198,23 @@ func finalize(info Info) Info {
 }
 
 // normalizeVersion trims a single leading v from a version token.
+//
+// Parameters:
+//   - raw: the version.
+//
+// Returns:
+//   - string: the version without surrounding space or a leading v.
 func normalizeVersion(raw string) string {
 	return strings.TrimPrefix(strings.TrimSpace(raw), "v")
 }
 
 // usableModuleVersion returns a normalized module version, or empty if unusable.
+//
+// Parameters:
+//   - raw: the main module's version from the build info.
+//
+// Returns:
+//   - string: the normalized version, or empty for an empty or "(devel)" version.
 func usableModuleVersion(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" || raw == "(devel)" {
@@ -189,6 +225,12 @@ func usableModuleVersion(raw string) string {
 }
 
 // buildSettings maps BuildInfo settings by key.
+//
+// Parameters:
+//   - buildInfo: the binary's build info.
+//
+// Returns:
+//   - map[string]string: each setting's value by its key, such as vcs.revision.
 func buildSettings(buildInfo *debug.BuildInfo) map[string]string {
 	settings := make(map[string]string, len(buildInfo.Settings))
 	for _, setting := range buildInfo.Settings {
@@ -199,6 +241,12 @@ func buildSettings(buildInfo *debug.BuildInfo) map[string]string {
 }
 
 // shortCommit shortens a commit hash to 7 characters when longer.
+//
+// Parameters:
+//   - raw: the commit hash.
+//
+// Returns:
+//   - string: at most the first 7 characters.
 func shortCommit(raw string) string {
 	if len(raw) > 7 {
 		return raw[:7]
@@ -208,6 +256,12 @@ func shortCommit(raw string) string {
 }
 
 // shortDate keeps YYYY-MM-DD when a longer timestamp is present.
+//
+// Parameters:
+//   - raw: the build timestamp.
+//
+// Returns:
+//   - string: at most the first 10 characters.
 func shortDate(raw string) string {
 	if len(raw) > 10 {
 		return raw[:10]

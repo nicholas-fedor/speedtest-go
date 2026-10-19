@@ -81,6 +81,9 @@ func EnvName(name string) string {
 
 // settingsFile returns the settings file to read.
 //
+// Parameters:
+//   - dirs: the user's directories, which hold the default settings file.
+//
 // Returns:
 //   - string: the path, or empty when there is none.
 //   - bool: true when --config or SPEEDTEST_GO_CONFIG named it, so it must exist.

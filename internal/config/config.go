@@ -18,41 +18,62 @@ import (
 
 // Config holds the application configuration.
 type Config struct {
+	// CustomURL is the URL of a server to test in place of the ones speedtest.net lists, or empty.
 	CustomURL string
-	Location  string
-	City      string
-	Proxy     string
-	Source    string
-	Search    string
+	// Location is the user's location as "lat,lon" coordinates, or empty.
+	Location string
+	// City is a predefined city label that sets the user's location, or empty.
+	City string
+	// Proxy is the HTTP, HTTPS, or SOCKS proxy URL for the requests, or empty.
+	Proxy string
+	// Source is the IP address or network interface name to send from, or empty.
+	Source string
+	// Search is a keyword that servers are fuzzy matched against, or empty.
+	Search string
+	// UserAgent is the User-Agent header of the requests, or empty for the library's default.
 	UserAgent string
-	BaseURL   string
+	// BaseURL is the speedtest.net API base URL, or empty for the library's default.
+	BaseURL string
+	// ServerIDs are the IDs of the servers to test, or empty to choose servers by latency.
 	ServerIDs []int
 	// CountryCodes are the upper-case two-letter country codes servers must be in, with AUTO for the user's own
 	// country. Empty keeps every server.
 	CountryCodes []string
-	Thread       int
-	PingMode     speedtest.Proto
+	// Thread is the number of concurrent connections of a transfer test, or 0 for one per CPU.
+	Thread int
+	// PingMode is the protocol of the latency measurement.
+	PingMode speedtest.Proto
 	// TestMode is the protocol for download and upload tests.
 	TestMode speedtest.TestMode
-	Unit     speedtest.UnitType
+	// Unit is the unit of the rates in the output. See UnitSet.
+	Unit speedtest.UnitType
 	// DSCP is the Differentiated Services code point to mark connections with, or 0 to leave them unmarked.
 	DSCP int
 	// DownloadSize is the download block size from the library's size table, or 0 for the default.
 	DownloadSize int
 	// UploadSize is the upload block size in kB from the library's size table, or 0 for the default.
-	UploadSize    int
-	SavingMode    bool
-	JSONOutput    bool
-	JSONLOutput   bool
-	UnixOutput    bool
+	UploadSize int
+	// SavingMode tests with one connection and plain line output, which uses few resources but is less accurate.
+	SavingMode bool
+	// JSONOutput writes one JSON document for the run.
+	JSONOutput bool
+	// JSONLOutput writes one JSON line per server.
+	JSONLOutput bool
+	// UnixOutput writes one plain line per result.
+	UnixOutput bool
+	// DNSBindSource sends DNS lookups from Source too.
 	DNSBindSource bool
-	Multi         bool
-	NoDownload    bool
-	NoUpload      bool
+	// Multi spreads each transfer test across the main server and the other servers found.
+	Multi bool
+	// NoDownload skips the download test.
+	NoDownload bool
+	// NoUpload skips the upload test.
+	NoUpload bool
 	// UnitSet reports that Unit holds a resolved unit. The zero value of [speedtest.UnitType] is decimal bits,
 	// so a Config without it uses the default Mbps output.
 	UnitSet bool
-	Debug   bool
+	// Debug writes the library's debug messages to stderr and shows plain lines.
+	Debug bool
 	// MaskISP masks the user's IP address, coordinates, and distances to servers in every output.
 	MaskISP bool
 }
@@ -100,6 +121,12 @@ var (
 // the resulting Config so callers receive any defaults applied here.
 //
 // Without a resolved unit, rates are shown in Mbps.
+//
+// Parameters:
+//   - cfg: the validated settings.
+//
+// Returns:
+//   - Config: cfg with its defaults applied.
 func Setup(cfg Config) Config {
 	if !cfg.UnitSet {
 		cfg.Unit = speedtest.UnitTypeDefaultMbps
@@ -341,6 +368,12 @@ func parseCountryCodes(entries []string) ([]string, error) {
 }
 
 // isCountryCode reports whether code is two ASCII letters.
+//
+// Parameters:
+//   - code: the upper-case entry to check.
+//
+// Returns:
+//   - bool: true for two upper-case ASCII letters.
 func isCountryCode(code string) bool {
 	return len(code) == 2 && code[0] >= 'A' && code[0] <= 'Z' && code[1] >= 'A' && code[1] <= 'Z'
 }

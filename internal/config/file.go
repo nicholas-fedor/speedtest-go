@@ -22,33 +22,60 @@ import (
 //
 // Every field is a pointer, so an absent key leaves the setting to its default.
 type File struct {
-	Proxy         *string   `yaml:"proxy"`
-	Source        *string   `yaml:"source"`
-	DNSBindSource *bool     `yaml:"dnsBindSource"`
-	UserAgent     *string   `yaml:"ua"`
-	Location      *string   `yaml:"location"`
-	City          *string   `yaml:"city"`
-	Search        *string   `yaml:"search"`
-	FilterCC      *[]string `yaml:"filterCC"`
-	DSCP          *int      `yaml:"dscp"`
-	MaskISP       *bool     `yaml:"maskISP"`
-	Debug         *bool     `yaml:"debug"`
-	BaseURL       *string   `yaml:"baseURL"`
-	Server        *[]int    `yaml:"server"`
-	CustomURL     *string   `yaml:"customURL"`
-	SavingMode    *bool     `yaml:"savingMode"`
-	JSON          *bool     `yaml:"json"`
-	JSONL         *bool     `yaml:"jsonl"`
-	Unix          *bool     `yaml:"unix"`
-	Multi         *bool     `yaml:"multi"`
-	Thread        *int      `yaml:"thread"`
-	NoDownload    *bool     `yaml:"noDownload"`
-	NoUpload      *bool     `yaml:"noUpload"`
-	PingMode      *string   `yaml:"pingMode"`
-	Protocol      *string   `yaml:"protocol"`
-	DownloadSize  *int      `yaml:"dlSize"`
-	UploadSize    *int      `yaml:"ulSize"`
-	Unit          *string   `yaml:"unit"`
+	// Proxy is the --proxy setting.
+	Proxy *string `yaml:"proxy"`
+	// Source is the --source setting.
+	Source *string `yaml:"source"`
+	// DNSBindSource is the --dns-bind-source setting.
+	DNSBindSource *bool `yaml:"dnsBindSource"`
+	// UserAgent is the --ua setting.
+	UserAgent *string `yaml:"ua"`
+	// Location is the --location setting.
+	Location *string `yaml:"location"`
+	// City is the --city setting.
+	City *string `yaml:"city"`
+	// Search is the --search setting.
+	Search *string `yaml:"search"`
+	// FilterCC is the --filter-cc setting.
+	FilterCC *[]string `yaml:"filterCC"`
+	// DSCP is the --dscp setting.
+	DSCP *int `yaml:"dscp"`
+	// MaskISP is the --mask-isp setting.
+	MaskISP *bool `yaml:"maskISP"`
+	// Debug is the --debug setting.
+	Debug *bool `yaml:"debug"`
+	// BaseURL is the --base-url setting.
+	BaseURL *string `yaml:"baseURL"`
+	// Server is the --server setting.
+	Server *[]int `yaml:"server"`
+	// CustomURL is the --custom-url setting.
+	CustomURL *string `yaml:"customURL"`
+	// SavingMode is the --saving-mode setting.
+	SavingMode *bool `yaml:"savingMode"`
+	// JSON is the --json setting.
+	JSON *bool `yaml:"json"`
+	// JSONL is the --jsonl setting.
+	JSONL *bool `yaml:"jsonl"`
+	// Unix is the --unix setting.
+	Unix *bool `yaml:"unix"`
+	// Multi is the --multi setting.
+	Multi *bool `yaml:"multi"`
+	// Thread is the --thread setting.
+	Thread *int `yaml:"thread"`
+	// NoDownload is the --no-download setting.
+	NoDownload *bool `yaml:"noDownload"`
+	// NoUpload is the --no-upload setting.
+	NoUpload *bool `yaml:"noUpload"`
+	// PingMode is the --ping-mode setting.
+	PingMode *string `yaml:"pingMode"`
+	// Protocol is the --protocol setting.
+	Protocol *string `yaml:"protocol"`
+	// DownloadSize is the --dl-size setting.
+	DownloadSize *int `yaml:"dlSize"`
+	// UploadSize is the --ul-size setting.
+	UploadSize *int `yaml:"ulSize"`
+	// Unit is the --unit setting.
+	Unit *string `yaml:"unit"`
 }
 
 // fileValue is a setting's value from the settings file.

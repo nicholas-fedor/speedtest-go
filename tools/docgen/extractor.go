@@ -19,6 +19,7 @@ type cobraExtractor struct {
 	urlBase string
 }
 
+// Values the extractor uses to build page data from the help text.
 const (
 	// maxDescriptionLen is the longest page description, in runes, including
 	// the ellipsis that marks a truncated one.

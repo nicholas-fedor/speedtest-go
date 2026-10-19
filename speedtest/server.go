@@ -21,33 +21,51 @@ import (
 	"time"
 )
 
+// payloadType is the format of a server list response.
 type payloadType int
 
+// Formats of the server list responses.
 const (
+	// typeJSONPayload is the JSON list.
 	typeJSONPayload payloadType = iota
+	// typeXMLPayload is the alternative XML list.
 	typeXMLPayload
 )
 
+// Errors for server lookups.
 var (
 	// ErrServerNotFound is returned when no server is available or found.
 	ErrServerNotFound = errors.New("no server available or found")
 
+	// errSpeedtestClientNil rejects a call on a nil client.
 	errSpeedtestClientNil = errors.New("speedtest client is nil")
-	errHostEmpty          = errors.New("host cannot be empty")
-	errPayloadDecode      = errors.New("response payload decoding not implemented")
+	// errHostEmpty rejects a custom server without a URL.
+	errHostEmpty = errors.New("host cannot be empty")
+	// errPayloadDecode rejects a server list in a format the client cannot decode.
+	errPayloadDecode = errors.New("response payload decoding not implemented")
 )
 
 // Server information.
 type Server struct {
-	URL      string  `json:"url"      xml:"url,attr"`
-	Lat      string  `json:"lat"      xml:"lat,attr"`
-	Lon      string  `json:"lon"      xml:"lon,attr"`
-	Name     string  `json:"name"     xml:"name,attr"`
-	Country  string  `json:"country"  xml:"country,attr"`
-	CC       string  `json:"cc"       xml:"cc,attr"`
-	Sponsor  string  `json:"sponsor"  xml:"sponsor,attr"`
-	ID       string  `json:"id"       xml:"id,attr"`
-	Host     string  `json:"host"     xml:"host,attr"`
+	// URL is the server's upload URL, such as "http://speed.example:8080/speedtest/upload.php".
+	URL string `json:"url" xml:"url,attr"`
+	// Lat is the server's latitude in degrees, as text.
+	Lat string `json:"lat" xml:"lat,attr"`
+	// Lon is the server's longitude in degrees, as text.
+	Lon string `json:"lon" xml:"lon,attr"`
+	// Name is the server's city.
+	Name string `json:"name" xml:"name,attr"`
+	// Country is the server's country name.
+	Country string `json:"country" xml:"country,attr"`
+	// CC is the server's two-letter country code.
+	CC string `json:"cc" xml:"cc,attr"`
+	// Sponsor is the organization that runs the server.
+	Sponsor string `json:"sponsor" xml:"sponsor,attr"`
+	// ID is the server's speedtest.net ID.
+	ID string `json:"id" xml:"id,attr"`
+	// Host is the server's host:port, which packet loss and TCP tests connect to.
+	Host string `json:"host" xml:"host,attr"`
+	// Distance is the distance in kilometres from the location set with [WithLocation], or else from the caller.
 	Distance float64 `json:"distance" xml:"-"`
 	// Latency is the round trip of the quick probe that [Client.FetchServers] sends to each listed server, or
 	// [PingTimeout] when the probe failed. [Servers.Available] and [Servers.FindServer] rank servers by it.
@@ -57,6 +75,13 @@ type Server struct {
 
 // CustomServer given a URL string, return a new Server object, with as much
 // filled in as we can.
+//
+// Parameters:
+//   - host: the server's URL. Its path is replaced with the upload path.
+//
+// Returns:
+//   - *Server: the server, with "?" for the details a URL does not give.
+//   - error: an error for a nil client, an empty host, or a URL that does not parse.
 func (s *Client) CustomServer(host string) (*Server, error) {
 	if s == nil {
 		return nil, errSpeedtestClientNil
@@ -89,9 +114,12 @@ func (s *Client) CustomServer(host string) (*Server, error) {
 // ServerList list of Server
 // Users(Client) is also present in the serversAdvancedPath response.
 type ServerList struct {
-	XMLName xml.Name  `json:"-"       xml:"settings"`
+	// XMLName is the XML list's root element.
+	XMLName xml.Name `json:"-" xml:"settings"`
+	// Servers are the listed servers.
 	Servers []*Server `json:"servers" xml:"servers>server"`
-	Users   []User    `json:"users"   xml:"client"`
+	// Users are the caller's details, with the coordinates distances are measured from.
+	Users []User `json:"users" xml:"client"`
 }
 
 // Servers for sorting servers.
@@ -99,10 +127,14 @@ type Servers []*Server
 
 // ByDistance for sorting servers.
 type ByDistance struct {
+	// Servers are the servers to sort.
 	Servers
 }
 
 // Available returns servers that have valid latency measurements.
+//
+// Returns:
+//   - *Servers: the servers whose probe succeeded, sorted by latency.
 func (servers Servers) Available() *Servers {
 	retServer := Servers{}
 
@@ -124,11 +156,18 @@ func (servers Servers) Available() *Servers {
 }
 
 // Len finds length of servers. For sorting servers.
+//
+// Returns:
+//   - int: the number of servers.
 func (servers Servers) Len() int {
 	return len(servers)
 }
 
 // Swap swaps i-th and j-th. For sorting servers.
+//
+// Parameters:
+//   - i: the index of one server.
+//   - j: the index of the other.
 func (servers Servers) Swap(i, j int) {
 	servers[i], servers[j] = servers[j], servers[i]
 }
@@ -156,6 +195,9 @@ func (servers Servers) FilterCountry(codes ...string) Servers {
 }
 
 // Hosts return hosts of servers.
+//
+// Returns:
+//   - []string: each server's host:port in order, or nil when there are no servers.
 func (servers Servers) Hosts() []string {
 	if len(servers) == 0 {
 		return nil
@@ -170,6 +212,13 @@ func (servers Servers) Hosts() []string {
 }
 
 // Less compares the distance. For sorting servers.
+//
+// Parameters:
+//   - i: the index of one server.
+//   - j: the index of the other.
+//
+// Returns:
+//   - bool: true when server i is closer than server j.
 func (b ByDistance) Less(i, j int) bool {
 	return b.Servers[i].Distance < b.Servers[j].Distance
 }
@@ -304,6 +353,10 @@ func (s *Client) pingServers(ctx context.Context, servers Servers) {
 }
 
 // buildServerListURL constructs the URL for fetching server list.
+//
+// Returns:
+//   - *url.URL: the list's URL, with the search keyword and location as query parameters when set.
+//   - error: the error from building the URL.
 func (s *Client) buildServerListURL() (*url.URL, error) {
 	parsedURL, err := s.endpoint(serversPath)
 	if err != nil {
@@ -329,6 +382,15 @@ func (s *Client) buildServerListURL() (*url.URL, error) {
 //
 // The XML list is used when the JSON list comes back empty or with a status outside 2xx. An error status from the
 // XML list is returned as a *StatusError.
+//
+// Parameters:
+//   - ctx: cancellation and deadline for the requests.
+//   - reqURL: the JSON list's URL.
+//
+// Returns:
+//   - *http.Response: the response, whose body the caller closes.
+//   - payloadType: the format of the response.
+//   - error: the error from building or sending a request, or the XML list's status error.
 func (s *Client) fetchServerListResponse(
 	ctx context.Context,
 	reqURL *url.URL,
@@ -390,6 +452,14 @@ func (s *Client) fetchServerListResponse(
 }
 
 // decodeServerList decodes the server list from the HTTP response based on payload type.
+//
+// Parameters:
+//   - resp: the response to read.
+//   - pType: the format of the response.
+//
+// Returns:
+//   - Servers: the decoded servers.
+//   - error: the decode error, or errPayloadDecode for an unknown format.
 func (s *Client) decodeServerList(resp *http.Response, pType payloadType) (Servers, error) {
 	var servers Servers
 
@@ -519,6 +589,16 @@ func sortByDistance(servers Servers, location *Location) {
 	})
 }
 
+// distance returns the great-circle distance between two points with the haversine formula.
+//
+// Parameters:
+//   - lat1: the first point's latitude in degrees.
+//   - lon1: the first point's longitude in degrees.
+//   - lat2: the second point's latitude in degrees.
+//   - lon2: the second point's longitude in degrees.
+//
+// Returns:
+//   - float64: the distance in kilometres.
 func distance(lat1, lon1, lat2, lon2 float64) float64 {
 	radius := 6378.137
 
@@ -550,6 +630,13 @@ func distance(lat1, lon1, lat2, lon2 float64) float64 {
 
 // FindServer finds server by serverID in given server list.
 // If the id is not found in the given list, return the server with the lowest latency.
+//
+// Parameters:
+//   - serverID: the IDs to find, or empty for the lowest latency server.
+//
+// Returns:
+//   - Servers: the servers found, in the order of serverID.
+//   - error: [ErrServerNotFound] when the list is empty.
 func (servers Servers) FindServer(serverID []int) (Servers, error) {
 	retServer := Servers{}
 
@@ -593,6 +680,9 @@ func (servers Servers) FindServer(serverID []int) (Servers, error) {
 }
 
 // String representation of ServerList.
+//
+// Returns:
+//   - string: each server's [Server.String] line, joined.
 func (servers ServerList) String() string {
 	slr := ""
 
@@ -607,6 +697,9 @@ func (servers ServerList) String() string {
 }
 
 // String representation of Servers.
+//
+// Returns:
+//   - string: each server's [Server.String] line, joined.
 func (servers Servers) String() string {
 	slr := ""
 
@@ -621,6 +714,10 @@ func (servers Servers) String() string {
 }
 
 // String representation of Server.
+//
+// Returns:
+//   - string: the server's ID, distance, city, country, and sponsor, such as
+//     "[1001] 6.95km Tokyo (Japan) by Example Networks".
 func (s *Server) String() string {
 	if s == nil {
 		return "<nil server>"

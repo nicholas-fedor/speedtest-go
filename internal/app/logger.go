@@ -17,6 +17,7 @@ type debugLogger struct {
 	logger *slog.Logger
 }
 
+// Compile-time check that [debugLogger] is a [speedtest.Logger].
 var _ speedtest.Logger = debugLogger{}
 
 // newDebugLogger returns a logger that writes debug messages as text.

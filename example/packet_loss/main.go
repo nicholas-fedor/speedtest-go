@@ -15,8 +15,11 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
 
+// packetSendingInterval is the time between the packets the analyzer sends, shorter than the default.
 const packetSendingInterval = 100 * time.Millisecond
 
+// main measures the packet loss to each available server, then to all of them together.
+//
 // Note: The current packet loss analyzer does not support udp over http.
 // This means we cannot get packet loss through a proxy.
 func main() {
@@ -71,6 +74,10 @@ func main() {
 	_, _ = fmt.Fprintf(os.Stdout, "Mixed packets lossed: %s\n", mixed)
 }
 
+// checkError ends the program with err when it is not nil.
+//
+// Parameters:
+//   - err: the error to check.
 func checkError(err error) {
 	if err != nil {
 		log.Fatal(err)

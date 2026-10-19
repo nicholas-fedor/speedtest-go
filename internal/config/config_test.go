@@ -28,6 +28,8 @@ func snapshotLogger(t *testing.T) {
 	})
 }
 
+// TestSetupSavingModeEnablesUnixOutput checks that saving mode turns on plain line output when no JSON output is set.
+//
 //nolint:paralleltest // Setup mutates global logger
 func TestSetupSavingModeEnablesUnixOutput(t *testing.T) {
 	snapshotLogger(t)
@@ -48,6 +50,9 @@ func TestSetupSavingModeEnablesUnixOutput(t *testing.T) {
 	)
 }
 
+// TestSetupDoesNotOverrideExplicitUnixOutput checks that saving mode leaves plain line output off when JSON output is
+// set.
+//
 //nolint:paralleltest // Setup mutates global logger
 func TestSetupDoesNotOverrideExplicitUnixOutput(t *testing.T) {
 	snapshotLogger(t)
@@ -63,6 +68,8 @@ func TestSetupDoesNotOverrideExplicitUnixOutput(t *testing.T) {
 	assert.False(t, result.UnixOutput, "Setup should not override explicit JSONOutput")
 }
 
+// TestSetupDoesNotMutateWhenSavingModeInactive checks that Setup turns on no output setting when saving mode is off,
+// and leaves the caller's Config unchanged.
 func TestSetupDoesNotMutateWhenSavingModeInactive(t *testing.T) {
 	t.Parallel()
 
@@ -83,6 +90,9 @@ func TestSetupDoesNotMutateWhenSavingModeInactive(t *testing.T) {
 	assert.False(t, cfg.UnixOutput, "Setup should not mutate the caller's Config value")
 }
 
+// TestSetupDoesNotSuppressLogInPlainMode checks that the standard logger keeps writing when no machine-readable output
+// is set.
+//
 //nolint:paralleltest // mutates global logger
 func TestSetupDoesNotSuppressLogInPlainMode(t *testing.T) {
 	snapshotLogger(t)
@@ -106,6 +116,8 @@ func TestSetupDoesNotSuppressLogInPlainMode(t *testing.T) {
 	)
 }
 
+// TestSetupSuppressesLogInJSONMode checks that JSON output silences the standard logger.
+//
 //nolint:paralleltest // mutates global logger
 func TestSetupSuppressesLogInJSONMode(t *testing.T) {
 	snapshotLogger(t)
@@ -129,6 +141,8 @@ func TestSetupSuppressesLogInJSONMode(t *testing.T) {
 	)
 }
 
+// TestSetupSuppressesLogInJSONLMode checks that JSON lines output silences the standard logger.
+//
 //nolint:paralleltest // mutates global logger
 func TestSetupSuppressesLogInJSONLMode(t *testing.T) {
 	snapshotLogger(t)
@@ -152,6 +166,8 @@ func TestSetupSuppressesLogInJSONLMode(t *testing.T) {
 	)
 }
 
+// TestSetupSuppressesLogInUnixMode checks that plain line output silences the standard logger.
+//
 //nolint:paralleltest // mutates global logger
 func TestSetupSuppressesLogInUnixMode(t *testing.T) {
 	snapshotLogger(t)
@@ -175,6 +191,9 @@ func TestSetupSuppressesLogInUnixMode(t *testing.T) {
 	)
 }
 
+// TestSetupSuppressesLogWhenSavingModeEnablesUnixOutput checks that the plain line output that saving mode turns on
+// also silences the standard logger.
+//
 //nolint:paralleltest // mutates global logger
 func TestSetupSuppressesLogWhenSavingModeEnablesUnixOutput(t *testing.T) {
 	snapshotLogger(t)

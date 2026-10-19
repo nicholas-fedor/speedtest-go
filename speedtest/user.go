@@ -11,6 +11,7 @@ import (
 	"net/http"
 )
 
+// Errors for user information lookups.
 var (
 	// ErrInstanceNil is returned when the speedtest instance is nil.
 	ErrInstanceNil = errors.New("speedtest instance is nil")
@@ -20,9 +21,13 @@ var (
 
 // User represents information determined about the caller by speedtest.net.
 type User struct {
-	IP  string `json:"ip"  xml:"ip,attr"`
+	// IP is the caller's public IP address.
+	IP string `json:"ip" xml:"ip,attr"`
+	// Lat is the caller's latitude in degrees, as text.
 	Lat string `json:"lat" xml:"lat,attr"`
+	// Lon is the caller's longitude in degrees, as text.
 	Lon string `json:"lon" xml:"lon,attr"`
+	// Isp is the name of the caller's internet service provider.
 	Isp string `json:"isp" xml:"isp,attr"`
 	// Country is the caller's ISO 3166-1 alpha-2 country code, as speedtest.net reports it.
 	Country string `json:"country" xml:"country,attr"`
@@ -30,6 +35,7 @@ type User struct {
 
 // Users for decode xml.
 type Users struct {
+	// Users are the client entries of the response.
 	Users []User `xml:"client"`
 }
 
@@ -93,6 +99,9 @@ func (s *Client) FetchUserInfo(ctx context.Context) (*User, error) {
 }
 
 // String representation of User.
+//
+// Returns:
+//   - string: the IP address, ISP, and coordinates, such as "203.0.113.7 (Example ISP) [35.6812, 139.7671] ".
 func (u *User) String() string {
 	extInfo := ""
 

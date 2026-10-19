@@ -12,6 +12,7 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
 
+// main measures the latency, download rate, and upload rate of the lowest latency server.
 func main() {
 	// Options configure the client to choose servers near a city label or coordinates, or to send from an IP address
 	// or network interface.
@@ -58,6 +59,10 @@ func main() {
 	}
 }
 
+// checkError panics with err when it is not nil.
+//
+// Parameters:
+//   - err: the error to check.
 func checkError(err error) {
 	if err != nil {
 		panic(err)

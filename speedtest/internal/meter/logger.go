@@ -37,6 +37,7 @@ const (
 	logKeyWorkers = "workers"
 )
 
+// Compile-time check that [noopLogger] is a [Logger].
 var _ Logger = noopLogger{}
 
 // Debug discards the message.

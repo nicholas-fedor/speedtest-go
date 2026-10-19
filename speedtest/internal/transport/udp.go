@@ -14,20 +14,36 @@ import (
 	"strings"
 )
 
+// loss is "LOSS", the command word that starts every packet-loss datagram.
 var loss = []byte{0x4c, 0x4f, 0x53, 0x53}
 
 // PacketLossSender handles UDP packet loss testing.
 type PacketLossSender struct {
-	conn          net.Conn // UDP Conn
-	dialer        *net.Dialer
-	ID            string // UUID
-	host          string
-	raw           []byte
-	nounce        int64 // Random int (maybe) [0,10000000000)
-	withTimestamp bool  // With timestamp (ten seconds level)
+	// conn is the UDP connection to the server, or nil when not connected.
+	conn net.Conn
+	// dialer opens the connection.
+	dialer *net.Dialer
+	// ID is the client's UUID in upper case, under which the server counts the datagrams.
+	ID string
+	// host is the server's host:port.
+	host string
+	// raw is the datagram template, "LOSS <nonce> # <uuid>", whose # each datagram replaces with its index.
+	raw []byte
+	// nounce is a random number from 0 to 9999999999 that every datagram of the sender carries.
+	nounce int64
+	// withTimestamp marks datagrams that carry a timestamp. It is always false, because the sender sends none.
+	withTimestamp bool
 }
 
 // NewPacketLossSender creates a new UDP packet loss sender.
+//
+// Parameters:
+//   - uuid: the UUID the TCP client registered with INITPLOSS.
+//   - dialer: opens the connection. A nil dialer makes [PacketLossSender.Connect] fail with [ErrNilDialer].
+//
+// Returns:
+//   - *PacketLossSender: the sender, with no connection.
+//   - error: the error from generating the nonce.
 func NewPacketLossSender(uuid string, dialer *net.Dialer) (*PacketLossSender, error) {
 	maxValue := int64(10000000000)
 	b := big.NewInt(maxValue)
@@ -94,6 +110,12 @@ func (ps *PacketLossSender) Close() error {
 }
 
 // Send sends a packet with the specified order value.
+//
+// Parameters:
+//   - order: the datagram's index.
+//
+// Returns:
+//   - error: [ErrEmptyConn] when not connected, or the write error.
 func (ps *PacketLossSender) Send(order int) error {
 	if ps.conn == nil {
 		return ErrEmptyConn
@@ -109,6 +131,11 @@ func (ps *PacketLossSender) Send(order int) error {
 	return nil
 }
 
+// generateUUID returns a random version 4 UUID.
+//
+// Returns:
+//   - string: the UUID in its hyphenated lower-case form.
+//   - error: the error from reading random bytes.
 func generateUUID() (string, error) {
 	randUUID := make([]byte, 16)
 

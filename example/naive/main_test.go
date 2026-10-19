@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// Test_checkError checks that checkError panics only for an error that is not nil.
 func Test_checkError(t *testing.T) {
 	t.Parallel()
 

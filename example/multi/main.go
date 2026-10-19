@@ -13,6 +13,7 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/speedtest"
 )
 
+// main measures the download and upload rates across the lowest latency server and the other servers at once.
 func main() {
 	speedtestClient, err := speedtest.New()
 	checkError(err)
@@ -37,6 +38,10 @@ func main() {
 	}
 }
 
+// checkError ends the program with err when it is not nil.
+//
+// Parameters:
+//   - err: the error to check.
 func checkError(err error) {
 	if err != nil {
 		log.Fatal(err)

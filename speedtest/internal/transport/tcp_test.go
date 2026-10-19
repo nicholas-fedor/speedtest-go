@@ -21,6 +21,7 @@ import (
 	"github.com/nicholas-fedor/speedtest-go/v2/internal/testserver"
 )
 
+// Test_pingFormat checks the PING command for zero, positive, and negative timestamps.
 func Test_pingFormat(t *testing.T) {
 	t.Parallel()
 
@@ -55,6 +56,7 @@ func Test_pingFormat(t *testing.T) {
 	}
 }
 
+// TestNewClient checks that a new client keeps its dialer, including a nil one, and gets an ID.
 func TestNewClient(t *testing.T) {
 	t.Parallel()
 
@@ -84,6 +86,7 @@ func TestNewClient(t *testing.T) {
 	}
 }
 
+// TestClient_ID checks that ID returns the client's UUID.
 func TestClient_ID(t *testing.T) {
 	t.Parallel()
 
@@ -115,6 +118,8 @@ func TestClient_ID(t *testing.T) {
 	}
 }
 
+// TestClient_Connect checks that Connect records the host and opens a buffered connection, and that an invalid address
+// is an error.
 func TestClient_Connect(t *testing.T) {
 	t.Parallel()
 
@@ -150,6 +155,7 @@ func TestClient_Connect(t *testing.T) {
 	})
 }
 
+// TestClient_Disconnect checks that Disconnect sends QUIT and drops the connection and its reader.
 func TestClient_Disconnect(t *testing.T) {
 	t.Parallel()
 
@@ -179,6 +185,7 @@ func TestClient_Disconnect(t *testing.T) {
 	<-done // wait for read
 }
 
+// TestClient_Write checks that Write adds the newline, and that writing without a connection returns ErrEmptyConn.
 func TestClient_Write(t *testing.T) {
 	t.Parallel()
 
@@ -219,6 +226,8 @@ func TestClient_Write(t *testing.T) {
 	})
 }
 
+// TestClient_Read checks that Read returns one line with its newline, and that reading without a connection returns
+// ErrEmptyConn.
 func TestClient_Read(t *testing.T) {
 	t.Parallel()
 
@@ -258,6 +267,8 @@ func TestClient_Read(t *testing.T) {
 	})
 }
 
+// TestClient_Version checks the cached and fetched versions, and the "unknown" version for a reply that is not HELLO or
+// carries no version.
 func TestClient_Version(t *testing.T) {
 	t.Parallel()
 
@@ -326,6 +337,7 @@ func TestClient_Version(t *testing.T) {
 	}
 }
 
+// TestClient_PingContext checks that pinging without a connection returns ErrEmptyConn.
 func TestClient_PingContext(t *testing.T) {
 	t.Parallel()
 
@@ -339,6 +351,7 @@ func TestClient_PingContext(t *testing.T) {
 	})
 }
 
+// TestClient_InitPacketLoss checks that the packet-loss setup without a connection is an error.
 func TestClient_InitPacketLoss(t *testing.T) {
 	t.Parallel()
 
@@ -351,6 +364,7 @@ func TestClient_InitPacketLoss(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// TestClient_PacketLoss checks that a PLOSS reply becomes the packet-loss counts.
 func TestClient_PacketLoss(t *testing.T) {
 	t.Parallel()
 
