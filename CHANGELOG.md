@@ -98,6 +98,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Remove the data race in the packet loss example by @nicholas-fedor in [#557](https://github.com/nicholas-fedor/speedtest-go/pull/557)
 - Drop the log timestamp from the list command's server count by @nicholas-fedor in [#551](https://github.com/nicholas-fedor/speedtest-go/pull/551)
 - Mask the isp name with --mask-isp by @nicholas-fedor in [#545](https://github.com/nicholas-fedor/speedtest-go/pull/545)
 - Fill in the host of servers looked up by ID by @nicholas-fedor in [#497](https://github.com/nicholas-fedor/speedtest-go/pull/497)
