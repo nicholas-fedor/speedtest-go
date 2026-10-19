@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Record the demo again with the v2.0.0 banner by @nicholas-fedor in [#565](https://github.com/nicholas-fedor/speedtest-go/pull/565)
+
+## [2.0.0] - 2026-10-19
+
 ### Added
 
 - Support hugo 0.146 in the section redirect template by @nicholas-fedor in [#549](https://github.com/nicholas-fedor/speedtest-go/pull/549)
@@ -1330,7 +1336,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Compare Releases
 
-- [unreleased](https://github.com/nicholas-fedor/speedtest-go/compare/v1.8.4...HEAD)
+- [unreleased](https://github.com/nicholas-fedor/speedtest-go/compare/v2.0.0...HEAD)
+- [2.0.0](https://github.com/nicholas-fedor/speedtest-go/compare/v1.8.4...v2.0.0)
 - [1.8.4](https://github.com/nicholas-fedor/speedtest-go/compare/v1.8.1...v1.8.4)
 - [1.8.1](https://github.com/nicholas-fedor/speedtest-go/compare/v1.8.0...v1.8.1)
 - [1.8.0](https://github.com/nicholas-fedor/speedtest-go/compare/v1.7.10...v1.8.0)
