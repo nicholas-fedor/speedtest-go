@@ -23,12 +23,12 @@ docker pull ghcr.io/nicholas-fedor/speedtest-go:latest
 | Tag | Image |
 | --- | --- |
 | `latest` | The newest release |
-| `1.8.4` | That release |
-| `1.8` | The newest `1.8.x` release |
-| `1` | The newest `1.x.x` release |
+| `<major>.<minor>.<patch>` | That release |
+| `<major>.<minor>` | The newest release in that minor series |
+| `<major>` | The newest release in that major series |
 | `nightly` | Built each night from the latest changes |
 
-Each tag covers every platform. To pull a single platform, put its prefix in front of the tag, such as `arm64v8-latest` or `amd64-1.8.4`:
+Each tag covers every platform. To pull a single platform, put its prefix in front of the tag, such as `arm64v8-latest` or `amd64-<major>.<minor>.<patch>`:
 
 | Platform | Prefix |
 | --- | --- |

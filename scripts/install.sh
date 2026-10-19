@@ -11,7 +11,7 @@
 #   sh "$tmp" uninstall
 #
 # Environment:
-#   VERSION   Release tag (v2.0.0 or 2.0.0). Default: latest.
+#   VERSION   Release tag (vX.Y.Z or X.Y.Z). Default: latest.
 #   PREFIX    Directory for archive installs. Default: $HOME/go/bin, or the
 #             prefix stored from a previous archive install.
 #   METHOD    auto (default), package, or archive.
@@ -408,7 +408,7 @@ Usage: install.sh [install|update|uninstall]
   uninstall          Remove the native package and/or the archive binary
 
 Environment:
-  VERSION  Release tag (v2.0.0 or 2.0.0). Default: latest.
+  VERSION  Release tag (vX.Y.Z or X.Y.Z). Default: latest.
   PREFIX   Directory for archive installs. Default: \$HOME/go/bin, or the last archive prefix.
   METHOD   auto (default), package, or archive.
 EOF
