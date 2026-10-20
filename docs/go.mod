@@ -2,6 +2,4 @@ module github.com/nicholas-fedor/speedtest-go/docs
 
 go 1.27.0
 
-toolchain go1.27.2
-
-require github.com/imfing/hextra v0.13.0 // indirect
+toolchain go1.27.3
