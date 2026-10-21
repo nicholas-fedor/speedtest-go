@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update nicholas-fedor/govulncheck-action action to v1.1.2 by @renovate[bot] in [#574](https://github.com/nicholas-fedor/speedtest-go/pull/574)
+- Update go toolchain directive to v1.27.3 by @renovate[bot] in [#571](https://github.com/nicholas-fedor/speedtest-go/pull/571)
 - Update go toolchain directive to v1.27.3 by @renovate[bot] in [#570](https://github.com/nicholas-fedor/speedtest-go/pull/570)
 - Update step-security/harden-runner action to v2.22.2 by @renovate[bot] in [#568](https://github.com/nicholas-fedor/speedtest-go/pull/568)
 
