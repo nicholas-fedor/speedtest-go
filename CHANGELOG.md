@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update github/codeql-action action to v4.39.1 by @renovate[bot] in [#575](https://github.com/nicholas-fedor/speedtest-go/pull/575)
 - Update nicholas-fedor/govulncheck-action action to v1.1.2 by @renovate[bot] in [#574](https://github.com/nicholas-fedor/speedtest-go/pull/574)
 - Update go toolchain directive to v1.27.3 by @renovate[bot] in [#571](https://github.com/nicholas-fedor/speedtest-go/pull/571)
 - Update go toolchain directive to v1.27.3 by @renovate[bot] in [#570](https://github.com/nicholas-fedor/speedtest-go/pull/570)
