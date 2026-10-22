@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update alpine:3.24.3 docker digest to b341357 by @renovate[bot] in [#579](https://github.com/nicholas-fedor/speedtest-go/pull/579)
 - Update alpine docker tag to v3.24.3 by @renovate[bot] in [#577](https://github.com/nicholas-fedor/speedtest-go/pull/577)
 - Update github/codeql-action action to v4.39.1 by @renovate[bot] in [#575](https://github.com/nicholas-fedor/speedtest-go/pull/575)
 - Update nicholas-fedor/govulncheck-action action to v1.1.2 by @renovate[bot] in [#574](https://github.com/nicholas-fedor/speedtest-go/pull/574)
