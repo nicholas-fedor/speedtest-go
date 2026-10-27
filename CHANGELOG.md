@@ -8,12 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Chores
+
+- Update step-security/harden-runner action to v2.22.3 by @renovate[bot] in [#586](https://github.com/nicholas-fedor/speedtest-go/pull/586)
+
+## [2.0.1] - 2026-10-23
+
 ### Changed
 
 - Record the demo again with the v2.0.0 banner by @nicholas-fedor in [#565](https://github.com/nicholas-fedor/speedtest-go/pull/565)
 
 ### Chores
 
+- Update docker/login-action action to v4.7.0 by @renovate[bot] in [#584](https://github.com/nicholas-fedor/speedtest-go/pull/584)
+- Update securego/gosec action to v2.30.0 by @renovate[bot] in [#583](https://github.com/nicholas-fedor/speedtest-go/pull/583)
+- Update github.com/charmbracelet/ultraviolet digest to a45b7c8 by @renovate[bot] in [#582](https://github.com/nicholas-fedor/speedtest-go/pull/582)
+- Update alpine:3.24.3 docker digest to be26560 by @renovate[bot] in [#581](https://github.com/nicholas-fedor/speedtest-go/pull/581)
 - Update alpine:3.24.3 docker digest to b341357 by @renovate[bot] in [#579](https://github.com/nicholas-fedor/speedtest-go/pull/579)
 - Update alpine docker tag to v3.24.3 by @renovate[bot] in [#577](https://github.com/nicholas-fedor/speedtest-go/pull/577)
 - Update github/codeql-action action to v4.39.1 by @renovate[bot] in [#575](https://github.com/nicholas-fedor/speedtest-go/pull/575)
@@ -1346,7 +1356,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Compare Releases
 
-- [unreleased](https://github.com/nicholas-fedor/speedtest-go/compare/v2.0.0...HEAD)
+- [unreleased](https://github.com/nicholas-fedor/speedtest-go/compare/v2.0.1...HEAD)
+- [2.0.1](https://github.com/nicholas-fedor/speedtest-go/compare/v2.0.0...v2.0.1)
 - [2.0.0](https://github.com/nicholas-fedor/speedtest-go/compare/v1.8.4...v2.0.0)
 - [1.8.4](https://github.com/nicholas-fedor/speedtest-go/compare/v1.8.1...v1.8.4)
 - [1.8.1](https://github.com/nicholas-fedor/speedtest-go/compare/v1.8.0...v1.8.1)
