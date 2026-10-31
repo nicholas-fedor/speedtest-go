@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module go.yaml.in/yaml/v4 to v4.0.0-rc.7 by @renovate[bot] in [#593](https://github.com/nicholas-fedor/speedtest-go/pull/593)
 - Update module go.yaml.in/yaml/v3 to v3.0.6 by @renovate[bot] in [#592](https://github.com/nicholas-fedor/speedtest-go/pull/592)
 - Update module github.com/xo/terminfo to v1.3.0 by @renovate[bot] in [#590](https://github.com/nicholas-fedor/speedtest-go/pull/590)
 - Update module charm.land/bubbletea/v2 to v2.1.1 by @renovate[bot] in [#588](https://github.com/nicholas-fedor/speedtest-go/pull/588)
