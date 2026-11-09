@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update step-security/harden-runner action to v2.22.4 by @renovate[bot] in [#603](https://github.com/nicholas-fedor/speedtest-go/pull/603)
+- Update sigstore/cosign-installer action to v4.1.3 by @renovate[bot] in [#600](https://github.com/nicholas-fedor/speedtest-go/pull/600)
 - Update module github.com/xo/terminfo to v1.3.1 by @renovate[bot] in [#599](https://github.com/nicholas-fedor/speedtest-go/pull/599)
 - Update alpine docker tag to v3.24.4 by @renovate[bot] in [#596](https://github.com/nicholas-fedor/speedtest-go/pull/596)
 - Update github/codeql-action action to v4.39.3 by @renovate[bot] in [#597](https://github.com/nicholas-fedor/speedtest-go/pull/597)
