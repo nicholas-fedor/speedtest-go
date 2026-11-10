@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module charm.land/lipgloss/v2 to v2.1.0 by @renovate[bot] in [#609](https://github.com/nicholas-fedor/speedtest-go/pull/609)
+- Update module golang.org/x/sync to v0.25.0 by @renovate[bot] in [#608](https://github.com/nicholas-fedor/speedtest-go/pull/608)
+- Update peter-evans/create-pull-request action to v8.1.2 by @renovate[bot] in [#606](https://github.com/nicholas-fedor/speedtest-go/pull/606)
+- Update docker/login-action action to v4.8.0 by @renovate[bot] in [#607](https://github.com/nicholas-fedor/speedtest-go/pull/607)
+- Update module go.yaml.in/yaml/v4 to v4.0.0 by @renovate[bot] in [#604](https://github.com/nicholas-fedor/speedtest-go/pull/604)
 - Update step-security/harden-runner action to v2.22.4 by @renovate[bot] in [#603](https://github.com/nicholas-fedor/speedtest-go/pull/603)
 - Update sigstore/cosign-installer action to v4.1.3 by @renovate[bot] in [#600](https://github.com/nicholas-fedor/speedtest-go/pull/600)
 - Update module github.com/xo/terminfo to v1.3.1 by @renovate[bot] in [#599](https://github.com/nicholas-fedor/speedtest-go/pull/599)
