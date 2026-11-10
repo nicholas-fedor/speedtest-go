@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module golang.org/x/sys to v0.50.0 by @renovate[bot] in [#611](https://github.com/nicholas-fedor/speedtest-go/pull/611)
+- Update module github.com/spf13/pflag to v1.1.0 by @renovate[bot] in [#610](https://github.com/nicholas-fedor/speedtest-go/pull/610)
 - Update module charm.land/lipgloss/v2 to v2.1.0 by @renovate[bot] in [#609](https://github.com/nicholas-fedor/speedtest-go/pull/609)
 - Update module golang.org/x/sync to v0.25.0 by @renovate[bot] in [#608](https://github.com/nicholas-fedor/speedtest-go/pull/608)
 - Update peter-evans/create-pull-request action to v8.1.2 by @renovate[bot] in [#606](https://github.com/nicholas-fedor/speedtest-go/pull/606)
