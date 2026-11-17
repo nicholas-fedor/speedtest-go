@@ -135,14 +135,15 @@ Version metadata is stamped at build time by GoReleaser, and comes from Go's bui
     ```
 
 2. Merge the pull request.
-3. Tag the merge and push the tag:
+3. Pull the merge into `master` and run the task for the kind of release, such as a patch release:
 
     ```bash
     git checkout master
     git pull origin master
-    git tag vX.Y.Z
-    git push origin vX.Y.Z
+    task tag:bump-patch
     ```
+
+    `task tag:bump-minor` and `task tag:bump-major` tag minor and major releases. The task fetches `origin` first. It refuses unless `master` is clean and matches `origin/master`. It also refuses when `master` already has a release tag. It asks you to confirm the next `vX.Y.Z` before it pushes the annotated tag.
 
 Pushing the tag starts the release workflow, which builds and publishes the archives, packages, and images.
 
