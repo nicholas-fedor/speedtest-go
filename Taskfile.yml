@@ -209,6 +209,62 @@ tasks:
     cmds:
       - goreleaser release --snapshot --clean --skip=sign --config {{.GORELEASER_CONFIG}}
 
+  tag:bump-major:
+    desc: "Tag the next major release on master, vX.0.0, and push it to origin"
+    cmds:
+      - task: tag:release
+        vars: { PART: major }
+
+  tag:bump-minor:
+    desc: "Tag the next minor release on master, vX.Y.0, and push it to origin"
+    cmds:
+      - task: tag:release
+        vars: { PART: minor }
+
+  tag:bump-patch:
+    desc: "Tag the next patch release on master, vX.Y.Z, and push it to origin"
+    cmds:
+      - task: tag:release
+        vars: { PART: patch }
+
+  tag:release:
+    internal: true
+    # The fetch runs before the preconditions, so they compare HEAD with the
+    # current origin/master. Only vX.Y.Z tags count as releases, so the next
+    # version skips pre-release tags such as v2.1.0-rc.1.
+    # The pushed tag starts the release-stable workflow.
+    requires:
+      vars:
+        - name: PART
+          enum: [major, minor, patch]
+    vars:
+      RELEASE_TAG: '^v[0-9]+\.[0-9]+\.[0-9]+$'
+      LATEST:
+        sh: |
+          git fetch --quiet --tags origin master
+          git tag --list 'v*' | grep -E '{{.RELEASE_TAG}}' | sort -V | tail -n 1
+      NEXT:
+        sh: |
+          echo "{{.LATEST | default "v0.0.0"}}" | awk -F. -v part={{.PART}} '{
+            major = substr($1, 2); minor = $2; patch = $3
+            if (part == "major") { major++; minor = 0; patch = 0 }
+            if (part == "minor") { minor++; patch = 0 }
+            if (part == "patch") { patch++ }
+            printf "v%d.%d.%d\n", major, minor, patch }'
+    preconditions:
+      - sh: '[ "$(git branch --show-current)" = master ]'
+        msg: "Releases are tagged on master"
+      - sh: '[ -z "$(git status --porcelain)" ]'
+        msg: "Commit or stash the changes in the working tree first"
+      - sh: '[ "$(git rev-parse HEAD)" = "$(git rev-parse origin/master)" ]'
+        msg: "master must match origin/master, so pull or push first"
+      - sh: '[ -z "$(git tag --points-at HEAD | grep -E "{{.RELEASE_TAG}}")" ]'
+        msg: "HEAD already has a release tag"
+    prompt: "Tag {{.NEXT}} after {{.LATEST | default \"no release\"}} and push it to origin?"
+    cmds:
+      - git tag {{.NEXT}} -m "Release {{.NEXT}}"
+      - git push origin {{.NEXT}}
+
   check:
     desc: "Run fmt, vet, modernize, test, lint, then vuln"
     cmds:
