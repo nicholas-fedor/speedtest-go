@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module github.com/charmbracelet/x/ansi to v0.11.10 by @renovate[bot] in [#631](https://github.com/nicholas-fedor/speedtest-go/pull/631)
 - Update module charm.land/bubbletea/v2 to v2.1.2 by @renovate[bot] in [#629](https://github.com/nicholas-fedor/speedtest-go/pull/629)
 - Update step-security/harden-runner action to v2.23.0 by @renovate[bot] in [#627](https://github.com/nicholas-fedor/speedtest-go/pull/627)
 
