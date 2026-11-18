@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update step-security/harden-runner action to v2.23.0 by @renovate[bot] in [#627](https://github.com/nicholas-fedor/speedtest-go/pull/627)
+
+## [2.0.2] - 2026-11-17
+
+### Chores
+
 - Add tasks that tag the next release by @nicholas-fedor in [#624](https://github.com/nicholas-fedor/speedtest-go/pull/624)
 - Update actions/setup-go action to v7.1.0 by @renovate[bot] in [#622](https://github.com/nicholas-fedor/speedtest-go/pull/622)
 - Update module charm.land/lipgloss/v2 to v2.1.1 by @renovate[bot] in [#620](https://github.com/nicholas-fedor/speedtest-go/pull/620)
@@ -1378,7 +1384,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Compare Releases
 
-- [unreleased](https://github.com/nicholas-fedor/speedtest-go/compare/v2.0.1...HEAD)
+- [unreleased](https://github.com/nicholas-fedor/speedtest-go/compare/v2.0.2...HEAD)
+- [2.0.2](https://github.com/nicholas-fedor/speedtest-go/compare/v2.0.1...v2.0.2)
 - [2.0.1](https://github.com/nicholas-fedor/speedtest-go/compare/v2.0.0...v2.0.1)
 - [2.0.0](https://github.com/nicholas-fedor/speedtest-go/compare/v1.8.4...v2.0.0)
 - [1.8.4](https://github.com/nicholas-fedor/speedtest-go/compare/v1.8.1...v1.8.4)
