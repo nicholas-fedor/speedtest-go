@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Chores
 
+- Update module charm.land/bubbles/v2 to v2.2.2 by @renovate[bot] in [#639](https://github.com/nicholas-fedor/speedtest-go/pull/639)
+- Update github/codeql-action action to v4.39.4 by @renovate[bot] in [#638](https://github.com/nicholas-fedor/speedtest-go/pull/638)
 - Update github.com/charmbracelet/ultraviolet digest to 8ecbcf0 by @renovate[bot] in [#636](https://github.com/nicholas-fedor/speedtest-go/pull/636)
 - Update ossf/scorecard-action action to v2.6.0 by @renovate[bot] in [#634](https://github.com/nicholas-fedor/speedtest-go/pull/634)
 - Update github.com/charmbracelet/ultraviolet digest to f0c8309 by @renovate[bot] in [#633](https://github.com/nicholas-fedor/speedtest-go/pull/633)
